@@ -1,0 +1,9 @@
+node_modules/
+native/target/
+runtime/
+qa/
+*.cardproj
+*.tmp
+native-ai/.venv*/
+native-ai/models/
+native-ai/__pycache__/

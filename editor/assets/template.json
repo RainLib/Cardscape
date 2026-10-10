@@ -1,0 +1,76 @@
+{
+  "schema": "card-atelier/1",
+  "name": "破隘旗官",
+  "width": 1024,
+  "height": 1536,
+  "revision": 0,
+  "back": "assets/01-card-back.png",
+  "masks": {
+    "motion": "assets/mask-motion.png",
+    "inset": "assets/mask-inset.png",
+    "emission": "assets/mask-emission.png",
+    "phase": "assets/mask-phase.png",
+    "rigid": "assets/mask-rigid.png",
+    "coverage": "assets/mask-coverage.png"
+  },
+  "meshGuides": [],
+  "effects": {
+    "depth": 1,
+    "background": 1,
+    "cape": true,
+    "flow": true,
+    "capeLayout": 0,
+    "paused": false,
+    "frame": true
+  },
+  "layers": [
+    {
+      "id": "title",
+      "name": "角色标题",
+      "kind": "text",
+      "text": "破隘旗官",
+      "x": 0,
+      "y": 0,
+      "scale": 1,
+      "opacity": 1,
+      "visible": true,
+      "locked": false
+    },
+    {
+      "id": "frame",
+      "name": "立体边框",
+      "kind": "frame",
+      "x": 0,
+      "y": 0,
+      "scale": 1,
+      "opacity": 1,
+      "visible": true,
+      "locked": true
+    },
+    {
+      "id": "foreground",
+      "name": "人物 / 完整披风 / 战锤",
+      "kind": "foreground",
+      "src": "assets/foreground.png",
+      "master": "assets/04-card-front-full-bleed.png",
+      "x": 0,
+      "y": 0,
+      "scale": 1,
+      "opacity": 1,
+      "visible": true,
+      "locked": false
+    },
+    {
+      "id": "background",
+      "name": "峡谷背景",
+      "kind": "background",
+      "src": "assets/00-background.png",
+      "x": 0,
+      "y": 0,
+      "scale": 1,
+      "opacity": 1,
+      "visible": true,
+      "locked": false
+    }
+  ]
+}

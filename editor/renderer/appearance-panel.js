@@ -1,0 +1,32 @@
+(() => {
+'use strict';
+const $=id=>document.getElementById(id),host=window.cardEditorHost,title=window.CardTitle;
+let state=null,chosen=null,thumbnailSource='';
+async function thumbnail(src){thumbnailSource=src;try{const image=await host.cacheTitle(src);if(thumbnailSource!==src)return;const raw=document.createElement('canvas');raw.width=image.naturalWidth;raw.height=image.naturalHeight;const rc=raw.getContext('2d',{willReadFrequently:true});rc.drawImage(image,0,0);const data=rc.getImageData(0,0,raw.width,raw.height).data;let x0=raw.width,y0=raw.height,x1=0,y1=0;for(let y=0;y<raw.height;y++)for(let x=0;x<raw.width;x++)if(data[(y*raw.width+x)*4+3]>10){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x+1);y1=Math.max(y1,y+1);}const c=$('title-art-thumbnail'),cc=c.getContext('2d');cc.clearRect(0,0,c.width,c.height);if(x1<=x0||y1<=y0)return;const w=x1-x0,h=y1-y0,s=Math.min((c.width-12)/w,(c.height-12)/h);cc.drawImage(raw,x0,y0,w,h,(c.width-w*s)/2,(c.height-h*s)/2,w*s,h*s);}catch(e){host.say(e.message);}}
+const keys=['enabled','strength','duration','period','width','color'];
+const target=()=>state?.document.layers.find(l=>l.id===chosen);
+function refresh(next){state=next;if(!next.document)return;const d=next.document,items=d.layers.filter(l=>l.kind==='text'&&!window.CardStats.isStat(l));if(!items.some(l=>l.id===chosen))chosen=items.find(l=>l.titleArt)?.id||items.find(l=>l.id==='title')?.id||items[0]?.id;
+ const select=$('title-layer');if(JSON.stringify([...select.options].map(o=>[o.value,o.text]))!==JSON.stringify(items.map(l=>[l.id,l.name])))select.replaceChildren(...items.map(l=>new Option(l.name,l.id)));select.value=chosen||'';
+ const locales=[...new Set(['zh-CN','en',d.locale,...items.flatMap(l=>l.titleArt?.variants.map(v=>v.locale)||[])])],localeSelect=$('card-locale');if(JSON.stringify([...localeSelect.options].map(o=>o.value))!==JSON.stringify(locales))localeSelect.replaceChildren(...locales.map(l=>new Option(l==='zh-CN'?'中文':l==='en'?'English':l,l)));localeSelect.value=d.locale;localeSelect.disabled=next.busy;
+ const l=target(),variant=l?title.resolve(l,d.locale):null,blocked=next.busy||!l||l.locked;
+ if(document.activeElement!==$('title-locale'))$('title-locale').value=d.locale;
+ if(document.activeElement!==$('title-variant-text'))$('title-variant-text').value=variant?.text||'';
+ $('title-variant-status').textContent=!l?'先创建一个普通文字图层':!l.titleArt?'先建立多语言字标':`${variant.locale} · ${variant.src?'图片字标':'可编辑文字 → 共用栅格'}${variant.fallback?' · 缺失语言，使用回退版本':''} · ${l.titleArt.variants.length} 个语言版本`;
+ $('title-art-thumbnail').hidden=!variant?.src;if(variant?.src&&thumbnailSource!==variant.src)thumbnail(variant.src);
+ for(const key of keys){for(const [prefix,value,disabled] of [['armor-',d.armor,next.busy],['title-sweep-',variant?.sweep||title.sweep,blocked||!l?.titleArt]]){const el=$(prefix+key);if(document.activeElement!==el){if(key==='enabled')el.checked=value[key];else el.value=value[key];}el.disabled=disabled;}}
+ for(const id of ['title-enable','title-variant-save','title-import','title-variant-text','title-locale'])$(id).disabled=blocked;$('title-use-text').disabled=blocked||!variant?.src;$('title-enable').hidden=!!l?.titleArt;$('armor-mask-open').disabled=next.busy;
+}
+function change(label,fn){try{if(host.mutate(label,(doc)=>{fn(doc);doc.previewMode='authored';}))$('appearance-status').textContent=label+' · 实时预览 / 可撤销';}catch(e){host.say(e.message);$('appearance-status').textContent=e.message;}refresh(host.state());}
+function editTitle(doc){const l=doc.layers.find(l=>l.id===chosen);if(!l||l.locked)throw Error('请选择未锁定的普通文字图层');return l;}
+function field(prefix,key){const el=$(prefix+key);if(key==='enabled')return el.checked;if(key==='color')return el.value;if(el.value===''||!el.validity.valid)throw Error('请输入有效的扫光参数');return Number(el.value);}
+for(const key of keys){$('armor-'+key).onchange=()=>change('调整盔甲反光',d=>d.armor={...d.armor,[key]:field('armor-',key)});$('title-sweep-'+key).onchange=()=>change('调整字标扫光',d=>{const l=editTitle(d);if(!l.titleArt)throw Error('先建立多语言字标');l.titleArt={...l.titleArt,sweep:{...title.sweep,...l.titleArt.sweep,[key]:field('title-sweep-',key)}};});}
+$('card-locale').onchange=()=>change('切换卡片语言',d=>d.locale=$('card-locale').value);
+$('title-layer').onchange=()=>{chosen=$('title-layer').value;refresh(host.state());};
+$('title-enable').onclick=()=>change('建立多语言英雄字标',d=>{const l=editTitle(d);title.upsert(l,{locale:d.locale,text:l.text||'',style:{...l.textStyle}});});
+$('title-variant-save').onclick=()=>change('保存语言字标',d=>{const l=editTitle(d),locale=$('title-locale').value.trim();if(!title.localeOK(locale))throw Error('语言代码格式例如 zh-CN、en、ja');const existing=l.titleArt?.variants.find(v=>v.locale===locale);title.upsert(l,{locale,text:$('title-variant-text').value,...(existing?.src?{src:existing.src}:{}),style:{...existing?.style,...title.resolve(l,d.locale).style}});d.locale=locale;});
+$('armor-mask-open').onclick=()=>{host.chooseMask('foil');document.body.classList.remove('dock-collapsed','panels-hidden');window.atelierWorkspace.panel('masks');window.atelierWorkspace.syncLayout();};
+$('title-use-text').onclick=()=>change('切回可编辑语言文字',d=>{const l=editTitle(d),v=title.resolve(l,d.locale);title.upsert(l,{locale:d.locale,text:v.text,src:undefined,style:v.style});});
+$('title-import').onclick=()=>$('title-image-file').click();
+$('title-image-file').onchange=async()=>{const file=$('title-image-file').files[0];$('title-image-file').value='';if(!file)return;const binding={token:state.documentToken,revision:state.revision,id:chosen,locale:$('title-locale').value.trim(),text:$('title-variant-text').value};try{if(file.type!=='image/png'||file.size>16*1024*1024)throw Error('请选择 16 MB 内的透明 PNG');if(!title.localeOK(binding.locale))throw Error('请输入有效语言代码');const source=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file);}),processed=await host.invoke('process',{op:'title_raster',args:{image:source}}),src=processed.image;await host.cacheTitle(src);const current=host.state();if(current.documentToken!==binding.token||current.revision!==binding.revision||chosen!==binding.id)throw Error('工程或字标已变化，请重新导入');change('导入语言图片字标',d=>{title.upsert(editTitle(d),{locale:binding.locale,text:binding.text,src});d.locale=binding.locale;});}catch(e){host.say(e.message);$('appearance-status').textContent=e.message;}};
+window.atelierAppearance={refresh};refresh(host.state());
+})();

@@ -1,0 +1,25 @@
+const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
+const EFFORTS=['none','minimal','low','medium','high','xhigh','max','ultra'];
+function model(value=''){if(typeof value!=='string'||(value&&!/^[a-zA-Z0-9_./:-]{1,100}$/.test(value)))throw Error('模型名称无效');return value;}
+function effort(value=''){if(typeof value!=='string'||(value&&!EFFORTS.includes(value)))throw Error('推理程度无效');return value;}
+function argv(value){if(!Array.isArray(value)||value.length>64||value.some(a=>typeof a!=='string'||a.length>2000))throw Error('Agent 参数无效：必须为 JSON 字符串数组');return value;}
+function profile(c,id){if(!c||typeof c.name!=='string'||!c.name.trim()||c.name.length>100||typeof c.executable!=='string'||!c.executable||c.executable.length>1000)throw Error('外部 Agent 配置无效');if(!/^[a-zA-Z0-9_-]{1,80}$/.test(id)||['codex','handoff'].includes(id))throw Error('Agent ID 无效');return {id,name:c.name.trim(),executable:c.executable,args:argv(c.args||['{contract}']),chatArgs:c.chatArgs?argv(c.chatArgs):null,model:model(c.model||''),reasoning:effort(c.reasoning||''),requiresLogin:c.requiresLogin!==false,statusArgs:c.statusArgs?argv(c.statusArgs):null,loginArgs:c.loginArgs?argv(c.loginArgs):null,updateArgs:c.updateArgs?argv(c.updateArgs):null,statusSuccessText:typeof c.statusSuccessText==='string'?c.statusSuccessText.slice(0,200):'',models:(Array.isArray(c.models)?c.models:[]).slice(0,50).map(m=>model(m))};}
+function normalize(c={}){
+ if(typeof (c.codexExecutable||'codex')!=='string'||String(c.codexExecutable||'codex').length>1000)throw Error('Codex 路径无效');
+ if(c.profiles&&!Array.isArray(c.profiles))throw Error('Agent 列表无效');
+ const profiles=(c.profiles||[]).map(p=>profile(p,p.id));if(c.custom&&!profiles.some(p=>p.id==='custom'))profiles.unshift(profile(c.custom,'custom'));
+ if(profiles.length>20||new Set(profiles.map(p=>p.id)).size!==profiles.length)throw Error('最多 20 个外部 Agent，ID 不能重复');
+ return {codexExecutable:c.codexExecutable||'codex',codexModel:model(c.codexModel||''),codexReasoning:effort(c.codexReasoning||''),profiles,custom:profiles.find(p=>p.id==='custom')||null};
+}
+async function catalog(extra=[]){
+ try{const file=path.join(process.env.CODEX_HOME||path.join(os.homedir(),'.codex'),'models_cache.json');if((await fs.stat(file)).size>8*1024*1024)return [];const data=JSON.parse(await fs.readFile(file,'utf8'));return (data.models||[]).filter(m=>m.visibility==='list'||extra.includes(m.slug)).map(m=>({id:model(m.slug),name:String(m.display_name||m.slug).slice(0,100),defaultReasoning:EFFORTS.includes(m.default_reasoning_level)?m.default_reasoning_level:'',efforts:(m.supported_reasoning_levels||[]).map(x=>x.effort).filter(e=>EFFORTS.includes(e))}));}catch{return [];}
+}
+// Read only the CLI's model/effort/profile scalars. Never return provider keys,
+// URLs, credentials or the full config to the renderer.
+function parseDefaults(toml){const sections=new Map([['',{}]]);let section='';for(const line of toml.split(/\r?\n/)){const h=line.match(/^\s*\[([^\]]+)\]\s*(?:#.*)?$/);if(h){section=h[1].replace(/"([^"\\]+)"|'([^']+)'/g,(_,a,b)=>a||b);if(!sections.has(section))sections.set(section,{});continue;}const m=line.match(/^\s*(model|model_reasoning_effort|profile)\s*=\s*("(?:[^"\\]|\\.)*"|'[^']*')\s*(?:#.*)?$/);if(m){try{sections.get(section)[m[1]]=m[2][0]==='"'?JSON.parse(m[2]):m[2].slice(1,-1);}catch{}}}const root=sections.get(''),selected={...root,...(root.profile?sections.get('profiles.'+root.profile):{})};return {model:model(selected.model||''),reasoning:effort(selected.model_reasoning_effort||''),profile:root.profile||''};}
+async function cliDefaults(){const file=path.join(process.env.CODEX_HOME||path.join(os.homedir(),'.codex'),'config.toml');try{if((await fs.stat(file)).size>1024*1024)throw Error('CLI 配置过大');const values=parseDefaults(await fs.readFile(file,'utf8'));if(!values.reasoning&&values.model)values.reasoning=(await catalog([values.model])).find(m=>m.id===values.model)?.defaultReasoning||'';return {...values,source:'Codex CLI config.toml'};}catch(e){return {model:'',reasoning:'',profile:'',source:e.code==='ENOENT'?'CLI 内置默认':'无法读取 CLI 默认'};}}
+function agents(cfg,available=true){return [{id:'codex',name:'Codex CLI',available,chat:true,model:cfg.codexModel,reasoning:cfg.codexReasoning},...cfg.profiles.map(p=>({id:p.id,name:p.name,available:true,chat:!!p.chatArgs,model:p.model,reasoning:p.reasoning,models:p.models})),{id:'handoff',name:'文件交接 · 任意外部 Agent',available:true,chat:false,model:'',reasoning:''}];}
+function options(cfg,args={}){const adapter=args.adapter||'codex',a=agents(cfg).find(p=>p.id===adapter);if(!a)throw Error('不支持的 Agent');return {adapter,model:model(args.model||a.model),reasoning:effort(args.reasoning||a.reasoning)};}
+function codexArgs(o){return [...(o.model?['--model',o.model]:[]),...(o.reasoning?['-c','model_reasoning_effort='+JSON.stringify(o.reasoning)]:[])];}
+function customArgs(args,values){return args.map(arg=>arg.replace(/\{(jobDir|contract|prompt|result|model|reasoning|sessionId)\}/g,(_,key)=>values[key]||''));}
+module.exports={EFFORTS,normalize,catalog,cliDefaults,parseDefaults,agents,options,codexArgs,customArgs};

@@ -1,0 +1,2 @@
+const test=require('node:test'),assert=require('node:assert/strict'),{locks}=require('../renderer/mesh-rigidity.js');
+test('a thin weapon between vertices protects both touching triangles, leaving remote cloth free',()=>{const g={uv:[0,0,.5,0,1,0,0,1,.5,1,1,1],indices:[0,3,1,1,3,4,1,4,2,2,4,5]},image={width:101,height:101,data:new Uint8ClampedArray(101*101*4)};image.data[(50*101+20)*4]=255;const fixed=locks(g,image);for(const i of [0,1,3,4])assert.equal(fixed[i],1);assert.equal(fixed[2],0);assert.equal(fixed[5],0);assert.deepEqual([...locks(g,null)],[0,0,0,0,0,0]);});

@@ -1,0 +1,1 @@
+*{box-sizing:border-box}body{height:100vh;margin:0;display:flex;flex-direction:column;background:#242424;color:#ddd;font:12px system-ui}header{display:flex;gap:16px;padding:10px;background:#303030;align-items:center}header span{margin-left:auto;color:#aaa}select{background:#3b3b3b;color:#ddd;padding:5px;border:1px solid #666}iframe{flex:1;min-height:0;width:100%;border:0}

@@ -1,0 +1,17 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const commands=require('../renderer/editor-commands.js'),options=require('../electron/agent-options.cjs');
+test('inspection during AI production is allowed but newer content and explicit view changes stay protected',()=>{const bound={documentToken:'card-a',revision:5,viewKey:'front'},tilt={...bound,viewKey:'tilt'};assert.equal(commands.bindingMatches(bound,tilt,[{op:'frame'}]),true);assert.equal(commands.bindingMatches(bound,tilt,[{op:'pose'}]),false);assert.equal(commands.bindingMatches(bound,{...tilt,revision:6},[{op:'frame'}]),false);assert.equal(commands.bindingMatches(bound,{...tilt,documentToken:'card-b'},[{op:'frame'}]),false);});
+const sample=()=>({previewMode:'sample',effects:{depth:1,cape:true},deformation:{bend:0,wind:1,speed:1},actions:[{id:'flip'}],layers:[{id:'title',kind:'text',name:'标题',text:'标题',x:0,y:0,scale:1,opacity:1,visible:true,locked:false},{id:'person',kind:'foreground',name:'人物',x:0,y:0,scale:1,opacity:1,visible:true,locked:false},{id:'bg',kind:'background',name:'背景',x:0,y:0,scale:1,opacity:1,visible:true,locked:true}]});
+test('CLI defaults honor root/profile, ignore secrets and support refreshed catalogue',()=>{
+ const toml='model = "gpt-6.1-sol" # primary\nmodel_reasoning_effort = "medium"\nprofile = "art"\n[model_providers.local]\napi_key = "not-returned"\n[profiles."art"]\nmodel = \'gpt-6-astra\'\nmodel_reasoning_effort = "high"\n';
+ assert.deepEqual(options.parseDefaults(toml),{model:'gpt-6-astra',reasoning:'high',profile:'art'});assert.deepEqual(options.options({codexModel:'gpt-6.1-sol',codexReasoning:'medium',profiles:[]},{model:'',reasoning:''}),{adapter:'codex',model:'gpt-6.1-sol',reasoning:'medium'});
+});
+test('editor batch moves in explicit axes, reorders, changes view and preserves original',()=>{
+ const original=sample(),batch=[{op:'move',layerId:'person',dx:20,dy:-10},{op:'visibility',layerId:'title',visible:false},{op:'reorder',layerId:'person',index:0},{op:'view',mode:'preview'},{op:'pose',yaw:18,pitch:-6},{op:'time',seconds:2,paused:true}];const p=commands.plan(original,batch,'title');assert.equal(original.layers[1].x,0);assert.equal(original.layers[0].visible,true);assert.equal(p.document.layers[0].id,'person');assert.equal(p.document.layers[0].x,20);assert.equal(p.document.layers[0].y,-10);assert.equal(p.document.effects.paused,true);assert.deepEqual(p.preview,{mode:'preview',yaw:18,pitch:-6,seconds:2,paused:true});assert.equal(p.selected,'person');
+});
+test('invalid/locked/script commands reject entire batch without partial edits',()=>{
+ const doc=sample();for(const bad of [{op:'move',layerId:'bg',dx:10,dy:0},{op:'transform',layerId:'person',scale:0},{op:'move',layerId:'missing',dx:2,dy:0},{op:'text',layerId:'person',text:'x'},{op:'reorder',layerId:'person',index:60},{op:'pose',yaw:10,pitch:90},{op:'eval',code:'x'},{op:'toString'},{op:'move',layerId:'person',dx:1,dy:0,code:'x'}])assert.throws(()=>commands.plan(doc,[{op:'move',layerId:'person',dx:10,dy:0},bad],'person'));assert.equal(doc.layers[1].x,0);
+});
+test('only one complete typed action envelope is accepted',()=>{
+ const reply='向右移动。\n<atelier-actions>{"commands":[{"op":"move","layerId":"person","dx":20,"dy":0}]}</atelier-actions>';assert.deepEqual(commands.parseReply(reply),{text:'向右移动。',commands:[{op:'move',layerId:'person',dx:20,dy:0}]});assert.equal(commands.parseReply('建议先固定肩部。').commands,null);assert.throws(()=>commands.parseReply(reply+reply));assert.throws(()=>commands.parseReply('<atelier-actions>{"commands":[]}'));
+});

@@ -61,12 +61,38 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
   const worker = new NativeWorker(),selectionWorker=new SelectionWorker(),cutoutWorker=new CutoutWorker(); let projectFile = initialProject;
   const agents=createAgentService({runtimeDir,dialogs}),checkpoints=createCheckpoints({runtimeDir,validate:validateProject,write:atomicWrite});
   const session=createEditorSession({runtimeDir,validate:validateProject,write:atomicWrite});
+  const recent=require('./recent-projects.cjs').createRecentProjects({runtimeDir,write:atomicWrite,session});
+  let pendingHome=null,pendingFile=null;
+  function stageHome(result,file){if(result.document)result.document.id||=randomUUID();const ticket=randomUUID();pendingHome={ticket,file,result};return {...result,file,ticket};}
   return {
     worker,
     async invoke(method,args={}) {
       if(typeof method==='string'&&method.startsWith('agent-'))return agents.invoke(method,args);
       switch(method) {
-        case 'editor-session-save': return session.save(args,projectFile);
+        case 'editor-session-save': {const result=await session.save(args,projectFile);if(!result.stale)await recent.record(args.project,projectFile,result.at,args.revision!==args.savedRevision);return result;}
+        case 'home-list': return {entries:await recent.list(initialProject)};
+        case 'home-bootstrap': return {entries:await recent.list(initialProject),engine:await worker.call('ping'),appVersion:APP_VERSION,desktop:!!dialogs};
+        case 'home-open': {
+          const entry=(await recent.list(initialProject)).find(e=>e.id===args.id);if(!entry||!entry.available)throw Error('工程不可用，请通过“打开工程”选择文件');
+          const recovered=await session.recoverRecent(entry.projectId,entry.file),value=recovered?.workshop||recovered?.document,originalActive=value?.activeCardId;
+          let result=value&&(value.id||'single')===entry.projectId?recovered:entry.file?await workshopStorage.read(entry.file,validateProject):null;
+          if(!result)throw Error(recovered?.recoveryError?'恢复副本读取失败：'+recovered.recoveryError:'这张未保存卡片的恢复副本已更新，请选择最近的卡片');
+          if(recovered?.recoveryError)result.recoveryError=recovered.recoveryError;
+          if(result.workshop&&args.cardId){if(!result.workshop.cards.some(c=>c.id===args.cardId))throw Error('此卡片已不在工坊中，请刷新最近列表');result.workshop.activeCardId=args.cardId;if(result.recovery?.view&&args.cardId!==originalActive)result={...result,recovery:{...result.recovery,view:null}};}
+          return stageHome(result,entry.file);
+        }
+        case 'home-choose-file': {if(!dialogs)throw Error('请选择工程文件');const file=await dialogs.openProject();if(!file)return {canceled:true};pendingFile={id:randomUUID(),file:path.resolve(file)};return {selection:pendingFile.id,name:path.basename(file)};}
+        case 'home-open-file': {
+          if(args.selection){if(pendingFile?.id!==args.selection)throw Error('文件选择已失效，请重新选择');const file=pendingFile.file;pendingFile=null;return stageHome(await workshopStorage.read(file,validateProject),file);}
+          if(typeof args.text==='string'){if(Buffer.byteLength(args.text)>workshopStorage.MAX_BYTES)throw Error('工坊文件超过 192 MB');const data=JSON.parse(args.text);return stageHome(data.schema==='card-atelier/1'?{document:validateProject(data)}:{workshop:workshopModel.validate(workshopStorage.unpack(data),validateProject)},null);}
+          if(!dialogs)throw Error('请选择工程文件');const file=await dialogs.openProject();if(!file)return {canceled:true};return stageHome(await workshopStorage.read(file,validateProject),path.resolve(file));
+        }
+        case 'home-new': return stageHome({document:validateProject(args.document)},null);
+        case 'home-activate': {
+          if(!pendingHome||pendingHome.ticket!==args.ticket)throw Error('加载请求已失效，请重新打开卡片');
+          const {file,result}=pendingHome;await recent.record(result.workshop||result.document,file,Date.now(),!!result.recovery&&result.recovery.revision!==result.recovery.savedRevision);projectFile=file;initialProject=null;pendingHome=null;return {sessionToken:session.start()};
+        }
+        case 'template': return {template:JSON.parse(await fs.readFile(path.join(ASSETS,'template.json'),'utf8'))};
         case 'editor-session-start': return {sessionToken:session.start()};
         case 'production-checkpoint': return checkpoints.save(args);
         case 'production-checkpoint-info': return checkpoints.info(args.id);
@@ -122,7 +148,7 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
           if(dialogs&&(!file||args.saveAs))file=await dialogs.saveWorkshop(w.name);
           if(dialogs&&!file)return {canceled:true};if(!dialogs&&args.saveAs)file=null;
           file ||= path.join(runtimeDir,'projects',(w.name.replace(/[^\w\u3400-\u9fff-]/g,'_').slice(0,80)||'workshop')+'-'+randomUUID().slice(0,8)+'.cardworkshop');
-          await atomicWrite(file,text);projectFile=file;return {file,cards:w.cards.length,resources:w.resources.length};
+          await atomicWrite(file,text);projectFile=file;await recent.record(w,file);return {file,cards:w.cards.length,resources:w.resources.length};
         }
         case 'export-preview-stage': {
           if(!/^[\w-]{1,100}$/.test(args.token)||!/^[\w-]{1,100}$/.test(args.cardId))throw Error('导出暂存标识无效');const text=JSON.stringify(args.output);if(text.length>24*1024*1024)throw Error('单卡导出图像超过 24 MB');pngBytes(args.output.front);for(const png of Object.values(args.output.layerRasters||{}))pngBytes(png);for(const locales of Object.values(args.output.titleRasters||{}))for(const png of Object.values(locales))pngBytes(png);await atomicWrite(path.join(runtimeDir,'export-staging',args.token,args.cardId+'.json'),text);return {staged:true,cardId:args.cardId};
@@ -141,14 +167,14 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
           if (dialogs && !file) return {canceled:true};
           if(!dialogs&&args.saveAs)file=null;
           file ||= path.join(runtimeDir,'projects',(doc.name.replace(/[^\w\u3400-\u9fff-]/g,'_').slice(0,80)||'card')+'-'+randomUUID().slice(0,8)+'.cardproj');
-          await atomicWrite(file,JSON.stringify(doc)); projectFile = file;
+          await atomicWrite(file,JSON.stringify(doc)); projectFile = file;await recent.record(doc,file);
           return {file};
         }
         case 'open': {
           let file = dialogs ? await dialogs.openProject() : projectFile || path.join(runtimeDir,'projects','card.cardproj');
           if (!file) return {canceled:true};
           if ((await fs.stat(file)).size > workshopStorage.MAX_BYTES) throw Error('工坊超过 192 MB');
-          const result=await workshopStorage.read(file,validateProject);projectFile=file;return {file,...result};
+          const result=await workshopStorage.read(file,validateProject);projectFile=file;await recent.record(result.workshop||result.document,file);return {file,...result};
         }
         case 'import': {
           if (!dialogs) throw Error('浏览器预览请使用文件选择器');

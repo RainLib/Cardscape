@@ -31,17 +31,17 @@ function color(p,a={}){const brightness=(a.brightness||0)/100,contrast=1+(a.cont
 function cameraInCard(yaw,pitch,root=[0,0,0,1],distance=2.7){const x=-root[0]/root[3],y=-root[1]/root[3],z=(distance-root[2])/root[3],yp=Math.cos(pitch)*y+Math.sin(pitch)*z,zp=-Math.sin(pitch)*y+Math.cos(pitch)*z;return [Math.cos(yaw)*x-Math.sin(yaw)*zp,yp,Math.sin(yaw)*x+Math.cos(yaw)*zp];}
 function aperturePoint(point,eye,z){const k=(z-eye[2])/(point[2]-eye[2]);return [eye[0]+(point[0]-eye[0])*k,eye[1]+(point[1]-eye[1])*k];}
 function popOutAllowed(p,style,composition=compositionDefaults){const x=(p[0]+.5)*1024,y=(.75-p[1])*1024,w=style.width;return !((!composition.top&&y<w)||(!composition.bottom&&y>1536-w)||(!composition.left&&x<w)||(!composition.right&&x>1024-w));}
-function vertex(body=geometryBody){return `attribute vec3 p;attribute vec2 uv;attribute vec4 fx;attribute float guard;attribute float join;
+function vertex(body=geometryBody,diagnostic=false){return `attribute vec3 p;attribute vec2 uv;attribute vec4 fx;attribute float guard;attribute float join;
 uniform vec2 angle,backgroundExtent,attachmentParams;uniform vec4 attachmentTransform;uniform vec4 transform,rootTransform,frameMetrics,spatialParams;uniform float aspect,depth,t,moving,fg,bg,bend,windSpeed,layerRotation,rigidSurface;
-varying vec2 v;varying vec4 effects;varying vec3 local;
+varying vec2 v;varying vec4 effects;varying vec3 local;${diagnostic?'varying float connectionWeight;':''}
 vec3 deformCard(vec3 q,vec2 uv,float time,float bend){
 #line 1
 ${body}
 #line 1001
 }
 void main(){vec3 q=p;effects=fx;v=uv;if(bg>.5){q.xy*=backgroundExtent;v=(uv-.5)*backgroundExtent+.5;}if(fg>.5){q.z=spatialParams.x>.5?0.:.045+.045*depth;float wave=sin(t*1.3*windSpeed+uv.x*11.+uv.y*8.);q.z+=wave*.016*fx.x*moving*depth;q.x+=wave*.005*fx.x*moving*depth;}
-float connected=attachmentParams.x,weight=connected>.5?join:1.;float rotation=mix(attachmentParams.y,layerRotation,weight);float c=cos(rotation),s=sin(rotation);vec4 placement=mix(attachmentTransform,transform,weight);q.xy=mat2(c,s,-s,c)*q.xy*placement.z+placement.xy;q.z+=placement.w;if(spatialParams.x>.5)q.xy*=connected>.5?(spatialParams.w-q.z)/(spatialParams.w-.045):spatialParams.z;if(rigidSurface<.5)q=mix(deformCard(q,uv,t,bend),q,fg>.5?1.-fx.x*(1.-guard):0.);local=q;c=cos(angle.x);s=sin(angle.x);q=vec3(c*q.x+s*q.z,q.y,-s*q.x+c*q.z);c=cos(angle.y);s=sin(angle.y);q=vec3(q.x,c*q.y-s*q.z,s*q.y+c*q.z);q=q*rootTransform.w+rootTransform.xyz;float camera=max(.15,spatialParams.w-q.z);float fit=min(1.0,aspect/.85);gl_Position=vec4(q.x*2.9*fit/aspect,q.y*2.9*fit,-q.z*.3,camera);}`;}
-function fragmentSource(body=surfaceBody){return `precision highp float;uniform sampler2D tex,emissionTex,phaseTex,insetTex,customMaskTex,foilTex;uniform float opacity,rootOpacity,frame,flow,t,fg,bg,back,clip,customEffect,customStrength,customMasked,foregroundPass;
+float connected=attachmentParams.x,weight=connected>.5?join:1.;${diagnostic?'connectionWeight=weight;':''}float rotation=mix(attachmentParams.y,layerRotation,weight);float c=cos(rotation),s=sin(rotation);vec4 placement=mix(attachmentTransform,transform,weight);q.xy=mat2(c,s,-s,c)*q.xy*placement.z+placement.xy;q.z+=placement.w;if(spatialParams.x>.5)q.xy*=connected>.5?(spatialParams.w-q.z)/(spatialParams.w-.045):spatialParams.z;if(rigidSurface<.5)q=mix(deformCard(q,uv,t,bend),q,fg>.5?1.-fx.x*(1.-guard):0.);local=q;c=cos(angle.x);s=sin(angle.x);q=vec3(c*q.x+s*q.z,q.y,-s*q.x+c*q.z);c=cos(angle.y);s=sin(angle.y);q=vec3(q.x,c*q.y-s*q.z,s*q.y+c*q.z);q=q*rootTransform.w+rootTransform.xyz;float camera=max(.15,spatialParams.w-q.z);float fit=min(1.0,aspect/.85);gl_Position=vec4(q.x*2.9*fit/aspect,q.y*2.9*fit,-q.z*.3,camera);}`;}
+function fragmentSource(body=surfaceBody,diagnostic=false){return `precision highp float;uniform sampler2D tex,emissionTex,phaseTex,insetTex,customMaskTex,foilTex;uniform float opacity,rootOpacity,frame,flow,t,fg,bg,back,clip,customEffect,customStrength,customMasked,foregroundPass;${diagnostic?'uniform sampler2D regionTex;uniform float regionMode;varying float connectionWeight;':''}
 uniform float materialStyle;uniform vec4 componentMaterial;uniform vec3 materialColor,materialAccent;uniform vec2 shift,angle,titleBounds;uniform vec3 frameColor,frameAccent,cardEye,armorColor,titleColor;uniform vec4 frameMetrics,popOutSides,armorSweep,titleSweep;uniform float frameFinish;uniform vec4 sourceRect,adjustment;uniform vec3 slotEffect;varying vec2 v;varying vec4 effects;varying vec3 local;
 vec4 surfaceEffect(vec4 color,vec2 uv,float time,vec4 mask){
 #line 1
@@ -65,6 +65,12 @@ if(fg>.5&&armorSweep.x>0.)c.rgb+=armorColor*texture2D(foilTex,v).r*sweepLight(v.
 if(titleSweep.x>0.)c.rgb+=titleColor*sweepLight((v.x-titleBounds.x)/max(.001,titleBounds.y-titleBounds.x),titleSweep);
 if(slotEffect.x>.5){float wave=.5+.5*sin(t*slotEffect.z*3.+(slotEffect.x>1.5?v.y*20.:0.));c.rgb+=vec3(.2,.5,.8)*wave*slotEffect.y;}
 if(customEffect>.5){float weight=customMasked>.5?texture2D(customMaskTex,v).r:1.;vec4 masks=vec4(effects.xy,texture2D(emissionTex,v).r,texture2D(phaseTex,v).r);vec4 modified=surfaceEffect(c,v,t,masks);c=mix(c,modified,clamp(weight*customStrength,0.,1.));}
+${diagnostic?`// Editor-only inspection runs after the normal aperture and alpha tests.
+if(regionMode>.5){float amount=.56;vec3 tint=vec3(.15,.85,1.);
+if(regionMode>1.5&&regionMode<2.5){amount=.8*texture2D(regionTex,v).r;tint=vec3(1.,.45,.12);}
+if(regionMode>2.5&&regionMode<3.5){float w=clamp(connectionWeight,0.,1.);tint=w<.5?mix(vec3(.12,.55,1.),vec3(1.,.84,.2),w*2.):mix(vec3(1.,.84,.2),vec3(1.,.28,.62),(w-.5)*2.);amount=.72;}
+if(regionMode>3.5)tint=inside?vec3(.1,.85,.75):vec3(1.,.45,.15);
+c.rgb=mix(c.rgb,tint,amount);}`:''}
 gl_FragColor=vec4(c.rgb,c.a*opacity*rootOpacity);}`;}
 const fragment=fragmentSource();
 return {defaults,compositionDefaults,armorDefaults,ensure,validate,slot,placement,action,sampleTrack,animationTracks,entryPreset,color,cameraInCard,aperturePoint,popOutAllowed,vertex,fragment,fragmentSource,geometryBody,surfaceBody,grid};

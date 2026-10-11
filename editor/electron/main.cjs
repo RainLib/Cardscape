@@ -5,8 +5,9 @@ const {createServices,ROOT}=require('./services.cjs');
 const shortcuts=require('../renderer/shortcuts.js');
 const {windowChromeOptions}=require('./window-chrome.cjs');
 const {rendererDocument}=require('./renderer-document.cjs');
+const {createLoadingWindow}=require('./loading-window.cjs');
 protocol.registerSchemesAsPrivileged([{scheme:'atelier',privileges:{standard:true,secure:true,supportFetchAPI:true}}]);
-let win,services,hasUnsavedChanges=false,discardConfirmed=false;
+let win,services,loadingWindow,hasUnsavedChanges=false,discardConfirmed=false;
 const runtimeDir=path.resolve(process.env.ATELIER_RUNTIME||path.join(ROOT,'runtime'));
 const appIcon=path.join(ROOT,'assets','icons',process.platform==='win32'?'card-atelier.ico':'card-atelier.png');
 app.setName('Cardscape');
@@ -42,8 +43,10 @@ app.whenReady().then(async()=>{
   }});
   session.defaultSession.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));
   ipcMain.handle('atelier:invoke',(event,method,args)=>{
+    if(loadingWindow?.isSender(event)){if(method==='splash-state')return loadingWindow.state();throw Error('Unsupported loading window command');}
     if(event.sender!==win.webContents||event.senderFrame!==win.webContents.mainFrame||event.senderFrame.url!=='atelier://app/index.html')throw Error('Untrusted IPC sender');
     if(method==='document-state'){hasUnsavedChanges=args?.dirty===true;return {ok:true};}
+    if(method==='loading-window'){if(args?.action==='show')return loadingWindow.show(args);if(args?.action==='progress'){loadingWindow.update(args);return {ok:true};}if(args?.action==='finish')return loadingWindow.finish();throw Error('Unsupported loading window action');}
     if(method==='window-state')return windowState();
     if(method==='edit-text'){
       const op={undo:'undo',redo:'redo','select-all':'selectAll'}[args?.command];
@@ -52,7 +55,8 @@ app.whenReady().then(async()=>{
     }
     return services.invoke(method,args);
   });
-  win=new BrowserWindow({show:process.env.ATELIER_BACKGROUND!=='1',width:1560,height:1020,minWidth:1120,minHeight:760,...windowChromeOptions(process.platform),backgroundColor:'#2b2b2b',title:'Cardscape '+app.getVersion(),icon:appIcon,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+  win=new BrowserWindow({show:false,width:1560,height:1020,minWidth:1120,minHeight:760,...windowChromeOptions(process.platform),backgroundColor:'#2b2b2b',title:'Cardscape '+app.getVersion(),icon:appIcon,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+  loadingWindow=createLoadingWindow({BrowserWindow,main:win,preload:path.join(__dirname,'preload.cjs'),url:'atelier://app/splash.html',version:app.getVersion(),background:process.env.ATELIER_BACKGROUND==='1'});
   function windowState(){return {platform:process.platform,focused:win.isFocused(),fullscreen:win.isFullScreen(),maximized:win.isMaximized()};}
   const sendWindowState=()=>win.webContents.send('atelier:window-state',windowState());
   for(const event of ['focus','blur','enter-full-screen','leave-full-screen','maximize','unmaximize'])win.on(event,sendWindowState);
@@ -72,6 +76,7 @@ app.whenReady().then(async()=>{
     const choice=dialog.showMessageBoxSync(win,{type:'question',title:'保存当前工程',message:'当前工程尚有未保存的修改',detail:'返回编辑器保存，或放弃修改退出。',buttons:['返回编辑器','放弃修改'],defaultId:0,cancelId:0});
     if(choice===1){discardConfirmed=true;win.close();}
   });
+  win.on('closed',()=>loadingWindow?.destroy());
   const item=(label,c,accelerator)=>({label,accelerator,click:()=>command(c)});
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     {label:'Cardscape',submenu:[{role:'about'},{type:'separator'},{role:'quit'}]},
@@ -81,8 +86,9 @@ app.whenReady().then(async()=>{
     {label:'窗口',submenu:[{role:'minimize'},{role:'zoom'}]},
     {label:'帮助',submenu:[item('快捷键说明','shortcuts','F1')]}
   ]));
+  await loadingWindow.show({name:'准备创作空间',stage:'读取最近卡片与工作区…',percent:12});
   await win.loadURL('atelier://app/index.html');
   console.log('ELECTRON_READY',JSON.stringify({appVersion:app.getVersion(),version:process.versions.electron,chrome:windowChromeOptions(process.platform),worker:await services.worker.call('ping')}));
 }).catch(error=>{console.error(error);app.quit();});
 app.on('window-all-closed',()=>app.quit());
-app.on('before-quit',()=>services?.close());
+app.on('before-quit',()=>{loadingWindow?.destroy();services?.close();});

@@ -1,0 +1,17 @@
+.card-cover{display:block;position:relative;flex:none;height:100%;aspect-ratio:2/3;max-width:100%;overflow:hidden;filter:drop-shadow(0 4px 8px #0004)}
+.card-cover>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;visibility:hidden}
+.card-cover[data-cover-state=image]>img{visibility:visible}
+.card-cover[data-cover-state=image]>.card-cover-fallback{visibility:hidden}
+.card-cover-fallback{height:100%;width:100%;display:flex;flex-direction:column;align-items:center;position:relative;padding:16px 12px 13px;color:#96a6b6;background:radial-gradient(ellipse at 25% 15%,#43586b66,transparent 70%),linear-gradient(145deg,#2c343e,#22282e);clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px)}
+.card-cover-fallback::before{content:'';position:absolute;inset:5px;border:1px solid #8093a133;clip-path:polygon(7px 0,calc(100% - 7px) 0,100% 7px,100% calc(100% - 7px),calc(100% - 7px) 100%,7px 100%,0 calc(100% - 7px),0 7px);pointer-events:none}
+.card-cover-fallback::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent 0 18px,#99aec806 18px 19px);pointer-events:none}
+.card-cover-kind{font-size:9px;letter-spacing:1px;color:#8998a8;line-height:1.4}
+.card-cover-mark{width:58px;height:66px;flex:1;min-height:0;max-height:90px;margin:12px 0;fill:none;stroke:#99aebe;stroke-width:1.15;opacity:.8}
+.card-cover-name{font-size:11px;font-weight:550;line-height:1.5;min-height:33px;max-height:33px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-align:center;overflow-wrap:anywhere;color:#c1cbd4;width:100%}
+.card-cover-hint{font-size:9px;color:#7f8d9b;margin-top:auto;padding-top:6px;line-height:1.4}
+.ws-card .card-cover{display:block;width:34px;height:51px;min-width:34px;gap:0}
+.ws-card .card-cover-fallback{display:flex;gap:0;padding:3px;clip-path:polygon(4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px)}
+.card-cover-compact .card-cover-kind,.card-cover-compact .card-cover-name,.card-cover-compact .card-cover-hint{display:none}
+.card-cover-compact .card-cover-mark{width:25px;height:32px;margin:0;flex:none}
+.card-cover-compact .card-cover-fallback{justify-content:center}
+.card-cover-compact .card-cover-fallback::before{inset:2px}

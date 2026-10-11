@@ -31,3 +31,20 @@
 .space-camera-hint{padding:3px 5px;background:#1b2025d9;border-radius:3px}
 
 .space-presentations{display:flex;align-items:center;gap:2px}.space-presentations button{white-space:nowrap}.space-presentations button.active{background:#344c61;border-color:#70b0dd;color:#fff}
+
+/* Common transforms stay visible; setup and help float above the canvas. */
+.space-property-heading{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.space-property-heading>b{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}
+.space-property-actions{display:flex;align-items:center;gap:4px}
+.space-popover{position:relative;flex-shrink:0}
+.space-popover>summary{cursor:pointer;list-style:none;border:1px solid #454a50;padding:3px 6px;border-radius:2px;white-space:nowrap;font-size:10px}
+.space-popover>summary::-webkit-details-marker{display:none}
+.space-popover[open]>summary{background:#344c61;border-color:#70b0dd}
+.space-popover-body{position:absolute;bottom:calc(100% + 7px);right:0;width:min(360px,calc(100vw - 45px));padding:10px;background:#292d32;border:1px solid #59616b;box-shadow:0 7px 24px #0009;z-index:25}
+.space-popover-body .space-values{gap:7px;margin:6px 0}
+.space-popover-body p{font-size:10px;line-height:1.6}
+.space-properties{padding:5px 7px}
+.space-properties>.space-values{align-items:center}
+.space-properties #space-status{color:#f2aa91}
+
+.space-popover-body{max-height:calc(100vh - 170px);overflow:auto}

@@ -2,7 +2,7 @@
 "use strict";
 const cfg=window.CARD_EFFECT_PRESETS, snap=window.CARD_SNAP_GEOMETRY, original=window.CARD_MODEL;
 const canvas=document.getElementById("model-canvas"),info=document.getElementById("model-info");
-let documentLayers=[];let titleText="破隘旗官";let currentDocument=null;
+let documentLayers=[];let titleText="";let currentDocument=null;
 const gl=canvas.getContext("webgl",{alpha:true,antialias:true,preserveDrawingBuffer:true});
 if(!gl){info.textContent="当前浏览器没有 WebGL，可查看参考视频和下载模型。";return;}
 const vs=`
@@ -137,12 +137,14 @@ function buffer(data,target,type){const b=gl.createBuffer();gl.bindBuffer(target
 for(const p of parts){
 const count=p.positions.length/3;p.pos=buffer(p.positions,gl.ARRAY_BUFFER,Float32Array);p.norm=buffer(p.normals,gl.ARRAY_BUFFER,Float32Array);p.tex=buffer(p.uv||new Array(count*2).fill(0),gl.ARRAY_BUFFER,Float32Array);p.effect=buffer(p.effects||new Array(count*4).fill(0),gl.ARRAY_BUFFER,Float32Array);p.region=buffer(p.regions||new Array(count*4).fill(0),gl.ARRAY_BUFFER,Float32Array);p.popBase=buffer(p.popBase||p.positions,gl.ARRAY_BUFFER,Float32Array);p.idx=buffer(p.indices,gl.ELEMENT_ARRAY_BUFFER,Uint16Array);
 const lines=[];for(let i=0;i<p.indices.length;i+=3){const x=p.indices[i],y=p.indices[i+1],z=p.indices[i+2];lines.push(x,y,y,z,z,x);}p.lines=buffer(lines,gl.ELEMENT_ARRAY_BUFFER,Uint16Array);p.lineCount=lines.length;
-if(p.texture&&!textures[p.texture]){textures[p.texture]=newTexture();if(p.texture==="wordmark")continue;const im=new Image();im.onload=()=>{gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,textures[p.texture]);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);loaded.add(p.texture);requestDraw();};im.onerror=()=>{info.textContent="原画载入失败，可检查网络或切到白模。";};im.src=p.texture;}
+if(p.texture&&!textures[p.texture])textures[p.texture]=newTexture();
 }
+let legacyAssetsRequested=false;
+function ensureLegacyAssets(){if(legacyAssetsRequested)return;legacyAssetsRequested=true;for(const source of Object.keys(textures)){if(source==='wordmark')continue;const im=new Image();im.onload=()=>{gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,textures[source]);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);loaded.add(source);requestDraw();};im.onerror=()=>{info.textContent='原画载入失败，可检查素材路径。';};im.src=source;}}
 function makeWordmark(){const c=document.createElement("canvas");c.width=768;c.height=192;const ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);ctx.textAlign="center";ctx.textBaseline="middle";ctx.font='italic 800 112px "STKaiti","Songti SC","Noto Serif SC",serif';ctx.lineJoin="round";ctx.strokeStyle="#181922";ctx.lineWidth=12;ctx.shadowColor="#0009";ctx.shadowBlur=9;ctx.shadowOffsetY=4;ctx.strokeText(titleText,384,102);ctx.shadowBlur=0;ctx.shadowOffsetY=0;const grad=ctx.createLinearGradient(0,40,0,160);grad.addColorStop(0,"#fff9db");grad.addColorStop(.42,"#edddae");grad.addColorStop(.48,"#fff6d6");grad.addColorStop(1,"#a37c50");ctx.fillStyle=grad;ctx.fillText(titleText,384,102);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,textures.wordmark);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,c);loaded.add("wordmark");}
 const state={tier:6,yaw:0,pitch:0,targetYaw:0,targetPitch:0,zoom:1.12,depth:1,background:1,volume:1,mode:"parallax",breakout:true,cape:true,flow:true,capeInset:true,capeLayout:0,shadows:true,wire:false,exploded:false,freeRotate:false,paused:false,time:0,finish:0,energyStyle:0,mask:0,foil:.70,wordmark:true,frame:true,shine:true,burstStart:-10000};
 let renderCount=0;
-let previewActive=true,effectsEnabled=true;
+let previewActive=false,effectsEnabled=true;
 let tickHandle=0,lastTick=performance.now(),lastDraw=0,animationOrigin=performance.now(),inViewport=true;
 const reduced=matchMedia("(prefers-reduced-motion: reduce)");
 function facing(){return Math.cos(state.yaw*Math.PI/180)*Math.cos(state.pitch*Math.PI/180);}
@@ -197,10 +199,10 @@ document.addEventListener("visibilitychange",()=>{lastTick=performance.now();dra
 new ResizeObserver(()=>draw()).observe(canvas);new IntersectionObserver(entries=>{inViewport=entries[0].isIntersecting;lastTick=performance.now();draw();},{threshold:.02}).observe(canvas);
 
 window.cardPreview={
-    setActive(value){previewActive=!!value;if(tickHandle){cancelAnimationFrame(tickHandle);tickHandle=0;}canvas.dataset.viewportActive=String(previewActive);lastTick=performance.now();if(value)draw();},
+    setActive(value){previewActive=!!value&&document.body.dataset.appMode==='editor';if(tickHandle){cancelAnimationFrame(tickHandle);tickHandle=0;}canvas.dataset.viewportActive=String(previewActive);lastTick=performance.now();if(value)draw();},
     setEffectsEnabled(value){effectsEnabled=!!value;if(tickHandle){cancelAnimationFrame(tickHandle);tickHandle=0;}lastTick=performance.now();draw();},
     getView(){return {yaw:state.targetYaw,pitch:state.targetPitch,time:state.time};},
-    setDocument(doc){currentDocument=doc;documentLayers=doc.layers;Object.assign(state,doc.effects);if(titleText!==doc.layers.find(l=>l.kind==='text')?.text){titleText=doc.layers.find(l=>l.kind==='text')?.text||'';makeWordmark();}draw();},
+    setDocument(doc){ensureLegacyAssets();currentDocument=doc;documentLayers=doc.layers;Object.assign(state,doc.effects);if(titleText!==doc.layers.find(l=>l.kind==='text')?.text){titleText=doc.layers.find(l=>l.kind==='text')?.text||'';makeWordmark();}draw();},
     updateMask(id,image){let changed=0;const channel={motion:0,inset:1,emission:2,phase:3}[id];if(channel===undefined)return;for(const p of parts.filter(p=>p.group==='pop_foreground')){for(let i=0;i<p.uv.length/2;i++){const x=Math.max(0,Math.min(image.width-1,Math.round(p.uv[i*2]*(image.width-1)))),y=Math.max(0,Math.min(image.height-1,Math.round(p.uv[i*2+1]*(image.height-1))));let v=image.data[(y*image.width+x)*4]/255;if(id==='motion')v*=1-(p.regions?.[i*4]||0);if(Math.abs(p.effects[i*4+channel]-v)>.00001)changed++;p.effects[i*4+channel]=v;}gl.bindBuffer(gl.ARRAY_BUFFER,p.effect);gl.bufferSubData(gl.ARRAY_BUFFER,0,new Float32Array(p.effects));}canvas.dataset.lastMask=id;canvas.dataset.changedVertices=String(changed);draw();},
     setTexture(group,image){for(const p of parts.filter(p=>p.group===group)){if(!p.texture)continue;gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,textures[p.texture]);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);}draw();},
     setText(layer,image){logo.positions=[-.5,-.75,.12,.5,-.75,.12,.5,.75,.12,-.5,.75,.12];gl.bindBuffer(gl.ARRAY_BUFFER,logo.pos);gl.bufferSubData(gl.ARRAY_BUFFER,0,new Float32Array(logo.positions));gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,textures.wordmark);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);draw();},

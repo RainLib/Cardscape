@@ -27,7 +27,7 @@ splitter.onpointermove=e=>{if(!resizing)return;previewLayout.ratio=window.CardWo
 const finishResize=()=>{if(!resizing)return;resizing=false;stage.classList.remove('resizing');saveLayout();host.fit();};splitter.onpointerup=splitter.onpointercancel=splitter.onlostpointercapture=finishResize;
 splitter.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(e.key))return;e.preventDefault();previewLayout.ratio=e.key==='Home'?50:Math.max(25,Math.min(75,previewLayout.ratio+(['ArrowLeft','ArrowUp'].includes(e.key)?-1:1)*(e.shiftKey?5:1)));syncPreviewLayout();saveLayout();host.fit();};
 
-function panel(name){if(name==='agent'){window.atelierAgentDock?.open();return;}if(!['properties','masks','color','motion','slots','shader','frame','appearance'].includes(name))name='properties';document.body.dataset.inspectorPanel=name;document.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==name);document.querySelectorAll('[data-panel-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.panelTab===name);b.setAttribute('aria-selected',String(b.dataset.panelTab===name));});const labels={properties:'图层与属性',masks:'效果 Mask',color:'图像调整',motion:'动画动作',slots:'素材 Slots',shader:'自定义 GLSL',frame:'卡框设置',appearance:'字标与反光'};document.querySelector('.dock-heading span').textContent=labels[name];if(name==='motion')window.atelierAnimation?.open(false);syncLayout();}
+function panel(name){if(name==='agent'){window.atelierAgentDock?.open();return;}if(!['properties','masks','color','motion','slots','shader','frame','appearance'].includes(name))name='properties';document.body.dataset.inspectorPanel=name;document.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==name);document.querySelectorAll('[data-panel-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.panelTab===name);b.setAttribute('aria-selected',String(b.dataset.panelTab===name));});const labels={properties:'图层与属性',masks:'效果区域 / Mask',color:'图像调整',motion:'动画动作',slots:'素材 Slots',shader:'自定义 GLSL',frame:'卡框设置',appearance:'字标与反光'};document.querySelector('.dock-heading span').textContent=labels[name];if(name==='motion')window.atelierAnimation?.open(false);syncLayout();}
 document.querySelectorAll('button[data-view]').forEach(b=>b.onclick=()=>view(b.dataset.view));
 document.querySelectorAll('[data-panel-tab]').forEach(b=>b.onclick=()=>{document.body.classList.remove('dock-collapsed','panels-hidden');panel(b.dataset.panelTab);layoutChanged();});
 function toggleInspector(name){const visible=!document.body.classList.contains('panels-hidden')&&!document.body.classList.contains('dock-collapsed'),current=document.querySelector('[data-panel-tab].active')?.dataset.panelTab;document.body.classList.remove('panels-hidden');document.body.classList.toggle('dock-collapsed',visible&&(!name||name===current));if(name)panel(name);layoutChanged();}
@@ -37,7 +37,7 @@ $('layout-left').onclick=()=>{if(document.body.classList.contains('panels-hidden
 const togglePanels=()=>{document.body.classList.toggle('panels-hidden');layoutChanged();};$('panels-toggle').onclick=togglePanels;
 document.addEventListener('keydown',e=>{if(e.key!=='Tab'||(window.CardShortcuts.editable(e.target)||e.target.matches('button,summary'))||document.querySelector('dialog[open]'))return;e.preventDefault();if(e.shiftKey)toggleInspector();else togglePanels();});
 $('workspace-mode').onchange=()=>{if($('workspace-mode').value==='animate')window.atelierAnimation.open();else{window.atelierAnimation.close();panel('properties');}};
-$('mask-panel-open').onclick=()=>{document.body.classList.remove('dock-collapsed','panels-hidden');panel('masks');layoutChanged();};
+function openMaskPanel(){document.body.classList.remove('dock-collapsed','panels-hidden');panel('masks');layoutChanged();} $('mask-panel-open').onclick=$('effects-area-open').onclick=openMaskPanel;
 $('selection-options').onclick=()=>{$('selection-options-panel').hidden=!$('selection-options-panel').hidden;};
 // Secondary selection commands share the collapsible options shelf.
 for(const id of ['select-alpha','extract-selection','create-mesh','guide-display','feather-mask'])$('selection-options-panel').append($(id));
@@ -65,16 +65,38 @@ function refresh(next){state=next;const d=next.document,l=next.layer;if(!d||!l)r
  document.querySelectorAll('[data-refine]').forEach(b=>b.disabled=!next.selection||next.busy);
  $('activity-brief').textContent=$('history-log').textContent;window.atelierAnimation?.refresh(next,actionId,changed);
 }
-const maskHelp={motion:'运动：肩部 / 发根黑色固定，披风 / 发梢末端白色摆动。灰色调节幅度。',inset:'框内外：白色部位留在窗口；黑色部位可压过允许破框的边缘。内外共用同一个平直人物网格。',emission:'发光：白色允许发光，黑色保持原画；只涂武器刻槽等需要发光的区域。',phase:'流光进度：黑→灰→白表示能量经过的先后；配合发光 Mask 限制路径。',rigid:'刚性保护：白色保护握柄、手和护腕，黑色允许运动变形。',foil:'盔甲反光：白色金属区域参与周期扫光；黑色保护皮肤、头发和衣料。',coverage:'可见轮廓：白色可见、黑色隐藏，灰色表示半透明边缘。'};
+const maskGuides={
+ motion:{name:'运动',tip:'涂披风与发梢，根部保持固定。',white:'摆动末端',black:'固定肩部 / 发根'},
+ inset:{name:'框内 / 破框',tip:'先在卡框设置中选择允许破框的方向。',white:'留在框内',black:'允许穿出卡框'},
+ emission:{name:'发光',tip:'只涂武器刻槽、宝石与能量纹路；柔化边缘控制过渡。',white:'允许发光',black:'保留原画'},
+ phase:{name:'流光进度',tip:'在发光区域内按黑 → 灰 → 白绘制光经过的路径。',white:'流光终点',black:'流光起点'},
+ foil:{name:'盔甲反光',tip:'涂金属甲片，皮肤和衣料留黑。',white:'参与扫光',black:'不反光'},
+ rigid:{name:'刚性保护',tip:'涂手、护腕和武器，避免拖动和摆动变形。',white:'保持刚性',black:'允许运动'},
+ coverage:{name:'可见轮廓',tip:'修整透明边缘；灰色表示半透明。',white:'可见',black:'透明'}
+};
 function refreshMasks(next){
- const person=next.document.layers.find(l=>l.kind==='foreground'),same=next.layer.kind==='foreground',locked=next.layer.locked,enabled=same&&!locked&&!next.busy;
+ const people=next.document.layers.filter(l=>l.kind==='foreground'),same=next.layer.kind==='foreground',person=same?next.layer:people[0],locked=same&&next.layer.locked,enabled=same&&!locked&&!next.busy;
  if(same&&next.target!=='image')maskChannel=next.target;
- $('mask-owner').textContent=person?.name||'暂无人物层';$('mask-state-note').textContent=!person?'请先导入连续人物层':!same?'先定位人物层，再编辑它的效果区域':locked?'人物层已锁定，可以查看；解锁后可绘制':next.target==='image'?'已定位人物层，选择下方 Mask 用途':('当前目标：'+maskHelp[maskChannel].split('：')[0]+' Mask');
- $('mask-channel-help').textContent=maskHelp[maskChannel];$('mask-person-select').disabled=!person||next.busy;$('mask-person-unlock').hidden=!same||!locked;$('mask-person-unlock').disabled=next.busy;
- for(const b of document.querySelectorAll('[data-mask-channel]')){b.disabled=!same||next.busy;const on=b.dataset.maskChannel===maskChannel;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));}
- for(const id of ['mask-start-brush','mask-start-smart','mask-start-rect','mask-write-mode','mask-write-gradient'])$(id).disabled=!enabled;
- $('mask-write-selection').disabled=!enabled||!next.selection;$('mask-soften').disabled=!enabled||next.target==='image';$('mask-toggle-preview').disabled=!same||next.busy;$('mask-toggle-preview').textContent=next.showMask?'隐藏 Mask':'显示 Mask';
+ const guide=maskGuides[maskChannel];$('mask-owner').textContent='';options('mask-layer',people,person?.id,'');$('mask-layer').disabled=next.busy||!people.length;
+ $('mask-state-note').textContent=!person?'请先导入人物图层':!same?'定位人物母版后开始制作':locked?'图层已锁定，请先解锁':next.target==='image'?'选择下方用途开始涂抹':'正在编辑 '+guide.name+' 区域';
+ $('mask-current-name').textContent=guide.name;$('mask-channel-help').textContent=guide.tip;$('mask-white-help').textContent=guide.white;$('mask-black-help').textContent=guide.black;
+ const map=host.spaceMask(maskChannel)?.canvas,ctx=$('mask-map').getContext('2d');ctx.clearRect(0,0,80,120);if(map)ctx.drawImage(map,0,0,80,120);
+ $('mask-region-highlight').disabled=!person||next.busy;$('mask-person-select').disabled=!person||next.busy;$('mask-person-select').hidden=same;$('mask-person-unlock').hidden=!locked;$('mask-person-unlock').disabled=next.busy;
+ for(const b of document.querySelectorAll('[data-mask-channel]')){b.disabled=!person||next.busy;const on=b.dataset.maskChannel===maskChannel;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));}
+ for(const id of ['mask-start-brush','mask-start-smart','mask-start-rect','mask-write-mode','mask-write-gradient','mask-brush-size','mask-brush-strength'])$(id).disabled=!enabled;
+ for(const b of document.querySelectorAll('[data-mask-paint]')){b.disabled=!enabled;b.setAttribute('aria-pressed',String((b.dataset.maskPaint==='white')===next.white));}
+ field('mask-brush-size',$('brush-size').value,!enabled);field('mask-brush-strength',$('brush-strength').value,!enabled);$('mask-display-mode').value=next.maskDisplayMode;$('mask-display-mode').disabled=!enabled;
+ $('mask-write-selection').disabled=!enabled||!next.selection;$('mask-soften').disabled=!enabled||next.target==='image';$('mask-toggle-preview').disabled=!same||next.busy;$('mask-toggle-preview').textContent=next.showMask?'隐藏区域':'显示区域';$('mask-play-preview').disabled=!person||next.busy;
+ const effect=['motion','emission','phase','foil'].includes(maskChannel);$('mask-effect-setting').hidden=!effect;$('mask-effect-enabled').checked=maskChannel==='motion'?next.document.effects.cape:maskChannel==='foil'?next.document.armor.enabled:next.document.effects.flow;$('mask-effect-enabled').disabled=next.busy;$('mask-effect-label').textContent=maskChannel==='motion'?'启用披风运动':maskChannel==='foil'?'启用盔甲反光':'启用武器流光';
 }
+$('mask-layer').onchange=()=>{if(host.selectLayer($('mask-layer').value))host.chooseMask(maskChannel);};
+for(const b of document.querySelectorAll('[data-mask-paint]'))b.onclick=()=>{host.chooseMask(maskChannel);host.setMaskBrush(b.dataset.maskPaint==='white');};
+for(const [id,original] of [['mask-brush-size','brush-size'],['mask-brush-strength','brush-strength']])$(id).oninput=$(id).onchange=()=>{if($(id).value!==''&&$(id).validity.valid)$(original).value=$(id).value;};
+$('mask-display-mode').onchange=()=>{const mode=$('mask-display-mode').value;host.chooseMask(maskChannel);host.setMaskDisplay(mode);};
+$('mask-effect-enabled').onchange=()=>host.mutate('启用 / 关闭区域效果',d=>{if(maskChannel==='motion')d.effects.cape=$('mask-effect-enabled').checked;else if(maskChannel==='foil')d.armor.enabled=$('mask-effect-enabled').checked;else d.effects.flow=$('mask-effect-enabled').checked;});
+$('preview-region-mode').onchange=()=>host.setRegionMode($('preview-region-mode').value);
+$('mask-region-highlight').onclick=()=>{host.chooseMask(maskChannel);view('split');host.setRegionMode('mask',maskChannel);};
+$('mask-play-preview').onclick=()=>{view('split');previewLayout.effectsEnabled=true;window.cardPreview.setEffectsEnabled(true);syncPreviewLayout();saveLayout();if($('toggle-play').textContent==='播放')$('toggle-play').click();host.say('右侧播放最终效果；拖动卡片查看框内外和视差');};
 $('mask-person-select').onclick=()=>host.chooseMask(maskChannel);
 $('mask-person-unlock').onclick=()=>host.unlockMaskLayer();
 document.querySelectorAll('[data-mask-channel]').forEach(b=>b.onclick=()=>{maskChannel=b.dataset.maskChannel;host.chooseMask(maskChannel);});
@@ -107,6 +129,8 @@ $('shader-reset').onclick=()=>{window.atelierShaderEditors.set('geometry-code',r
 document.querySelectorAll('[data-refine]').forEach(b=>b.onclick=()=>host.refine(b.dataset.refine,Number($('refine-radius').value)));
 for(const id of ['slot-name','action-name'])$(id).oninput=$(id).onchange;
 for(const el of document.querySelectorAll('.inspector input[type=number]'))el.oninput=()=>{if(el.value!==''&&el.validity.valid)el.onchange?.();};
+document.addEventListener('pointerdown',e=>{for(const d of document.querySelectorAll('.space-popover[open],.status-activity[open]'))if(!d.contains(e.target))d.open=false;});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')for(const d of document.querySelectorAll('.space-popover[open],.status-activity[open]')){d.open=false;d.querySelector('summary').focus();}});
 window.atelierWorkspace={refresh,tool,panel,view,syncLayout,ensurePreview,selectAction(id){actionId=id;refresh(host.state());}};
 if(saved.collapsed)document.body.classList.add('dock-collapsed');if(saved.toolsHidden)document.body.classList.add('tools-hidden');if(saved.focused)document.body.classList.add('panels-hidden');window.cardPreview.setEffectsEnabled?.(previewLayout.effectsEnabled);view(previewLayout.view);panel(saved.panel==='agent'?'properties':saved.panel||'properties');refresh(host.state());
 })();

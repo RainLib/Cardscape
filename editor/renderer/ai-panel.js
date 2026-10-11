@@ -14,8 +14,8 @@ function controls(){
  const bound=input?.documentToken===selectionState?.documentToken&&input?.layerId===selectionState?.layerId&&input?.revision===selectionState?.revision;
  $('ai-start').disabled=active||!!job||!valid||!bound||!$('ai-prompt').value.trim()||!selectionState?.available||!window.atelierAgents?.ready($('ai-adapter').value);
  $('ai-inspect-open').disabled=working||!input;
- $('ai-new').disabled=active;$('ai-mode').disabled=active||!!job;$('ai-adapter').disabled=active||!!job;for(const id of ['ai-model','ai-reasoning'])$(id).disabled=active||!!job;
- $('ai-cancel').hidden=!job||!['preparing','running','validating','waiting'].includes(job.state);$('ai-files').hidden=!job;$('ai-collect').disabled=!job||!['waiting','failed','interrupted'].includes(job.state);$('ai-import').disabled=$('ai-collect').disabled;
+ $('ai-new').disabled=active;$('ai-mode').disabled=active||!!job;$('ai-adapter').disabled=active||!!job;$('ai-defaults-mode').disabled=active||!!job;for(const id of ['ai-model','ai-reasoning'])$(id).disabled=active||!!job||window.atelierAgents?.selection('ai').inheritDefaults;
+ $('ai-cancel').hidden=!job||!['preparing','running','validating','waiting'].includes(job.state);$('ai-files').hidden=!job;$('ai-collect').disabled=!job||!['waiting','failed','interrupted'].includes(job.state);$('ai-import').disabled=$('ai-collect').disabled;$('ai-recovery-tools').hidden=!job||job.mode!=='generate'||!['waiting','failed','interrupted'].includes(job.state);$('ai-recover-alpha').disabled=working;
  $('ai-padding').hidden=$('ai-mode').value!=='outpaint';$('ai-fit-label').hidden=job?.mode!=='outpaint';
  for(const id of ['ai-left','ai-top','ai-right','ai-bottom','ai-prompt'])$(id).disabled=active||!!job;
  const same=job?.documentToken===selectionState?.documentToken;
@@ -30,14 +30,14 @@ async function prepare(mode,preserve=false){const value=await host.capture(mode)
 async function refreshInfo(){info=await window.atelierAgents.refresh();$('ai-capability').textContent=(info.adapters.find(a=>a.id===$('ai-adapter').value)?.auth?.message||'')+' · '+info.imageCapability;controls();}
 async function history(){const list=await host.invoke('agent-list');const select=$('ai-jobs');select.replaceChildren(new Option('选择历史任务…',''));for(const j of list)select.add(new Option(j.layerName+' · '+({edit:'改图',inpaint:'重绘',outpaint:'扩图',generate:'生成'}[j.mode])+' · '+stateNames[j.state],j.id));select.value=job?.id||'';}
 async function setJob(value){
- job=value;$('ai-state').textContent=stateNames[job.state]||job.state;$('ai-message').textContent=job.message||'';$('ai-mode').value=job.mode;window.atelierAgents?.set(job,'ai');$('ai-prompt').value=job.prompt;$('ai-directory').value=job.directory;
+ job=value;$('ai-state').textContent=stateNames[job.state]||job.state;$('ai-message').textContent=job.message||'';$('ai-mode').value=job.mode;window.atelierAgents?.set({...job,inheritDefaults:false},'ai');$('ai-prompt').value=job.prompt;$('ai-directory').value=job.directory;
  $('ai-events').textContent=(job.events||[]).map(e=>new Date(e.at).toLocaleTimeString()+'  '+e.message).join('\n');
  $('ai-dialog').dataset.jobId=job.id;$('ai-dialog').dataset.state=job.state;
  if(job.state==='ready'&&!candidate){const id=job.id,result=await host.invoke('agent-result',{id});if(job?.id!==id)return;candidate=result.image;$('ai-result').src=candidate;$('ai-result').hidden=false;$('ai-empty').hidden=true;$('ai-result-size').textContent=job.outputWidth+' × '+job.outputHeight;}
  if($('ai-inspect').open)syncInspect();controls();schedulePoll();
 }
 function schedulePoll(){clearTimeout(pollTimer);if(!running())return;const id=job.id;pollTimer=setTimeout(async()=>{try{const value=await host.invoke('agent-status',{id});if(job?.id===id){await setJob(value);if(!running())await history();}}catch(e){message(e.message);schedulePoll();}},1200);}
-function clearJob(){clearTimeout(pollTimer);job=null;candidate=null;input=null;editor.clear();fetchGeneration++;if(window.atelierAgents)window.atelierAgents.set(window.atelierAgents.selection('chat'),'ai');$('ai-dialog').dataset.state='draft';delete $('ai-dialog').dataset.jobId;$('ai-result').hidden=true;$('ai-empty').hidden=false;$('ai-result-size').textContent='';$('ai-state').textContent='待提交';$('ai-events').textContent='';$('ai-message').textContent='';$('ai-fit').checked=false;controls();}
+function clearJob(){clearTimeout(pollTimer);job=null;candidate=null;input=null;editor.clear();fetchGeneration++;if(window.atelierAgents)window.atelierAgents.defaults('ai');$('ai-dialog').dataset.state='draft';delete $('ai-dialog').dataset.jobId;$('ai-result').hidden=true;$('ai-empty').hidden=false;$('ai-result-size').textContent='';$('ai-state').textContent='待提交';$('ai-events').textContent='';$('ai-message').textContent='';$('ai-fit').checked=false;controls();}
 async function open(mode='edit'){
  try{
   const sameBinding=job?.documentToken===selectionState?.documentToken&&job?.layerId===selectionState?.layerId;
@@ -60,6 +60,7 @@ $('ai-start').onclick=async()=>{
 $('ai-cancel').onclick=async()=>{if(!job)return;try{await setJob(await host.invoke('agent-cancel',{id:job.id}));await history();}catch(e){message(e.message);}};
 $('ai-collect').onclick=async()=>{if(!job||working)return;working=true;controls();try{await setJob(await host.invoke('agent-collect',{id:job.id}));await history();}catch(e){message(e.message);}finally{working=false;controls();}};
 $('ai-reveal').onclick=async()=>{try{const result=await host.invoke('agent-reveal',{id:job.id});message('任务目录：'+result.directory);}catch(e){message(e.message);}};
+$('ai-recover-alpha').onclick=async()=>{if(!job||working)return;const input=$('ai-alpha-threshold');if(!input.validity.valid||input.value==='')return message('透明残留阈值须为 0–16');working=true;controls();try{await setJob(await host.invoke('agent-recover-candidate',{id:job.id,documentToken:host.binding().documentToken,threshold:Number(input.value)}));await history();}catch(e){message(e.message);}finally{working=false;controls();}};
 $('ai-import').onclick=()=>$('ai-result-file').click();
 $('ai-result-file').onchange=async()=>{const file=$('ai-result-file').files[0];if(!file||!job)return;const id=job.id;working=true;controls();try{if(file.size>24*1024*1024)throw Error('产出 PNG 超过 24 MB');const image=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});const value=await host.invoke('agent-import',{id,image});if(job?.id===id)await setJob(value);await history();}catch(e){message(e.message);}finally{$('ai-result-file').value='';working=false;controls();}};
 async function apply(asNew){if(!candidate||!job||working)return;working=true;controls();try{await host.apply(job,candidate,asNew,$('ai-fit').checked);job=await host.invoke('agent-applied',{id:job.id});message('候选图已应用，可通过撤销恢复原图');$('ai-dialog').close();}catch(e){message(e.message);}finally{working=false;controls();}}

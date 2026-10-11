@@ -1,0 +1,4 @@
+interface:
+  display_name: "卡牌工坊全流程制作"
+  short_description: "按创作要求生成卡牌素材、构建图层与动效，遇到设计歧义先提问再继续"
+  default_prompt: "使用 $card-atelier 在当前工坊制作一张新卡片，完成素材、Mask、双语图片字标和动效，关键设计不确定时先问我。"

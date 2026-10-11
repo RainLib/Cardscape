@@ -1,6 +1,6 @@
 [package]
 name = "card-worker"
-version = "0.6.0"
+version = "0.6.3"
 edition = "2024"
 
 [dependencies]

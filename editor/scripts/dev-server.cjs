@@ -13,7 +13,7 @@ const server=http.createServer(async(req,res)=>{
     const url=new URL(req.url,`http://127.0.0.1:${port}`);
     if(url.pathname==='/api'&&req.method==='POST'){
       if(req.headers.origin!==`http://127.0.0.1:${port}`||req.headers['x-atelier-client']!=='local-editor'){res.writeHead(403);res.end();return;}
-      let body='';for await(const chunk of req){body+=chunk;if(body.length>64*1024*1024)throw Error('Request too large');}
+      let body='';for await(const chunk of req){body+=chunk;if(body.length>256*1024*1024)throw Error('Request too large');}
       const {method,args}=JSON.parse(body);const result=await services.invoke(method,args);
       res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(result));return;
     }

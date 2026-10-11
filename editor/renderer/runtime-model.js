@@ -1,6 +1,7 @@
 /* One runtime contract is shared by the editor and its portable GLSL player. */
 (function(root,factory){const api=factory(typeof module==='object'&&module.exports?require('./frame-model.js'):root.CardFrame,typeof module==='object'&&module.exports?require('./card-stats.js'):root.CardStats,typeof module==='object'&&module.exports?require('./title-model.js'):root.CardTitle);if(typeof module==='object'&&module.exports)module.exports=api;else root.CardRuntime=api;})(typeof window==='object'?window:this,(frameModel,statsModel,titleModel)=>{
 'use strict';
+const spatial=typeof module==='object'&&module.exports?require('./spatial-model.js'):window.CardSpatial;
 const geometryBody='q.z += bend * (q.x * q.x - 0.25);\nreturn q;';
 const surfaceBody='return color;';
 const animationTracks={motion:{name:'披风运动',min:0,max:3,step:.1,unit:'×'},emission:{name:'武器发光',min:0,max:5,step:.1,unit:'×'},bend:{name:'附加弯曲',min:-1,max:1,step:.05,unit:''},yaw:{name:'左右旋转',min:-360,max:360,step:1,unit:'°'},pitch:{name:'上下倾斜',min:-35,max:35,step:1,unit:'°'}};
@@ -13,7 +14,7 @@ const armorDefaults={enabled:false,strength:.7,duration:2,period:6,width:.09,col
 function ensure(doc){doc.locale=doc.locale||'zh-CN';doc.composition={...compositionDefaults,...doc.composition};doc.armor={...armorDefaults,...doc.armor};doc.deformation={...defaults.deformation,...doc.deformation};doc.actions=doc.actions||structuredClone(defaults.actions);doc.slots=doc.slots||[];doc.shader={...defaults.shader,...doc.shader};if(doc.previewMode==='authored'&&!doc.foregroundMesh)doc.foregroundMesh=grid();return doc;}
 const range=(v,a,b)=>Number.isFinite(v)&&v>=a&&v<=b;
 function validate(doc){
- frameModel.validate(doc);statsModel.validate(doc);titleModel.validate(doc);
+ spatial.validate(doc);frameModel.validate(doc);statsModel.validate(doc);titleModel.validate(doc);(typeof module==='object'&&module.exports?require('./component-model.js'):window.CardComponents).validate(doc);
  if(doc.composition&&(typeof doc.composition!=='object'||Array.isArray(doc.composition)||Object.keys(doc.composition).some(k=>!Object.hasOwn(compositionDefaults,k)||typeof doc.composition[k]!=='boolean')))throw Error('框内外方向无效');
  if(doc.armor)titleModel.validateSweep({...armorDefaults,...doc.armor});
  if(doc.deformation&&!['bend','wind','speed'].every(k=>range(doc.deformation[k],k==='bend'?-1:0,k==='speed'?5:k==='bend'?1:2)))throw Error('几何形变参数无效');
@@ -27,21 +28,21 @@ function placement(doc,l){const s=slot(doc,l);return {x:(l?.x||0)+(s?(s.u-.5)*10
 function sampleTrack(frames,progress,fallback){if(!frames?.length)return fallback;if(progress<=frames[0].at)return frames[0].value;for(let i=1;i<frames.length;i++){const right=frames[i],left=frames[i-1];if(progress<=right.at){let t=(progress-left.at)/(right.at-left.at);if(left.ease==='hold')t=progress===right.at?1:0;else if(left.ease==='smooth')t=t*t*(3-2*t);return left.value+(right.value-left.value)*t;}}return frames[frames.length-1].value;}
 function action(doc,id,elapsed,{seek=false}={}){const a=doc.actions?.find(a=>a.id===id)||doc.actions?.find(a=>a.event==='idle')||defaults.actions[0];const seconds=Math.max(0,Number.isFinite(elapsed)?elapsed:0),progress=a.loop&&!seek?(seconds%a.duration)/a.duration:Math.min(1,seconds/a.duration),envelope=a.loop?1:Math.sin(progress*Math.PI);return {id:a.id,event:a.event,progress,done:!a.loop&&progress>=1,motion:sampleTrack(a.tracks?.motion,progress,1+(a.motion-1)*envelope),emission:sampleTrack(a.tracks?.emission,progress,1+(a.emission-1)*envelope),bend:sampleTrack(a.tracks?.bend,progress,a.bend*envelope),rotation:sampleTrack(a.tracks?.yaw,progress,a.event==='flip'?progress*180:0)*Math.PI/180,pitch:sampleTrack(a.tracks?.pitch,progress,0)*Math.PI/180,x:sampleTrack(a.tracks?.x,progress,0),y:sampleTrack(a.tracks?.y,progress,0),z:sampleTrack(a.tracks?.z,progress,0),scale:sampleTrack(a.tracks?.scale,progress,1),opacity:sampleTrack(a.tracks?.opacity,progress,1)};}
 function color(p,a={}){const brightness=(a.brightness||0)/100,contrast=1+(a.contrast||0)/100,saturation=(a.saturation??100)/100,gamma=a.gamma??1;let r=Math.max(0,Math.min(1,(p[0]/255-.5)*contrast+.5+brightness)),g=Math.max(0,Math.min(1,(p[1]/255-.5)*contrast+.5+brightness)),b=Math.max(0,Math.min(1,(p[2]/255-.5)*contrast+.5+brightness));r=r**(1/gamma);g=g**(1/gamma);b=b**(1/gamma);const y=.2126*r+.7152*g+.0722*b;return [r,g,b].map(c=>Math.round(Math.max(0,Math.min(1,y+(c-y)*saturation))*255));}
-function cameraInCard(yaw,pitch,root=[0,0,0,1]){const x=-root[0]/root[3],y=-root[1]/root[3],z=(2.7-root[2])/root[3],yp=Math.cos(pitch)*y+Math.sin(pitch)*z,zp=-Math.sin(pitch)*y+Math.cos(pitch)*z;return [Math.cos(yaw)*x-Math.sin(yaw)*zp,yp,Math.sin(yaw)*x+Math.cos(yaw)*zp];}
+function cameraInCard(yaw,pitch,root=[0,0,0,1],distance=2.7){const x=-root[0]/root[3],y=-root[1]/root[3],z=(distance-root[2])/root[3],yp=Math.cos(pitch)*y+Math.sin(pitch)*z,zp=-Math.sin(pitch)*y+Math.cos(pitch)*z;return [Math.cos(yaw)*x-Math.sin(yaw)*zp,yp,Math.sin(yaw)*x+Math.cos(yaw)*zp];}
 function aperturePoint(point,eye,z){const k=(z-eye[2])/(point[2]-eye[2]);return [eye[0]+(point[0]-eye[0])*k,eye[1]+(point[1]-eye[1])*k];}
 function popOutAllowed(p,style,composition=compositionDefaults){const x=(p[0]+.5)*1024,y=(.75-p[1])*1024,w=style.width;return !((!composition.top&&y<w)||(!composition.bottom&&y>1536-w)||(!composition.left&&x<w)||(!composition.right&&x>1024-w));}
-function vertex(body=geometryBody){return `attribute vec3 p;attribute vec2 uv;attribute vec4 fx;attribute float guard;
-uniform vec2 angle;uniform vec4 transform,rootTransform,frameMetrics;uniform float aspect,depth,t,moving,fg,bg,bend,windSpeed,layerRotation,rigidSurface;
+function vertex(body=geometryBody){return `attribute vec3 p;attribute vec2 uv;attribute vec4 fx;attribute float guard;attribute float join;
+uniform vec2 angle,backgroundExtent,attachmentParams;uniform vec4 attachmentTransform;uniform vec4 transform,rootTransform,frameMetrics,spatialParams;uniform float aspect,depth,t,moving,fg,bg,bend,windSpeed,layerRotation,rigidSurface;
 varying vec2 v;varying vec4 effects;varying vec3 local;
 vec3 deformCard(vec3 q,vec2 uv,float time,float bend){
 #line 1
 ${body}
 #line 1001
 }
-void main(){vec3 q=p;effects=fx;v=uv;if(bg>.5){q.xy*=1.18;v=uv*1.18-.09;}if(fg>.5){q.z=.045+.045*depth;float wave=sin(t*1.3*windSpeed+uv.x*11.+uv.y*8.);q.z+=wave*.016*fx.x*moving*depth;q.x+=wave*.005*fx.x*moving*depth;}
-float c=cos(layerRotation),s=sin(layerRotation);q.xy=mat2(c,s,-s,c)*q.xy*transform.z+transform.xy;q.z+=transform.w;if(rigidSurface<.5)q=mix(deformCard(q,uv,t,bend),q,fg>.5?1.-fx.x*(1.-guard):0.);local=q;c=cos(angle.x);s=sin(angle.x);q=vec3(c*q.x+s*q.z,q.y,-s*q.x+c*q.z);c=cos(angle.y);s=sin(angle.y);q=vec3(q.x,c*q.y-s*q.z,s*q.y+c*q.z);q=q*rootTransform.w+rootTransform.xyz;float camera=max(.15,2.7-q.z);float fit=min(1.0,aspect/.85);gl_Position=vec4(q.x*2.9*fit/aspect,q.y*2.9*fit,-q.z*.3,camera);}`;}
+void main(){vec3 q=p;effects=fx;v=uv;if(bg>.5){q.xy*=backgroundExtent;v=(uv-.5)*backgroundExtent+.5;}if(fg>.5){q.z=spatialParams.x>.5?0.:.045+.045*depth;float wave=sin(t*1.3*windSpeed+uv.x*11.+uv.y*8.);q.z+=wave*.016*fx.x*moving*depth;q.x+=wave*.005*fx.x*moving*depth;}
+float connected=attachmentParams.x,weight=connected>.5?join:1.;float rotation=mix(attachmentParams.y,layerRotation,weight);float c=cos(rotation),s=sin(rotation);vec4 placement=mix(attachmentTransform,transform,weight);q.xy=mat2(c,s,-s,c)*q.xy*placement.z+placement.xy;q.z+=placement.w;if(spatialParams.x>.5)q.xy*=connected>.5?(spatialParams.w-q.z)/(spatialParams.w-.045):spatialParams.z;if(rigidSurface<.5)q=mix(deformCard(q,uv,t,bend),q,fg>.5?1.-fx.x*(1.-guard):0.);local=q;c=cos(angle.x);s=sin(angle.x);q=vec3(c*q.x+s*q.z,q.y,-s*q.x+c*q.z);c=cos(angle.y);s=sin(angle.y);q=vec3(q.x,c*q.y-s*q.z,s*q.y+c*q.z);q=q*rootTransform.w+rootTransform.xyz;float camera=max(.15,spatialParams.w-q.z);float fit=min(1.0,aspect/.85);gl_Position=vec4(q.x*2.9*fit/aspect,q.y*2.9*fit,-q.z*.3,camera);}`;}
 function fragmentSource(body=surfaceBody){return `precision highp float;uniform sampler2D tex,emissionTex,phaseTex,insetTex,customMaskTex,foilTex;uniform float opacity,rootOpacity,frame,flow,t,fg,bg,back,clip,customEffect,customStrength,customMasked,foregroundPass;
-uniform vec2 shift,angle,titleBounds;uniform vec3 frameColor,frameAccent,cardEye,armorColor,titleColor;uniform vec4 frameMetrics,popOutSides,armorSweep,titleSweep;uniform float frameFinish;uniform vec4 sourceRect,adjustment;uniform vec3 slotEffect;varying vec2 v;varying vec4 effects;varying vec3 local;
+uniform float materialStyle;uniform vec4 componentMaterial;uniform vec3 materialColor,materialAccent;uniform vec2 shift,angle,titleBounds;uniform vec3 frameColor,frameAccent,cardEye,armorColor,titleColor;uniform vec4 frameMetrics,popOutSides,armorSweep,titleSweep;uniform float frameFinish;uniform vec4 sourceRect,adjustment;uniform vec3 slotEffect;varying vec2 v;varying vec4 effects;varying vec3 local;
 vec4 surfaceEffect(vec4 color,vec2 uv,float time,vec4 mask){
 #line 1
 ${body}
@@ -58,6 +59,7 @@ if(frame>.5){float shade=frameFinish<.5?.85:(.45+.55*effects.z);float shine=pow(
 // partially covered edges of an inset limb do not leave ghosts outside the rim.
 if(fg>.5&&foregroundPass>1.5)c.a*=1.-smoothstep(.02,.5,texture2D(insetTex,v).r/max(c.a,.001));
 if(c.a<.015)discard;c.rgb=pow(clamp((c.rgb-.5)*adjustment.y+.5+adjustment.x,0.,1.),vec3(1./adjustment.w));float luminance=dot(c.rgb,vec3(.2126,.7152,.0722));c.rgb=clamp(mix(vec3(luminance),c.rgb,adjustment.z),0.,1.);
+if(componentMaterial.x>0.&&((bg>.5&&componentMaterial.w!=2.)||(back>.5&&componentMaterial.w!=1.))){float bands=.5+.5*sin((v.x+v.y*(materialStyle>.5?2.:.7))*componentMaterial.z*6.283+angle.x*3.+angle.y*2.+t*componentMaterial.y);vec3 hue=mix(materialColor,materialAccent,bands);float shimmer=materialStyle>.5?pow(bands,5.):(.35+.65*bands);c.rgb=mix(c.rgb,clamp(c.rgb+hue*shimmer,0.,1.),componentMaterial.x);}
 if(fg>.5){float emission=texture2D(emissionTex,v).r,phase=texture2D(phaseTex,v).r;float stream=pow(.5+.5*sin(phase*30.-t*3.1+v.y*11.),3.);c.rgb+=vec3(.45,.77,1.)*emission*stream*flow;}
 if(fg>.5&&armorSweep.x>0.)c.rgb+=armorColor*texture2D(foilTex,v).r*sweepLight(v.x+v.y*.18,armorSweep);
 if(titleSweep.x>0.)c.rgb+=titleColor*sweepLight((v.x-titleBounds.x)/max(.001,titleBounds.y-titleBounds.x),titleSweep);

@@ -103,7 +103,7 @@ fn bake(args: &Value) -> Result<Value, String> {
 }
 fn run(op: &str, args: &Value) -> Result<Value, String> {
     match op {
-        "ping" => Ok(json!({"engine":"rust","version":env!("CARGO_PKG_VERSION"),"operations":["selection","mask_combine","feather","resize","mask_stats","bake_mask","alpha","image_channel","mesh","agent_image","refine_selection","adjust_image","wand_selection","title_raster"],"parallel_threads":rayon::current_num_threads()})),
+        "ping" => Ok(json!({"engine":"rust","version":env!("CARGO_PKG_VERSION"),"operations":["selection","mask_combine","feather","resize","mask_stats","bake_mask","clean_alpha","underpaint","repair_split","alpha","image_channel","mesh","agent_image","refine_selection","adjust_image","wand_selection","title_raster"],"parallel_threads":rayon::current_num_threads()})),
         "agent_image" => {
             let source=decode(args,"source")?.to_rgba8();let mut candidate=decode(args,"candidate")?.to_rgba8();
             let mode=args["mode"].as_str().ok_or("missing image operation")?;
@@ -159,14 +159,25 @@ fn run(op: &str, args: &Value) -> Result<Value, String> {
             let raw:Vec<u8>=img.as_raw().par_chunks(4).map(|p|match channel{"black"=>0,"white"=>255,_=>p[3]}).collect();
             Ok(json!({"image":encode(&DynamicImage::ImageLuma8(GrayImage::from_raw(img.width(),img.height(),raw).ok_or("invalid channel")?))?,"width":img.width(),"height":img.height()}))
         },
+        "underpaint" => processing::underpaint(args),
+        "repair_split" => processing::repair_split(args),
+        "clean_alpha" => {
+            let mut image=decode(args,"image")?.to_rgba8();
+            let threshold=args["threshold"].as_u64().ok_or("invalid alpha threshold")?;
+            if threshold>16{return Err("alpha threshold must be 0..16".into());}
+            let cleared:usize=image.as_mut().par_chunks_mut(4).map(|p|{if p[3]>0&&u64::from(p[3])<=threshold{p[3]=0;1}else{0}}).sum();
+            Ok(json!({"image":encode(&DynamicImage::ImageRgba8(image))?,"cleared_pixels":cleared,"threshold":threshold}))
+        },
         "alpha" => {
             let mut img=decode(args,"image")?.to_rgba8();let mask=decode(args,"mask")?.to_luma8();
+            let backing=if args["decontaminate"].as_bool().unwrap_or(false){Some(img.clone())}else{None};
             if img.dimensions()!=mask.dimensions() {return Err("mask dimensions must match image".into());}
             let mode=args["mode"].as_str().unwrap_or("multiply");
             if !["multiply","coverage"].contains(&mode){return Err("invalid alpha mode".into());}
             // Coverage already records final visibility, including source alpha.
             // Reapplying it to the preserved master must not attenuate edges twice.
             img.as_mut().par_chunks_mut(4).zip(mask.as_raw().par_iter()).for_each(|(p,m)|p[3]=if mode=="coverage"{p[3].min(*m)}else{((p[3] as u32* *m as u32)/255) as u8});
+            if let Some(source)=backing{processing::decontaminate_edges(&mut img,&source);}
             Ok(json!({"image":encode(&DynamicImage::ImageRgba8(img))?}))
         },
         "mask_stats" => {

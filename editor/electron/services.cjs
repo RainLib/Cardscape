@@ -11,11 +11,13 @@ const {exportWorkshop}=require('./workshop-export.cjs');
 const {SelectionWorker}=require('./selection-client.cjs');
 const {CutoutWorker}=require('./cutout-client.cjs');
 const {prepareAuthoring}=require('./authoring-service.cjs');
+const {createCheckpoints}=require('./production-checkpoints.cjs');
+const {createEditorSession}=require('./editor-session.cjs');
 const APP_VERSION=require('../package.json').version;
 const ROOT = path.resolve(__dirname,'..');
 const ASSETS = path.join(ROOT,'assets');
 const MAX_DOCUMENT = 64 * 1024 * 1024;
-const OPS = new Set(['ping','feather','resize','mask_stats','mesh','selection','mask_combine','alpha','image_channel','refine_selection','adjust_image','wand_selection','title_raster']);
+const OPS = new Set(['ping','feather','resize','mask_stats','mesh','selection','mask_combine','clean_alpha','underpaint','repair_split','alpha','image_channel','refine_selection','adjust_image','wand_selection','title_raster']);
 function validateProject(doc) {
   if (!doc || doc.schema !== 'card-atelier/1' || doc.width !== 1024 || doc.height !== 1536 || !Array.isArray(doc.layers) || doc.layers.length > 64) throw Error('工程格式或画布尺寸不支持');
   if (!doc.masks || typeof doc.masks !== 'object') throw Error('工程缺少 Mask');
@@ -28,12 +30,14 @@ function validateProject(doc) {
     if (layer.src && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(layer.src)) throw Error('工程图像必须内嵌');
     if (layer.master && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(layer.master)) throw Error('母版图像必须内嵌');
     if(layer.cutoutMask&&!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(layer.cutoutMask))throw Error('抠图 Mask 必须为内嵌 PNG');
+    if(layer.ownershipMask&&!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(layer.ownershipMask))throw Error('拆层 ownership Mask 必须为内嵌 PNG');
     if(layer.sourceWindow){const r=layer.sourceWindow;if(!['x','y','width','height'].every(k=>Number.isFinite(r[k]))||r.x<0||r.y<0||r.width<1||r.height<1||r.x+r.width>8192||r.y+r.height>8192)throw Error('扩图注册区域无效');}
     if(layer.textStyle){const s=layer.textStyle;if(typeof s.fontFamily!=='string'||s.fontFamily.length>100||!/^[\w\u3400-\u9fff -]+$/.test(s.fontFamily)||![400,700,800].includes(Number(s.fontWeight))||!Number.isFinite(s.fontSize)||s.fontSize<12||s.fontSize>300||!Number.isFinite(s.strokeWidth)||s.strokeWidth<0||s.strokeWidth>24||![s.color,s.stroke].every(c=>/^#[a-fA-F0-9]{6}$/.test(c))||!['left','center','right'].includes(s.align))throw Error('文字样式无效');}
   }
   for (const mask of Object.values(doc.masks)) if (typeof mask !== 'string' || !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(mask)) throw Error('Mask 必须为内嵌 PNG');
   if (doc.back && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(doc.back)) throw Error('卡背图像无效');
   if(doc.fonts){if(!Array.isArray(doc.fonts)||doc.fonts.length>16)throw Error('工程最多 16 个嵌入字体');const families=new Set();for(const font of doc.fonts){if(!/^AtelierFont-[0-9]+$/.test(font.family)||families.has(font.family)||typeof font.name!=='string'||font.name.length>200||!/^data:font\/(ttf|otf|woff2);base64,[A-Za-z0-9+/=]+$/.test(font.src)||font.src.length>17*1024*1024)throw Error('工程字体无效');families.add(font.family);}}
+  require('../renderer/layer-tree.js').validate(doc);
   runtimeModel.validate(doc);
   if (JSON.stringify(doc).length > MAX_DOCUMENT) throw Error('工程超过 64 MB 上限');
   return doc;
@@ -51,17 +55,32 @@ function pngBytes(data) {
   return bytes;
 }
 function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null, initialProject = null} = {}) {
+  // CLI children change cwd to their job directory. Resolve the runtime once so
+  // contracts and --cd never become relative to that directory a second time.
+  runtimeDir=path.resolve(runtimeDir);
   const worker = new NativeWorker(),selectionWorker=new SelectionWorker(),cutoutWorker=new CutoutWorker(); let projectFile = initialProject;
-  const agents=createAgentService({runtimeDir,dialogs});
+  const agents=createAgentService({runtimeDir,dialogs}),checkpoints=createCheckpoints({runtimeDir,validate:validateProject,write:atomicWrite});
+  const session=createEditorSession({runtimeDir,validate:validateProject,write:atomicWrite});
   return {
     worker,
     async invoke(method,args={}) {
       if(typeof method==='string'&&method.startsWith('agent-'))return agents.invoke(method,args);
       switch(method) {
+        case 'editor-session-save': return session.save(args,projectFile);
+        case 'editor-session-start': return {sessionToken:session.start()};
+        case 'production-checkpoint': return checkpoints.save(args);
+        case 'production-checkpoint-info': return checkpoints.info(args.id);
+        case 'production-checkpoint-open': return checkpoints.open(args.id);
         case 'bootstrap': {
-          if(!projectFile&&!dialogs){try{const files=await fs.readdir(path.join(runtimeDir,'projects'));const projects=await Promise.all(files.filter(f=>/\.(cardproj|cardworkshop)$/.test(f)).map(async name=>({file:path.join(runtimeDir,'projects',name),mtime:(await fs.stat(path.join(runtimeDir,'projects',name))).mtimeMs})));projects.sort((a,b)=>b.mtime-a.mtime);projectFile=projects[0]?.file||null;}catch(error){if(error.code!=='ENOENT')throw error;}}
-          let initial={document:null};if(initialProject){initial=await workshopStorage.read(initialProject,validateProject);initialProject=null;}
-          return {template:JSON.parse(await fs.readFile(path.join(ASSETS,'template.json'),'utf8')),...initial,engine:await worker.call('ping'),appVersion:APP_VERSION,initialPanel:['agent','masks','shader','motion','frame','appearance'].includes(process.env.ATELIER_INITIAL_PANEL)?process.env.ATELIER_INITIAL_PANEL:null,initialView:['edit','split','preview','space'].includes(process.env.ATELIER_INITIAL_VIEW)?process.env.ATELIER_INITIAL_VIEW:null,desktop:!!dialogs};
+          const recovered=await session.recover(initialProject);let initial={document:null};
+          if(recovered?.document||recovered?.workshop){initial=recovered;projectFile=recovered.sourceFile;}
+          else{
+           if(!projectFile){try{const files=await fs.readdir(path.join(runtimeDir,'projects'));const projects=await Promise.all(files.filter(f=>/\.(cardproj|cardworkshop)$/.test(f)).map(async name=>({file:path.join(runtimeDir,'projects',name),mtime:(await fs.stat(path.join(runtimeDir,'projects',name))).mtimeMs})));projects.sort((a,b)=>b.mtime-a.mtime);projectFile=projects[0]?.file||null;}catch(error){if(error.code!=='ENOENT')throw error;}}
+           if(projectFile)initial=await workshopStorage.read(projectFile,validateProject);
+           if(recovered?.recoveryError)initial.recoveryError=recovered.recoveryError;
+          }
+          initialProject=null;
+          return {template:JSON.parse(await fs.readFile(path.join(ASSETS,'template.json'),'utf8')),...initial,sessionToken:session.start(),engine:await worker.call('ping'),appVersion:APP_VERSION,initialPanel:['agent','masks','shader','motion','frame','appearance'].includes(process.env.ATELIER_INITIAL_PANEL)?process.env.ATELIER_INITIAL_PANEL:null,initialView:['edit','split','preview','space'].includes(process.env.ATELIER_INITIAL_VIEW)?process.env.ATELIER_INITIAL_VIEW:null,desktop:!!dialogs};
         }
         case 'document-state': return {ok:true};
         case 'authoring-prepare': return prepareAuthoring(args,{validate:validateProject,process:(op,a)=>this.invoke('process',{op,args:a}),asset:id=>agents.invoke('agent-result',{id})});
@@ -87,7 +106,7 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
           if(args.op==='remove_background'){
             if(JSON.stringify(args).length>MAX_DOCUMENT)throw Error('抠图输入过大');
             const result=await cutoutWorker.call('segment',args.args);
-            const alpha=await worker.call('alpha',{image:args.args.image,mask:result.mask});
+            const alpha=await worker.call('alpha',{image:args.args.image,mask:result.mask,decontaminate:true});
             return {...result,image:alpha.image,elapsedMs:result.elapsedMs+alpha.elapsedMs};
           }
           if (!OPS.has(args.op)) throw Error('不支持的处理操作');
@@ -95,7 +114,7 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
           return worker.call(args.op,args.args);
         }
         case 'cancel': worker.cancel();selectionWorker.cancel();cutoutWorker.cancel(); return {canceled:true};
-        case 'open-data': {if(typeof args.text!=='string'||Buffer.byteLength(args.text)>MAX_DOCUMENT)throw Error('工程文件超过 64 MB');const data=JSON.parse(args.text);const result=data.schema==='card-atelier/1'?{document:validateProject(data)}:{workshop:workshopModel.validate(workshopStorage.unpack(data),validateProject)};projectFile=null;return result;}
+        case 'open-data': {if(typeof args.text!=='string'||Buffer.byteLength(args.text)>workshopStorage.MAX_BYTES)throw Error('工坊文件超过 192 MB');const data=JSON.parse(args.text);const result=data.schema==='card-atelier/1'?{document:validateProject(data)}:{workshop:workshopModel.validate(workshopStorage.unpack(data),validateProject)};projectFile=null;return result;}
         case 'validate-card': return {document:validateProject(args.document)};
         case 'save-workshop': {
           const w=workshopStorage.unpack(args.workshop),text=workshopStorage.serialized(w,validateProject);
@@ -105,11 +124,15 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
           file ||= path.join(runtimeDir,'projects',(w.name.replace(/[^\w\u3400-\u9fff-]/g,'_').slice(0,80)||'workshop')+'-'+randomUUID().slice(0,8)+'.cardworkshop');
           await atomicWrite(file,text);projectFile=file;return {file,cards:w.cards.length,resources:w.resources.length};
         }
+        case 'export-preview-stage': {
+          if(!/^[\w-]{1,100}$/.test(args.token)||!/^[\w-]{1,100}$/.test(args.cardId))throw Error('导出暂存标识无效');const text=JSON.stringify(args.output);if(text.length>24*1024*1024)throw Error('单卡导出图像超过 24 MB');pngBytes(args.output.front);for(const png of Object.values(args.output.layerRasters||{}))pngBytes(png);for(const locales of Object.values(args.output.titleRasters||{}))for(const png of Object.values(locales))pngBytes(png);await atomicWrite(path.join(runtimeDir,'export-staging',args.token,args.cardId+'.json'),text);return {staged:true,cardId:args.cardId};
+        }
         case 'export-workshop': {
           const w=workshopStorage.unpack(args.workshop);workshopModel.validate(w,validateProject);
           const base=dialogs?await dialogs.exportDirectory():path.join(runtimeDir,'exports');if(!base)return {canceled:true};
           const directory=path.join(base,'workshop-'+Date.now()+'-'+randomUUID().slice(0,8));
-          return exportWorkshop(directory,w,args.outputs,worker,{atomicWrite,pngBytes,validateProject});
+          let outputs=args.outputs;let staged=null;if(args.stageToken){if(!/^[\w-]{1,100}$/.test(args.stageToken))throw Error('导出暂存标识无效');staged=path.join(runtimeDir,'export-staging',args.stageToken);outputs={};for(const c of w.cards)outputs[c.id]=JSON.parse(await fs.readFile(path.join(staged,c.id+'.json'),'utf8'));}
+          const result=await exportWorkshop(directory,w,outputs,worker,{atomicWrite,pngBytes,validateProject});if(staged)await fs.rm(staged,{recursive:true,force:true});return result;
         }
         case 'save': {
           const doc = validateProject(args.document);
@@ -124,7 +147,7 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
         case 'open': {
           let file = dialogs ? await dialogs.openProject() : projectFile || path.join(runtimeDir,'projects','card.cardproj');
           if (!file) return {canceled:true};
-          if ((await fs.stat(file)).size > MAX_DOCUMENT) throw Error('工程超过 64 MB');
+          if ((await fs.stat(file)).size > workshopStorage.MAX_BYTES) throw Error('工坊超过 192 MB');
           const result=await workshopStorage.read(file,validateProject);projectFile=file;return {file,...result};
         }
         case 'import': {
@@ -142,7 +165,7 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
           let base=dialogs?await dialogs.exportDirectory():path.join(runtimeDir,'exports');
           if(!base)return {canceled:true};
           const dir=path.join(base,'card-'+Date.now()+'-'+randomUUID().slice(0,8));await fs.mkdir(dir,{recursive:true});
-          await exportCard(dir,doc,args,worker,{atomicWrite,pngBytes});
+          await exportCard(dir,doc,args,worker,{atomicWrite,pngBytes});const single=workshopModel.create(doc,'single-workshop',doc.id||'single-card',doc.name);const manifest=JSON.parse(await fs.readFile(path.join(dir,'manifest.json'),'utf8'));await require('./godot-export.cjs').exportGodot(dir,single,new Map([[single.activeCardId,manifest]]),{cardDirectory:dir});
           return {directory:dir};
         }
         default: throw Error('未知编辑器命令');

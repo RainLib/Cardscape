@@ -9,5 +9,6 @@ function sample(value,seconds){const c=config(value),p=((Math.max(0,Number.isFin
  const poses=[[0,0],[28,-16],[-28,16],[90,0],[180,0],[270,0],[360,0],[360,-18],[360,0]],i=Math.floor(p*8),f=p*8-i,t=f*f*(3-2*f),a=poses[i],b=poses[i+1];
  return {yaw:a[0]+(b[0]-a[0])*t,pitch:a[1]+(b[1]-a[1])*t,x:0,y:0,progress:p};
 }
-return {modes,config,sample};
+function poseTransition(from,to,seconds,duration=.45){const p=Math.max(0,Math.min(1,seconds/duration)),t=p*p*(3-2*p),delta=((to.yaw-from.yaw+540)%360+360)%360-180;return {yaw:from.yaw+delta*t,pitch:from.pitch+(to.pitch-from.pitch)*t,done:p===1};}
+return {modes,config,sample,poseTransition};
 });

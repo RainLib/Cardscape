@@ -94,3 +94,46 @@ CLI 默认只读取配置中模型、推理与 profile 字段，不将 provider 
 外部 profile 支持 `requiresLogin`（默认 true）、`statusArgs`、`loginArgs`、`updateArgs`、`statusSuccessText`。三个参数都是 JSON 字符串数组，不经 shell；`statusArgs` 的退出码须表示登录状态，提供成功文本时还须匹配。无检测参数则为 unconfigured，阻止 AI 执行。`requiresLogin:false` 仅用于本地无需账号的程序和协议测试。
 
 CLI 不支持参数显示版本 / 参数诊断；账号拒绝模型显示模型诊断，均提供更新检查入口。更新检查明确区分可更新、当前、未确认及网络失败，不以模型拒绝证明版本过旧。安装 / 更新入口依据当前 CLI 来源选择官方命令；登录使用当前 CLI 和同一个 CODEX_HOME 路径，不复制或读取凭据。macOS 原生终端入口完成后需用户返回检测，其他入口显示命令。
+
+
+## 0.17：制作 Skill 与 question
+
+编辑聊天契约新增 `skill: {name, entry, sha256}`。当前 `card-atelier` 的完整内容复制到本轮目录 `.agents/skills/card-atelier/`，CLI 在受限任务目录内读取；自定义 Agent 也可以读取相同文件。非编辑建议不会加载制作 Skill。该快照用于复现实际调用，不修改 CLI 全局模型配置。
+
+问题回复格式：
+
+```text
+<atelier-question>{"questions":[{"id":"style","title":"卡片采用哪种风格？","options":["铜金","冰蓝"]}]}</atelier-question>
+```
+
+每次 1–3 项，ID 唯一；选项可省略，存在时为 2–3 个短字符串。无论是否有选项，用户都可自由输入。问题不能与编辑操作同时返回。服务持久化 `questions`、`questionBinding` 和 `questionWorkflow`，状态为 idle、活动为等待回答，前端暂停自动续作，不设超时默认。
+
+回答调用仍为 `agent-chat-send`，额外传入 `questionAnswer: {messageId, answers: {问题ID: 用户回答}}`。必须覆盖当前问题，重复或过期答案被拒绝；若问题绑定了卡片，回答必须使用相同 documentToken，但 revision/viewKey 取最新工程。成功提交后原问题记录 `questionResult`，新的契约和用户消息带 `questionAnswer`，CLI 根据原目标恢复。重启不会丢失未回答问题；不会因为等待时间过去而自动执行制作。
+
+
+成功应用制作批次后，客户端在继续下一轮前调用 `production-checkpoint` 保存全工坊去重快照。服务提供按工坊/卡片 ID 限定的 `production-checkpoint-info` 和 `production-checkpoint-open`；不允许传入任意路径，不写正式工程。恢复使用最新文档绑定并增加撤销记录，之后可通过原会话续作。若保存失败，编辑回执仍为 applied，但暂停自动制作并提示手工保存。
+
+
+## 图层树（0.17.1）
+
+`context.document.layerTree` 是嵌套数组：叶节点 `{type:"layer",id}`；组节点 `{type:"group",id,name,children}`。所有图像仍来自 flat layers，无虚构的分组网格。`group(layerIds,name,groupId)` 创建组，`ungroup(groupId)` 保留成员并提升到父级，`renameGroup(groupId,name)` 改名，`moveNode(nodeIds,targetId,position)` 支持 before/after/inside；position=root 时不传 targetId。图层与组共享 ID 空间，禁止循环、重复引用，最多 64 组/8 层嵌套。对锁定成员的排序失败不提交部分变更。新组 ID 必须唯一。
+
+`reorder(layerId,index)` 沿用扁平索引，更新树中对应的位置。同类素材的叠放顺序与实际 3D Z 不同，卡框/人物内外保持结构性绘制。各层真实深度和相机的设计边界见 `docs/spatial-depth-design.md`；只调用当前契约实际支持的接口。
+
+## 空间制作与候选恢复（0.19）
+
+`camera(distance)` 设置统一相机距离，`spatial(layerId,role,z?,clip?)` 设置相对平直卡框的深度。`splitLayer` 只拆当前人物的前后布料，保留母版、全局 Mask 和连续网格；不会复制完整人物。
+
+制作聊天同时提供 `input.png` 当前图层和 `composition.png` 实际 1024×1536 卡面合成图，Agent 可以检查图层关系、字标和徽章位置。合成图为静态 2D 快照，不能据此声称 3D 拖动或动画已经验证；动态结果仍以真实预览为准。两张图只写入本轮受控任务目录，文本会话只记录附图标志。
+
+`context.actions` 提供真实动作属性和轨道。`action(actionId)` 播放；`actionSettings(actionId,bend?,duration?,event?,loop?,motion?,emission?,tracks?)` 编辑现有动作，未指定的字段保留。`tracks` 为受限关键帧字典，按运行时轨道边界和时间顺序校验，整批失败不部分应用。`view(mode:"space")` 可直接打开空间层级检查。
+
+`context.failedAssets` 包含当前卡片已结束但未就绪的任务。真实 PNG 因弱 Alpha 残留未通过美术检查时，单独提交 `recoverImage(jobId,threshold?)`，默认阈值 4，范围 0–16 的整数。服务校验卡片身份、任务状态、受控结果清单路径和 PNG 尺寸；调用 Rust 清理阈值以内的 Alpha，保留原始候选与清单，验证后才返回 READY。收到回执后下一批 `asset` 消费。不能恢复正在运行的任务，不能伪造任务就绪或重复生成来处理透明残留。
+
+## 后层补全与连接（0.19.1）
+
+`repairLayer(layerId,jobId,polygon,feather?,protectRigid?)` 只接受当前卡/图层/版本的 READY edit/inpaint 候选、统一1024×1536。polygon 是3..128个画布坐标，feather为0..16，默认2。先后层真实生图、等待READY，再补绘；只在指定区域将生成内容合成在现有 Alpha 下面，保留不透明像素、原始母版与生成候选，记录 addedMask/filledPixels。默认 protectRigid=true，新增区域加入 coverage/rigid 并从motion排除。不能先移动或编辑工程导致候选版本失效。
+
+`attachment(layerId,maxOffset?,blendWidth?)` 只操作有splitSourceId人物部件：maxOffset .001..15，默认 .025；blendWidth 16..192 px，默认64。内部切边固定到父层，并向自由末端渐变。远中近等独立背景不参与。人物、武器、字标与费用/战力共同按图层列表叠放；实际Z控制视差。
+
+0.19.3 增加 `attachment` 的 `anchor:{edge,pin,release}` 与可选 `motion:0..2`：edge top/bottom/left/right 表示从对应源图边缘向内测量固定和释放距离（1024×1536），release-pin至少16px。boundary沿用自动切边。根部固定，裙摆末端/披风飘尾可有真实层间视差。`repairRegion(layerId,polygon,feather?)` 只调整已有真实补绘的覆盖范围，保留原画与完整候选；后披风背后只保留必要遮挡余量，禁止整片覆盖。`repairSplitEdges(layerId,radius?)` 校正旧拆层重复乘Alpha留下的轮廓；radius 为 0..8 个源像素，扩展残边移交时仍受原画 Alpha 限制。保留补绘，同范围重复调用不再变化；新拆层已经正确分配 Alpha，无需此迁移。

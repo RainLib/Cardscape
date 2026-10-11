@@ -15,13 +15,16 @@ async function prepareAuthoring(args,tools){
  const source=async l=>{if(!l.src)throw Error('请选择图片图层');const image=l.master||l.src;const [w,h]=dimensions(image);if(l.sourceWindow)throw Error('请在注册为人物的图层上制作 Mask');return w===1024&&h===1536?image:(await tools.process('resize',{image,width:1024,height:1536})).image;};
  const owned=async(l,image)=>l.ownershipMask?(await tools.process('alpha',{image,mode:'multiply',mask:l.ownershipMask})).image:image;
  const refreshCoverage=async l=>{next.masks.coverage=(await tools.process('image_channel',{image:l.src,channel:'alpha'})).image;};
+ const region=async(c,image)=>{if(c.selectionMask){if(dimensions(c.selectionMask).join('x')!=='1024x1536')throw Error('选区与母版尺寸不一致');const stats=await tools.process('mask_stats',{image:c.selectionMask});if(!stats.active_pixels)throw Error('选区没有像素');return c.selectionMask;}return (await tools.process('selection',{image,points:c.polygon,magnetic:false,feather:0})).image;};
  const gate=async(name,image)=>name==='coverage'?image:(await tools.process('mask_combine',{image,selection:image,coverage:next.masks.coverage,mode:'add',value:1})).image;
  for(const c of args.commands){
   if(!commands.isAuthoring(c)){const p=commands.plan(next,[c],selected);next=p.document;selected=p.selected;Object.assign(preview,p.preview);continue;}
-  if(c.op==='repairLayer'){
+  if(c.op==='pivot'){const l=layer(c.layerId);if(!['image','foreground','text'].includes(l.kind))throw Error('此图层不支持旋转中心');l.pivot={u:c.u??l.pivot?.u??.5,v:c.v??l.pivot?.v??.5};if(c.rotation!==undefined)l.rotation=c.rotation;selected=l.id;reports.push('旋转中心已设置');
+  }else if(c.op==='motionAnchor'){const l=layer(c.layerId);if(!spatial.character(l))throw Error('衣料锚点需要人物或拆出衣料');l.motionAnchor={root:c.root,tip:c.tip};if(l.splitSourceId)l.attachment={maxOffset:.025,blendWidth:64,motion:.35,...l.attachment,anchor:{edge:'segment',root:c.root,tip:c.tip}};selected=l.id;reports.push('固定点与自由端已设置');
+  }else if(c.op==='repairLayer'){
    const l=layer(c.layerId),{job,image}=await tools.asset(c.jobId);if(!l.src||job.documentToken!==args.documentToken||job.layerId!==l.id||!['edit','inpaint'].includes(job.mode)||job.revision!==original.revision)throw Error('补全候选与当前图层或版本不匹配');
    if(dimensions(image).join('x')!=='1024x1536')throw Error('补全素材需要统一1024×1536 UV');
-   let mask=(await tools.process('selection',{image:l.src,points:c.polygon,magnetic:false,feather:0})).image;if(c.feather??2)mask=(await tools.process('feather',{image:mask,radius:Math.round(c.feather??2)})).image;
+   let mask=await region(c,l.src);if(c.feather??2)mask=(await tools.process('feather',{image:mask,radius:Math.round(c.feather??2)})).image;
    const result=await tools.process('underpaint',{image:l.src,candidate:image,mask});if(!result.filled_pixels)throw Error('补全区域没有新增可见像素');
    l.underpaint={jobId:c.jobId,original:l.underpaint?.original||l.src,originalMaster:l.underpaint?.originalMaster||l.master||l.src,addedMask:result.addedMask,supportMask:mask,filledPixels:result.filled_pixels};l.src=result.image;l.master=result.image;delete l.ownershipMask;
    if(l.kind==='foreground'){
@@ -38,7 +41,7 @@ async function prepareAuthoring(args,tools){
    reports.push('拆层半透明残边已校正：'+result.changed_pixels+' 像素');selected=l.id;
   }else if(c.op==='repairRegion'){
    const l=layer(c.layerId),old=l.underpaint;if(!old?.original||!old.addedMask)throw Error('此图层没有可调整的真实补绘');
-   let mask=(await tools.process('selection',{image:l.src,points:c.polygon,magnetic:false,feather:0})).image;
+   let mask=await region(c,l.src);
    if(c.feather??2)mask=(await tools.process('feather',{image:mask,radius:Math.round(c.feather??2)})).image;
    const candidate=old.candidate||l.src,result=await tools.process('underpaint',{image:old.original,candidate,mask});
    l.underpaint={...old,candidate,addedMask:result.addedMask,supportMask:mask,filledPixels:result.filled_pixels};l.src=result.image;l.master=result.image;
@@ -52,12 +55,12 @@ async function prepareAuthoring(args,tools){
   }else if(c.op==='spatial'){spatial.set(next,layer(c.layerId),c);reports.push('空间角色：'+spatial.roles[c.role].name);
   }else if(c.op==='splitLayer'){
    const l=layer(c.layerId);if(l.kind!=='foreground'||next.layers.some(x=>x.id===c.newLayerId)||next.layers.length>=64)throw Error('拆层需要连续人物和唯一图层 ID');
-   const image=l.src;let selection=(await tools.process('selection',{image,points:c.polygon,magnetic:false,feather:0})).image;
+   const image=l.src;let selection=await region(c,image);
    if(c.feather??2)selection=(await tools.process('feather',{image:selection,radius:Math.round(c.feather??2)})).image;
    const localCoverage=(await tools.process('image_channel',{image,channel:'alpha'})).image,partMask=(await tools.process('mask_combine',{image:selection,selection,coverage:localCoverage,mode:'replace',value:1})).image;
    const white=(await tools.process('image_channel',{image,channel:'white'})).image;const inverse=(await tools.process('mask_combine',{image:white,selection,mode:'subtract',value:1})).image;
    const piece=(await tools.process('alpha',{image,mode:'coverage',mask:partMask})).image;const remainder=(await tools.process('alpha',{image,mode:'multiply',mask:inverse})).image;
-   const child={id:c.newLayerId,name:c.name,kind:'image',src:piece,master:image,ownershipMask:selection,ownershipEncoding:'selection',x:l.x,y:l.y,scale:l.scale,opacity:l.opacity,visible:true,locked:false,splitSourceId:l.id,splitAlphaCorrected:true};spatial.set(next,child,c);next.layers.splice(next.layers.indexOf(l)+(c.role==='rear'?1:0),0,child);l.src=remainder;l.ownershipMask=l.ownershipMask?(await tools.process('mask_combine',{image:l.ownershipMask,selection:l.ownershipMask,coverage:inverse,mode:'replace',value:1})).image:inverse;reports.push('互补人物拆层：'+c.name+'，母版及 Mask 保留');selected=child.id;
+   const child={id:c.newLayerId,name:c.name,kind:'image',src:piece,master:image,rotation:l.rotation,pivot:l.pivot?{...l.pivot}:undefined,ownershipMask:selection,ownershipEncoding:'selection',x:l.x,y:l.y,scale:l.scale,opacity:l.opacity,visible:true,locked:false,splitSourceId:l.id,splitAlphaCorrected:true};spatial.set(next,child,{...c,z:c.z??Math.max(-.4,Math.min(.4,(l.spatial?.z??spatial.roles.body.z)+(c.role==='rear'?-.025:.025)))});next.layers.splice(next.layers.indexOf(l)+(c.role==='rear'?1:0),0,child);l.src=remainder;l.ownershipMask=l.ownershipMask?(await tools.process('mask_combine',{image:l.ownershipMask,selection:l.ownershipMask,coverage:inverse,mode:'replace',value:1})).image:inverse;reports.push('互补人物拆层：'+c.name+'，母版及 Mask 保留');selected=child.id;
   }else if(c.op==='composition'){next.composition={...runtime.compositionDefaults,...next.composition};for(const k of ['top','right','bottom','left'])if(c[k]!==undefined)next.composition[k]=c[k];next.previewMode='authored';reports.push('人物框内外遮挡方向已更新');
   }else if(c.op==='material'||c.op==='particles'){const C=require('../renderer/component-model.js');next[c.op]=c.op==='material'?C.material(next.material):C.particles(next.particles);for(const [k,v] of Object.entries(c))if(k!=='op')next[c.op][k]=v;next.previewMode='authored';reports.push('独立组件 '+c.op+' 已更新');
   }else if(c.op==='locale'){next.locale=c.code;reports.push('显示语言：'+c.code);
@@ -95,7 +98,7 @@ async function prepareAuthoring(args,tools){
    let result=c.polygon?await tools.process('selection',{image,points:c.polygon,magnetic:false,feather:0}):await tools.process('smart_selection',{image,points:c.points||[],labels:c.labels||[],box:c.box,engine:c.engine||'sam'});
    let selection=result.image;if(c.feather??2)selection=(await tools.process('feather',{image:selection,radius:Math.round(c.feather??2)})).image;
    const stats=await tools.process('mask_stats',{image:selection});if(!stats.active_pixels)throw Error('选区没有识别到区域，请调整提示点');
-   next.masks[c.name]=(await tools.process('mask_combine',{image:next.masks[c.name],selection,mode:c.mode||'replace',gradient:c.gradient||'solid',value:c.value??1,...(c.name!=='coverage'?{coverage:next.masks.coverage}:{}),...(c.name==='motion'&&c.protectRigid!==false?{guard:next.masks.rigid}:{})})).image;
+   next.masks[c.name]=(await tools.process('mask_combine',{image:next.masks[c.name],selection,mode:c.mode||'replace',gradient:c.gradient||'solid',value:c.value??1,startValue:c.startValue??0,start:c.start,end:c.end,...(c.name!=='coverage'?{coverage:next.masks.coverage}:{}),...(c.name==='motion'&&c.protectRigid!==false?{guard:next.masks.rigid}:{})})).image;
    if(c.name==='coverage'){l.src=await owned(l,(await tools.process('alpha',{image,mode:'coverage',mask:next.masks.coverage})).image);await refreshCoverage(l);for(const name of maskNames.filter(n=>n!=='coverage'&&next.masks[n]))next.masks[name]=await gate(name,next.masks[name]);}
    reports.push(c.name+' Mask · '+(result.engine||result.algorithm)+' · '+stats.active_pixels+' 选区像素');selected=l.id;
   }else if(c.op==='refineMask'){

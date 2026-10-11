@@ -25,6 +25,7 @@ uniform float opacity = 1.0;
 uniform float root_opacity = 1.0;
 uniform float motion_gain = 1.0;
 uniform float flow_gain = 1.0;
+uniform float flow_speed = 1.0;
 uniform float wind_speed = 1.0;
 uniform float geometry_bend = 0.0;
 uniform vec3 slot_effect = vec3(0.0,0.0,1.0);
@@ -81,7 +82,7 @@ void fragment(){
 	if(c.a<.015){discard;}
 	c.rgb=pow(clamp((c.rgb-.5)*adjustment.y+.5+adjustment.x,0.0,1.0),vec3(1.0/adjustment.w));float lum=dot(c.rgb,vec3(.2126,.7152,.0722));c.rgb=clamp(mix(vec3(lum),c.rgb,adjustment.z),0.0,1.0);
 	if(component_material.x>0.0&&((background&&component_material.w!=2.0)||(back_side&&component_material.w!=1.0))){float bands=.5+.5*sin((UV.x+UV.y*(holographic?2.0:.7))*component_material.z*6.283+card_eye.x*3.0+clock*component_material.y);vec3 hue=mix(material_color,material_accent,bands);float shimmer=holographic?pow(bands,5.0):.35+.65*bands;c.rgb=mix(c.rgb,clamp(c.rgb+hue*shimmer,0.0,1.0),component_material.x);}
-	if(foreground_pass>0.0){float e=texture(emission_tex,UV).r,phase=texture(phase_tex,UV).r;float stream=pow(.5+.5*sin(phase*30.0-clock*3.1+UV.y*11.0),3.0);c.rgb+=vec3(.45,.77,1.0)*e*stream*flow_gain;c.rgb+=armor_color*texture(foil_tex,UV).r*sweep(UV.x*.82+UV.y*.18,armor_sweep);}
+	if(foreground_pass>0.0){float e=texture(emission_tex,UV).r,phase=texture(phase_tex,UV).r;float stream=pow(.5+.5*sin(phase*30.0-clock*3.1*flow_speed+UV.y*11.0),3.0);c.rgb+=vec3(.45,.77,1.0)*e*stream*flow_gain;c.rgb+=armor_color*texture(foil_tex,UV).r*sweep(UV.x*.82+UV.y*.18,armor_sweep);}
 	c.rgb+=title_color*sweep((UV.x-title_bounds.x)/max(.001,title_bounds.y-title_bounds.x),title_sweep)*c.a;
 	if(slot_effect.x>.5){float wave=.5+.5*sin(clock*slot_effect.z*3.0+(slot_effect.x>1.5?UV.y*20.0:0.0));c.rgb+=vec3(.2,.5,.8)*wave*slot_effect.y;}
 	if(custom_effect){vec4 mask=vec4(texture(motion_tex,UV).r,texture(inset_tex,UV).r,texture(emission_tex,UV).r,texture(phase_tex,UV).r);float strength=clamp(custom_strength*(custom_masked?texture(custom_mask_tex,UV).r:1.0),0.0,1.0);c=mix(c,surfaceEffect(c,UV,clock,mask),strength);}

@@ -12,14 +12,14 @@ const rasterCache=new Map(),alphaCache=new WeakMap(),titleImages=new Map(),popRa
 const selectionOverlays=new WeakMap();
 const maskColors={motion:[78,214,187],inset:[141,174,248],emission:[255,180,75],phase:[205,136,242],rigid:[244,119,132],coverage:[112,190,236],foil:[241,214,120]};
 const maskNames={motion:'运动',inset:'框内外',emission:'发光',phase:'流光进度',rigid:'刚性保护',coverage:'可见轮廓',foil:'盔甲反光'};
-let doc=null,template=null,desktop=false,loading=true,selected=['foreground'],target='image',tool='move',showMask=false,white=true,maskDisplayMode='overlay';
+let doc=null,template=null,desktop=false,loading=true,selected=['foreground'],target='image',tool='move',showMask=false,white=true,brushValue=255,brushHardness=0,maskDisplayMode='overlay';
 let view={zoom:1,panX:0,panY:0},selection=null,gesture=null,space=false,freeTransform=false,wire=false;
 let lassoPoints=[],selectionMask=null,selectionLayer=null,importRole='image',pickingFile=false;
-let smartSession=null;
+let smartSession=null,anchorMode=null;
 let showGuides=true;
 let documentToken=crypto.randomUUID();
 const folders=window.CardLayers,collapsedGroups=new Set();let selectedGroup=null,layerDrag=null;
-let undo=[],redo=[],revision=0,savedRevision=0,taskToken=0,busy=false,applying=false,paintSync=0,drawScheduled=false;
+let undo=[],redo=[],revision=0,savedRevision=0,taskToken=0,busy=false,applying=false,paintSync=0,paintDirty=null,drawScheduled=false;
 let sessionToken=null,sessionSequence=0,sessionTimer=null,sessionRunning=false,sessionAgain=false,sessionFingerprint='',sessionReady=false;
 const encodeSession=window.CardSession.encoder();
 let sessionFlight=null,newFromHome=false,appVersion='';
@@ -42,7 +42,7 @@ async function persistSessionNow(){
 async function newSession(){sessionReady=false;clearTimeout(sessionTimer);sessionToken=(await bridge.invoke('editor-session-start')).sessionToken;sessionSequence=0;sessionFingerprint='';sessionReady=true;queueSession();}
 async function flushSession(){clearTimeout(sessionTimer);if(sessionFlight)await sessionFlight;await persistSession();if(document.body.dataset.sessionState==='error')throw Error('恢复副本未同步成功，请重试后再切换工程');}
 const active=()=>doc?.layers.find(l=>l.id===selected[0]);
-function snapshot(){return {...doc,material:doc.material?{...doc.material}:undefined,particles:doc.particles?{...doc.particles}:undefined,spatial:doc.spatial?{...doc.spatial}:undefined,backAdjustments:doc.backAdjustments?{...doc.backAdjustments}:undefined,layerTree:doc.layerTree?structuredClone(doc.layerTree):undefined,layers:doc.layers.map(l=>({...l,spatial:l.spatial?{...l.spatial}:undefined,adjustments:l.adjustments?{...l.adjustments}:undefined,titleArt:l.titleArt?structuredClone(l.titleArt):undefined})),composition:{...doc.composition},armor:{...doc.armor},frameStyle:doc.frameStyle?{...doc.frameStyle}:undefined,frameStyles:doc.frameStyles?.map(s=>({...s})),effects:{...doc.effects},masks:{...doc.masks},meshGuides:[...(doc.meshGuides||[])],deformation:{...doc.deformation},actions:doc.actions?structuredClone(doc.actions):undefined,slots:doc.slots?.map(s=>({...s})),shader:{...doc.shader}};}
+function snapshot(){return {...doc,material:doc.material?{...doc.material}:undefined,particles:doc.particles?{...doc.particles}:undefined,spatial:doc.spatial?{...doc.spatial}:undefined,backAdjustments:doc.backAdjustments?{...doc.backAdjustments}:undefined,layerTree:doc.layerTree?structuredClone(doc.layerTree):undefined,layers:doc.layers.map(l=>({...l,spatial:l.spatial?{...l.spatial}:undefined,pivot:l.pivot?{...l.pivot}:undefined,motionAnchor:l.motionAnchor?structuredClone(l.motionAnchor):undefined,attachment:l.attachment?structuredClone(l.attachment):undefined,adjustments:l.adjustments?{...l.adjustments}:undefined,titleArt:l.titleArt?structuredClone(l.titleArt):undefined})),composition:{...doc.composition},armor:{...doc.armor},frameStyle:doc.frameStyle?{...doc.frameStyle}:undefined,frameStyles:doc.frameStyles?.map(s=>({...s})),effects:{...doc.effects},masks:{...doc.masks},meshGuides:[...(doc.meshGuides||[])],deformation:{...doc.deformation},actions:doc.actions?structuredClone(doc.actions):undefined,slots:doc.slots?.map(s=>({...s})),shader:{...doc.shader}};}
 function say(text){$('status').textContent=text;}
 function notifyDirty(){bridge.invoke('document-state',{dirty:revision!==savedRevision}).catch(()=>{});$('dirty-marker').textContent=revision===savedRevision?'':'●';queueSession();}
 function dirty(){revision++;doc.revision=revision;if(workshop){workshop=W.commit(workshop,snapshot());updateWorkshopThumbnail();}notifyDirty();}
@@ -208,12 +208,12 @@ function syncProperties(){
   $('select-alpha').disabled=!images.has(layer.id)||busy;
   $('rasterize-text').disabled=layer.locked||layer.kind!=='text';
   $('delete-layer').disabled=layer.locked||['foreground','background','frame'].includes(layer.kind);
-  document.body.dataset.tool=tool;window.atelierWorkspace?.refresh({document:doc,layer,tool,target,busy,revision,documentToken,showMask,white,maskDisplayMode,selection:!!selection});
+  document.body.dataset.tool=tool;window.atelierEffectTools?.refresh();window.atelierWorkspace?.refresh({brushValue,document:doc,layer,tool,target,busy,revision,documentToken,showMask,white,maskDisplayMode,selection:!!selection});
   window.atelierAI?.refresh({layerId:layer.id,layer:layer.name,available:images.has(layer.id),locked:layer.locked,selection:!!selection&&selectionLayer===layer.id,documentToken,revision});
   window.atelierCutout?.refresh({layer,busy:historyBlocked});
   window.atelierWorkshop?.refresh({workshop,document:doc,busy:historyBlocked,revision,documentToken});window.atelierComponents?.refresh(window.cardEditorHost.state());
 }
-function setTool(next){tool=next;document.body.dataset.tool=tool;window.atelierWorkspace?.tool(next);document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));$('tool-name').textContent={move:'V 移动',brush:'B 画笔',select:'M 选区',lasso:'L 套索',magnetic:'L 磁性套索',text:'T 文字',wand:'W 魔棒',smart:'S 智能对象',hand:'H 抓手',zoom:'Z 缩放'}[tool];canvas.style.cursor={move:'default',brush:'crosshair',select:'crosshair',lasso:'crosshair',magnetic:'crosshair',text:'text',wand:'crosshair',smart:'crosshair',hand:'grab',zoom:'zoom-in'}[tool];if(next==='smart'){bridge.invoke('smart-info').then(info=>{$('smart-engine-note').textContent=info.available?'MobileSAM 本地模型已就绪 · Shift 添加 · Alt 排除':'MobileSAM 未就绪，请安装依赖或使用 GrabCut';}).catch(e=>$('smart-engine-note').textContent=e.message);}if(next==='text'){const text=doc&&active()?.kind==='text'?active():doc?.layers.find(l=>l.kind==='text');if(text){selectLayer(text.id);$('title-text').focus();}}}
+function setTool(next){tool=next;document.body.dataset.tool=tool;window.atelierWorkspace?.tool(next);document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));$('tool-name').textContent={move:'V 移动',brush:'B 画笔',select:'M 选区',lasso:'L 套索',magnetic:'L 磁性套索',text:'T 文字',wand:'W 魔棒',smart:'S 智能对象',hand:'H 抓手',zoom:'Z 缩放',anchor:'锚点 · 拖动控制点'}[tool];canvas.style.cursor={move:'default',brush:'crosshair',select:'crosshair',lasso:'crosshair',magnetic:'crosshair',text:'text',wand:'crosshair',smart:'crosshair',hand:'grab',zoom:'zoom-in',anchor:'crosshair'}[tool];if(next==='smart'){bridge.invoke('smart-info').then(info=>{$('smart-engine-note').textContent=info.available?'MobileSAM 本地模型已就绪 · Shift 添加 · Alt 排除':'MobileSAM 未就绪，请安装依赖或使用 GrabCut';}).catch(e=>$('smart-engine-note').textContent=e.message);}if(next==='text'){const text=doc&&active()?.kind==='text'?active():doc?.layers.find(l=>l.kind==='text');if(text){selectLayer(text.id);$('title-text').focus();}}}
 function fit(){if(document.querySelector('.view-stage')?.dataset.view==='space'){window.atelierSpace?.fit();return;}if(canvas.clientWidth<100||canvas.clientHeight<100)return;view.zoom=Math.max(.05,Math.min((canvas.clientWidth-90)/1024,(canvas.clientHeight-80)/1536));view.panX=0;view.panY=0;draw();}
 function draw(){if(drawScheduled)return;drawScheduled=true;requestAnimationFrame(()=>{drawScheduled=false;paintCanvas();});}
 function origin(){return {x:canvas.clientWidth/2-512*view.zoom+view.panX,y:canvas.clientHeight/2-768*view.zoom+view.panY};}
@@ -272,6 +272,7 @@ function paintCanvas(){
   drawComposition(ctx);
   if(showMask&&masks.has(target)){const pl=window.CardRuntime.placement(doc,active());ctx.save();ctx.translate(512+pl.x,768+pl.y);ctx.rotate(pl.rotation);ctx.scale(pl.scale,pl.scale);ctx.drawImage(maskDisplayMode==='gray'?masks.get(target).canvas:masks.get(target).overlay,-512,-768);ctx.restore();}
   drawSelectionOverlay();
+  if(tool==='anchor'&&active())drawAnchors();
   if(tool==='smart'&&smartSession?.layerId===active()?.id){for(let i=0;i<smartSession.points.length;i++){const p=worldPoint(...smartSession.points[i],active());ctx.fillStyle=smartSession.labels[i]?'#72efaa':'#ff7795';ctx.beginPath();ctx.arc(p.x,p.y,5/view.zoom,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#222';ctx.stroke();}}
   ctx.lineWidth=1/view.zoom;ctx.strokeStyle='#3e4a55';ctx.strokeRect(0,0,1024,1536);
   if(selection){ctx.setLineDash([6/view.zoom,4/view.zoom]);ctx.strokeStyle='#7cd5c4';if(selection.points){ctx.beginPath();selection.points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.stroke();}else ctx.strokeRect(selection.x,selection.y,selection.w,selection.h);ctx.setLineDash([]);}
@@ -279,7 +280,7 @@ function paintCanvas(){
   for(const guide of showGuides?doc.meshGuides||[]:[]){ctx.strokeStyle='#68beb28c';ctx.lineWidth=.6/view.zoom;ctx.beginPath();for(let i=0;i<guide.indices.length;i+=3){for(const n of [0,1,2,0]){const j=guide.indices[i+n];const x=guide.uv[j*2]*1024,y=guide.uv[j*2+1]*1536;n===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}}ctx.stroke();}
   const layer=active();if(layer&&tool==='move'&&target==='image'){const points=transformCorners(layer);ctx.strokeStyle='#6bc8b9';ctx.lineWidth=1/view.zoom;ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.stroke();if(canResize(layer)&&($('transform-controls').checked||freeTransform)){for(const p of points){ctx.fillStyle='#f5d69b';ctx.fillRect(p.x-4/view.zoom,p.y-4/view.zoom,8/view.zoom,8/view.zoom);}}canvas.dataset.contentBounds=JSON.stringify(contentBounds(layer));canvas.dataset.transformHandles=JSON.stringify(points.map(p=>({x:o.x+p.x*view.zoom,y:o.y+p.y*view.zoom})));}else{delete canvas.dataset.transformHandles;}
   ctx.restore();$('zoom-status').textContent=Math.round(view.zoom*100)+'%';
-  canvas.dataset.revision=revision;canvas.dataset.target=target;canvas.dataset.layer=selected[0];canvas.dataset.selection=selection?JSON.stringify(selection):'';syncRegionHighlight();
+  canvas.dataset.revision=revision;canvas.dataset.target=target;if(tool!=='anchor')delete canvas.dataset.anchorHandles;canvas.dataset.layer=selected[0];canvas.dataset.selection=selection?JSON.stringify(selection):'';syncRegionHighlight();
 }
 let regionMode='none',regionMaskId='motion',regionSelectionCache=null,regionSelectionVersion=0;
 function syncRegionHighlight(){
@@ -308,25 +309,30 @@ function syncRegionHighlight(){
 }
 function localPoint(p,layer){const pl=window.CardRuntime.placement(doc,layer),x=p.x-512-pl.x,y=p.y-768-pl.y,c=Math.cos(pl.rotation),sin=Math.sin(pl.rotation);return {x:(c*x+sin*y)/pl.scale+512,y:(-sin*x+c*y)/pl.scale+768};}
 function worldPoint(x,y,layer){const pl=window.CardRuntime.placement(doc,layer),c=Math.cos(pl.rotation),s=Math.sin(pl.rotation);x=(x-512)*pl.scale;y=(y-768)*pl.scale;return {x:512+pl.x+c*x-s*y,y:768+pl.y+s*x+c*y};}
+function anchorValues(l){return l.motionAnchor||(l.attachment?.anchor?.edge==='segment'?{root:l.attachment.anchor.root,tip:l.attachment.anchor.tip}:{root:[512,540],tip:[512,1200]});}
+function drawAnchors(){const l=active(),a=anchorValues(l),points=anchorMode==='pivot'?[[((l.pivot?.u??.5)*1024),((l.pivot?.v??.5)*1536),'旋转中心']]:[[...a.root,'固定点'],[...a.tip,'自由端']];ctx.save();ctx.lineWidth=2/view.zoom;ctx.strokeStyle='#f6c76b';if(points.length===2){ctx.beginPath();points.forEach(([x,y],i)=>{const p=worldPoint(x,y,l);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();}const handles=[];for(const [x,y,label]of points){const p=worldPoint(x,y,l);ctx.fillStyle=label==='固定点'?'#70baff':'#f6c76b';ctx.beginPath();ctx.arc(p.x,p.y,7/view.zoom,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.font=`${12/view.zoom}px system-ui`;ctx.fillText(label,p.x+12/view.zoom,p.y-9/view.zoom);const o=origin();handles.push({x:o.x+p.x*view.zoom,y:o.y+p.y*view.zoom,label});}canvas.dataset.anchorHandles=JSON.stringify(handles);ctx.restore();}
+function updateAnchor(p,g){const l=active(),pl=g.placement,x=p.x-512-pl.x,y=p.y-768-pl.y,c=Math.cos(pl.rotation),s=Math.sin(pl.rotation),q=[Math.max(0,Math.min(1023,(c*x+s*y)/pl.scale+512)),Math.max(0,Math.min(1535,(-s*x+c*y)/pl.scale+768))];if(g.point==='pivot'){l.pivot={u:q[0]/1024,v:q[1]/1536};const offset=window.CardMaskEdit.pivotOffset(l.pivot,pl.scale,pl.rotation);l.x=g.baseX+g.baseOffset.x-offset.x;l.y=g.baseY+g.baseOffset.y-offset.y;}else{const a=structuredClone(l.motionAnchor||anchorValues(l)),other=g.point==='root'?a.tip:a.root;if(Math.hypot(q[0]-other[0],q[1]-other[1])<16)return;a[g.point]=q;l.motionAnchor=a;if(l.splitSourceId){l.attachment={maxOffset:.025,blendWidth:64,motion:.35,...l.attachment,anchor:{edge:'segment',...a}};}}syncPreview();draw();}
 function stamp(p){
   const layer=active(),mask=masks.get(target);if(!mask||layer.locked)return;
   const box=layerBox(layer),q=localPoint(p,layer),radius=Number($('brush-size').value)/2,strength=Number($('brush-strength').value)/100;
   const x0=Math.max(0,Math.floor(q.x-radius)),y0=Math.max(0,Math.floor(q.y-radius)),x1=Math.min(1023,Math.ceil(q.x+radius)),y1=Math.min(1535,Math.ceil(q.y+radius));
   const guard=masks.get('rigid')?.pixels.data;const coverage=masks.get('coverage')?.pixels.data;
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
-    const pixelDocX=box.x+x*layer.scale,pixelDocY=box.y+y*layer.scale;
+    const pixel=selection?worldPoint(x,y,layer):null,pixelDocX=pixel?.x,pixelDocY=pixel?.y;
     if(selection&&(pixelDocX<selection.x||pixelDocX>selection.x+selection.w||pixelDocY<selection.y||pixelDocY>selection.y+selection.h))continue;
     if(selectionMask&&selectionLayer===layer.id&&selectionMask.data[(y*1024+x)*4]<1)continue;
     const distance=Math.hypot(x-q.x,y-q.y)/radius;if(distance>=1)continue;const i=(y*1024+x)*4;
     if(target!=='coverage'&&coverage&&coverage[i]<1)continue;
     const protectedValue=target==='motion'&&$('rigid-protection').checked&&guard?guard[i]/255:0;
-    const falloff=(1-distance)**2;const old=mask.pixels.data[i];let value=Math.round(old+((white?255:0)-old)*strength*falloff);
+    const old=mask.pixels.data[i];let value=window.CardMaskEdit.brush(old,brushValue,strength,distance,brushHardness);
     value=Math.min(value,Math.round(255*(1-protectedValue)));
     mask.pixels.data[i]=mask.pixels.data[i+1]=mask.pixels.data[i+2]=value;mask.overlayPixels.data[i+3]=value*.65;
   }
   if(x1>=x0&&y1>=y0){mask.ctx.putImageData(mask.pixels,0,0,x0,y0,x1-x0+1,y1-y0+1);mask.overlayCtx.putImageData(mask.overlayPixels,0,0,x0,y0,x1-x0+1,y1-y0+1);}
-  if(!paintSync){const paintedTarget=target;paintSync=requestAnimationFrame(()=>{paintSync=0;const c=masks.get(paintedTarget)?.canvas;if(c)maskVersions.set(c,(maskVersions.get(c)||0)+1);window.cardPreview.updateMask(paintedTarget,mask.pixels);draw();});}
+  if(x1>=x0&&y1>=y0)paintDirty=window.CardMaskEdit.union(paintDirty,{x:x0,y:y0,width:x1-x0+1,height:y1-y0+1});
+  if(!paintSync){const paintedTarget=target;paintSync=requestAnimationFrame(()=>flushPaint(paintedTarget));}
 }
+function flushPaint(id){if(paintSync)cancelAnimationFrame(paintSync);paintSync=0;const rect=paintDirty;paintDirty=null;const mask=masks.get(id);if(!mask||!rect)return;maskVersions.set(mask.canvas,(maskVersions.get(mask.canvas)||0)+1);window.cardPreview.updateMask(id,mask.pixels,rect,{canvas:mask.canvas,version:maskVersions.get(mask.canvas)});draw();}
 function hit(p){
   for(const layer of doc.layers){if(!layer.visible||layer.locked)continue;
     const b=layerBox(layer),q0=localPoint(p,layer);if(q0.x<0||q0.x>=1024||q0.y<0||q0.y>=1536)continue;
@@ -346,6 +352,7 @@ canvas.addEventListener('pointerdown',e=>{
   if(tool==='lasso'||tool==='magnetic'){if(!images.has(active().id)){say('先选择图像图层');return;}if(!lassoPoints.length){selection=null;selectionMask=null;selectionLayer=active().id;}if(selectionLayer!==active().id){say('请先完成或取消原图层的套索');return;}const q=localPoint(p,active());if(q.x<0||q.x>1024||q.y<0||q.y>1536)return;if(lassoPoints.length>=3&&Math.hypot(p.x-lassoPoints[0].x,p.y-lassoPoints[0].y)<12/view.zoom){closeLasso();return;}lassoPoints.push(p);syncProperties();draw();say('继续沿区域点击；Enter 闭合，Backspace 删除上一点');return;}
   if(tool==='wand'){const layer=active(),im=images.get(layer.id);if(!im||busy)return;const q=localPoint(p,layer);processTask('魔棒颜色选区','wand_selection',{image:pngFromImage(registeredImage(layer,im)),x:Math.floor(q.x),y:Math.floor(q.y),tolerance:Number($('wand-tolerance').value),contiguous:$('wand-contiguous').checked,feather:Number($('selection-feather').value)},async result=>setSelectionImage(result.image));return;}
   if(tool==='select'){selectionMask=null;lassoPoints=[];selectionLayer=active().id;gesture={kind:'select',start:p};selection={x:p.x,y:p.y,w:0,h:0};draw();return;}
+  if(tool==='anchor'){const l=active();if(l.locked||l.kind==='frame'){say('先选择未锁定的图片图层');return;}const a=anchorValues(l),q=localPoint(p,l),point=anchorMode==='pivot'?'pivot':Math.hypot(q.x-a.root[0],q.y-a.root[1])<=Math.hypot(q.x-a.tip[0],q.y-a.tip[1])?'root':'tip';gesture={kind:'anchor',before:snapshot(),point,baseX:l.x,baseY:l.y,baseOffset:window.CardMaskEdit.pivotOffset(l.pivot,window.CardRuntime.placement(doc,l).scale,window.CardRuntime.placement(doc,l).rotation),placement:window.CardRuntime.placement(doc,l)};updateAnchor(p,gesture);return;}
   if(tool==='brush'){
     if(target==='image'){say('先点击人物层的运动、框内外或发光 Mask');return;}
     if(active().locked){say('当前图层已锁定');return;}
@@ -363,6 +370,7 @@ canvas.addEventListener('pointerdown',e=>{
 });
 canvas.addEventListener('pointermove',e=>{
   if(!gesture){if(tool==='move')canvas.style.cursor=resizeCorner(docPoint(e))>=0?'nwse-resize':'default';return;}const p=docPoint(e),g=gesture;
+  if(g.kind==='anchor'){updateAnchor(p,g);return;}
   if(g.kind==='pan'){view.panX=g.panX+e.clientX-g.x;view.panY=g.panY+e.clientY-g.y;draw();return;}
   if(g.kind==='smart-box'){const q=localPoint(p,active()),x=Math.max(0,Math.min(1024,q.x)),y=Math.max(0,Math.min(1536,q.y));smartSession.box=[Math.min(g.start.x,x),Math.min(g.start.y,y),Math.max(g.start.x,x),Math.max(g.start.y,y)];const [x0,y0,x1,y1]=smartSession.box;selection=selectionBounds([[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map(v=>worldPoint(...v,active())));syncProperties();draw();return;}
   if(g.kind==='select'){const x1=Math.max(0,Math.min(1024,g.start.x)),x2=Math.max(0,Math.min(1024,p.x)),y1=Math.max(0,Math.min(1536,g.start.y)),y2=Math.max(0,Math.min(1536,p.y));selection={x:Math.min(x1,x2),y:Math.min(y1,y2),w:Math.abs(x1-x2),h:Math.abs(y1-y2)};syncProperties();draw();return;}
@@ -374,7 +382,9 @@ canvas.addEventListener('pointermove',e=>{
 });
 async function endGesture(cancel=false){
   const g=gesture;if(!g)return;gesture=null;
+  if(g.kind==='anchor'){if(cancel)doc=g.before;else push(g.before,g.point==='pivot'?'设置旋转中心':'设置衣料固定点与自由端');syncPreview();syncProperties();draw();return;}
   if(g.kind==='brush'){
+    flushPaint(g.target);
     doc.masks[g.target]=masks.get(g.target).canvas.toDataURL('image/png');
     if(cancel){doc=g.before;await registerMask(g.target,doc.masks[g.target]);draw();return;}
     if(g.target==='coverage')await updateCoverage();
@@ -449,7 +459,7 @@ async function closeLasso(){
 }
 $('close-lasso').onclick=closeLasso;
 $('select-alpha').onclick=async()=>{const layer=active(),im=images.get(layer.id);if(!im)return;const c=canvasFor(),cc=c.getContext('2d',{willReadFrequently:true});cc.drawImage(registeredImage(layer,im),0,0,1024,1536);const p=cc.getImageData(0,0,1024,1536);for(let i=0;i<p.data.length;i+=4){p.data[i]=p.data[i+1]=p.data[i+2]=p.data[i+3];p.data[i+3]=255;}cc.putImageData(p,0,0);await setSelectionImage(c.toDataURL('image/png'));lassoPoints=[];say('已根据透明通道选择实际轮廓；可继续提取 Mask');};
-$('apply-selection').onclick=async()=>{try{if(active().kind!=='foreground'||active().locked)throw Error('选择未锁定的连续人物层');const id=$('selection-target').value,args={image:doc.masks[id],selection:await localSelection(),mode:$('selection-mode').value,gradient:$('selection-gradient').value};if(id!=='coverage')args.coverage=doc.masks.coverage;if(id==='motion'&&$('rigid-protection').checked)args.guard=doc.masks.rigid;await processTask('选区提取 '+maskNames[id]+' Mask','mask_combine',args,async result=>{doc.masks[id]=result.image;await registerMask(id,result.image);if(id==='coverage')await updateCoverage();target=id;showMask=true;});}catch(e){say(e.message);}};
+$('apply-selection').onclick=async()=>{try{if(active().kind!=='foreground'||active().locked)throw Error('选择未锁定的连续人物层');if(!['mask-weight-value','mask-gradient-start'].every(id=>$(id).validity.valid))throw Error('灰度权重需要0–255');const id=$('selection-target').value,args={image:doc.masks[id],selection:await localSelection(),mode:$('selection-mode').value,gradient:$('selection-gradient').value,value:Number($('mask-weight-value').value)/255,startValue:Number($('mask-gradient-start').value)/255};if(args.gradient==='line'){const a=active().motionAnchor;if(!a)throw Error('先在画布设置固定点与自由端');args.start=a.root;args.end=a.tip;}if(id!=='coverage')args.coverage=doc.masks.coverage;if(id==='motion'&&$('rigid-protection').checked)args.guard=doc.masks.rigid;await processTask('选区提取 '+maskNames[id]+' Mask','mask_combine',args,async result=>{doc.masks[id]=result.image;await registerMask(id,result.image);if(id==='coverage')await updateCoverage();target=id;showMask=true;});}catch(e){say(e.message);}};
 $('extract-selection').onclick=async()=>{try{const source={...active()},mask=await localSelection();await processTask('选区复制为独立图像','alpha',{image:pngFromImage(registeredImage(source,images.get(source.id))),mask},async result=>{const layer={...source,id:'region-'+Date.now(),name:source.name+' / 选区',kind:'image',src:result.image,master:undefined,sourceWindow:undefined};doc.layers.unshift(layer);images.set(layer.id,await imageFrom(result.image));window.cardPreview.addImage(layer,images.get(layer.id));selected=[layer.id];target='image';selection=null;selectionMask=null;});}catch(e){say(e.message);}};
 for(const [id,field,scale,min,max] of [['layer-x','x',1,-4096,4096],['layer-y','y',1,-4096,4096],['layer-scale','scale',.01,.01,10],['layer-opacity','opacity',.01,0,1]]){
   const apply=e=>{if(active().locked||$(id).value==='')return;const value=Number($(id).value)*scale;if(!Number.isFinite(value)||(e.type==='input'&&(value<min||value>max)))return;if(active()[field]===value)return;mutate('修改图层属性',()=>{const v=Math.max(min,Math.min(max,value));if(field==='scale'&&(active().kind==='text'||active().role==='wordmark'))scaleLayer(active(),v);else active()[field]=v;});};$(id).onchange=apply;$(id).oninput=apply;
@@ -475,7 +485,7 @@ $('toggle-play').onclick=()=>{doc.effects.paused=!doc.effects.paused;syncPreview
 $('effect-time').oninput=()=>{doc.effects.paused=true;window.cardPreview.setTime(Number($('effect-time').value));$('time-value').textContent=Number($('effect-time').value).toFixed(1)+'s';$('toggle-play').textContent='播放';};
 $('wire-view').onclick=()=>{wire=!wire;window.cardPreview.showWire(wire);$('wire-view').classList.toggle('active',wire);};
 $('mask-display').onclick=()=>{if(active().kind!=='foreground')return;showMask=!showMask;if(target==='image')target='motion';syncProperties();renderLayers();draw();};
-$('paint-color').onclick=()=>{white=!white;$('paint-color').firstChild.textContent=white?'◻':'◼';syncProperties();say(white?'白色增加当前权重':'黑色减弱当前权重');};
+$('paint-color').onclick=()=>{white=!white;brushValue=white?255:0;$('paint-color').firstChild.textContent=white?'◻':'◼';syncProperties();say(white?'白色增加当前权重':'黑色减弱当前权重');};
 $('fit-view').onclick=fit;$('actual-view').onclick=()=>{view.zoom=1;draw();};
 $('duplicate-layer').onclick=()=>{const layer=active();if(!['image','background'].includes(layer.kind)){say('连续人物与实体框保持单一表面；可复制背景或导入图像');return;}mutate('复制图层',()=>{const copy={...layer,id:'layer-'+Date.now(),name:layer.name+' 副本',kind:'image',x:layer.x+15,y:layer.y+15};doc.layers.splice(1,0,copy);images.set(copy.id,images.get(layer.id));window.cardPreview.addImage(copy,images.get(layer.id));selected=[copy.id];});};
 async function importImage(value){
@@ -624,7 +634,7 @@ function applyEditorCommands(commands,binding=null,label='AI 调整图层与预�
  if(plan.preview.actionId)window.cardPreview.playAction(plan.preview.actionId);
  renderLayers();draw();say(commands.length+' 项操作已应用 · 实时预览已同步 · ⌘/Ctrl Z 撤销');return {message:commands.length+' 项操作已应用，可撤销',revision};
 }
-async function applyProductionCommands(commands,binding){
+async function applyProductionCommands(commands,binding,label='AI 制作图层 / Mask / 动效'){
  window.EditorCommands.validate(commands);
  const initial=editorBinding(),productionToken=taskToken;const check=()=>{if(taskToken!==productionToken)throw Error('制作处理已取消');if(!doc||loading||busy||gesture||freeTransform)throw Error('请先结束当前操作');const now=editorBinding();if(!window.EditorCommands.bindingMatches(initial,now,commands))throw Error('工程、图层或视图已变化；请重新发送制作要求');};
  if(applying)throw Error('正在应用制作操作');check();if(binding&&(!window.EditorCommands.bindingMatches(binding,initial,commands)))throw Error('工程、图层或视图已变化；请基于当前画面重新发送');
@@ -633,7 +643,7 @@ async function applyProductionCommands(commands,binding){
  if(['shared','publish'].includes(commands[0].op)){
   if(!workshop)throw Error('先创建多卡片工坊');const c=commands[0];await workshopOperation(c.op==='shared'?'bind':'publish',c.op==='shared'?{kind:c.kind,resourceId:c.resourceId,version:c.version,ids:[workshop.activeCardId]}:{kind:c.kind,name:c.name,resourceId:c.resourceId});window.atelierComponents?.revealAuthored?.([c.kind]);return {message:(c.op==='shared'?'已绑定':'已发布')+'共享'+W.kinds[c.kind]+'，可撤销',revision};
  }
- const before=snapshot(),beforeView=editorView(),beforeWorkshop=workshop?W.commit(workshop,before):null;let loaded=false;applying=true;syncProperties();say('AI 正在准备图层、抠图与 Mask…');
+ const before=snapshot(),beforeView=editorView(),beforeWorkshop=workshop?W.commit(workshop,before):null;let loaded=false;applying=true;syncProperties();say('正在准备图层、抠图与 Mask…');
  try{
   if(commands[0].op==='imageTask'){
    const c=commands[0],l=doc.layers.find(l=>l.id===c.layerId);if(!l||l.locked||(!l.src&&l.kind!=='text')||window.CardStats.isStat(l))throw Error('图片任务需要未锁定的图片或英雄字标图层');const src=l.src?await imageFrom(l.master||l.src):await imageFrom(textRaster(l).toDataURL('image/png'));let source=pngFromImage(src);
@@ -652,7 +662,7 @@ async function applyProductionCommands(commands,binding){
   await loadDocument(plan.document,false);loaded=true;if(taskToken!==productionToken+1)throw Error('制作处理已取消');restoreEditorView(beforeView);selected=[plan.selected];target='image';showMask=false;
   if(plan.preview.mode)window.atelierWorkspace.view(plan.preview.mode,false);if(plan.preview.yaw!==undefined)setPreviewPose(plan.preview.yaw,plan.preview.pitch);
   if(plan.preview.seconds!==undefined){window.cardPreview.setTime(plan.preview.seconds);doc.effects.paused=plan.preview.paused;}
-  applying=false;push(before,'AI 制作图层 / Mask / 动效',undefined,beforeWorkshop);undo.at(-1).editorView=beforeView;
+  applying=false;push(before,label,undefined,beforeWorkshop);undo.at(-1).editorView=beforeView;
   window.atelierComponents?.revealAuthored?.([...new Set(commands.flatMap(c=>c.op==='asset'&&['background','back'].includes(c.kind)?[c.kind]:['frame','particles','material'].includes(c.op)?[c.op]:['shader','armor'].includes(c.op)?['effect']:[]))]);if(plan.preview.actionId)window.cardPreview.playAction(plan.preview.actionId);renderLayers();syncProperties();syncPreview();draw();
   for(const id of plan.usedJobs)bridge.invoke('agent-applied',{id}).catch(()=>{});
   const message=(commands.length+' 项制作操作已应用，可撤销。'+plan.reports.join('；')).slice(0,500);say(message);return {message,revision};
@@ -685,6 +695,11 @@ async function workshopOperation(op,args={}){
  W.validate(next);const resolved=W.resolve(next);await loadDocument(resolved,false);workshop=next;push(before,label,undefined,beforeWorkshop);$('document-name').textContent=doc.name+' · '+workshop.name;updateWorkshopThumbnail();syncProperties();say(label+' · 可撤销');return result;
 }
 window.cardEditorHost={
+ selectTool(name){if(!doc||loading||busy||applying)return;target='image';showMask=false;setTool(name);syncProperties();draw();},
+ startAnchor(mode){const l=active();if(!l||l.locked||!['image','foreground','text'].includes(l.kind)||busy||gesture||freeTransform||applying){say('先选择未锁定的图片／字标图层');return;}anchorMode=mode;target='image';showMask=false;window.atelierWorkspace.view('split');setTool('anchor');draw();say(mode==='pivot'?'在画布点击或拖动旋转中心':'拖动蓝色固定点和黄色自由端；两点间至少16px');},
+ async splitSelection(role){if(active()?.kind!=='foreground'||active().locked||!selection)throw Error('在未锁定的人物母版上建立选区后拆层');const token=documentToken,version=revision,id=active().id,mask=await localSelection();if(token!==documentToken||version!==revision||id!==active().id)throw Error('选区准备时工程已变化');return applyProductionCommands([{op:'splitLayer',layerId:id,newLayerId:'part-'+crypto.randomUUID(),name:role==='rear'?'衣料 / 后层':'衣料 / 前层',role,selectionMask:mask,feather:0}],undefined,'选区拆为'+(role==='rear'?'后层':'前层'));},
+ async motionFromAnchors(){const l=active();if(l.kind!=='foreground'||l.locked||!l.motionAnchor)throw Error('请选择人物母版并先设置运动锚点；拆出衣料的锚点直接控制连接权重');const args={image:doc.masks.motion,selection:selection?await localSelection():doc.masks.coverage,coverage:doc.masks.coverage,guard:doc.masks.rigid,mode:'add',gradient:'line',start:l.motionAnchor.root,end:l.motionAnchor.tip,value:1};await processTask('锚点生成运动权重','mask_combine',args,async result=>{doc.masks.motion=result.image;await registerMask('motion',result.image);target='motion';showMask=true;});},
+
  setRegionMode(mode,maskId){if(!['none','layer','mask','selection','connection','channels'].includes(mode))return;regionMode=mode;if(maskId&&masks.has(maskId))regionMaskId=maskId;syncRegionHighlight();},
  selectLayer(id){if(!doc?.layers.some(l=>l.id===id))return false;selectLayer(id);return active()?.id===id;},
  spaceSource(id){if(!doc)return null;if(!id)return images.get('space-back');const l=doc.layers.find(l=>l.id===id);if(!l)return null;if(l.kind==='text')return textRaster(l);const image=images.get(id);return image?(window.CardSpace.background(l)?image:registeredImage(l,image)):null;},
@@ -717,7 +732,8 @@ window.cardEditorHost={
  },
  smartCutout(){setTool('smart');say('点选或拖框圈定主体；Shift 添加、Alt 排除，然后选区复制为图像');},
  replaceImage(){if(active()?.kind!=='image'||active().locked)return;say('选择新的 PNG / JPEG / WebP；Slot、位置和调色参数保留');$('import-role').value='replace';command('import');},
- setMaskBrush(value){if(value!==white)$('paint-color').click();},
+ setMaskBrush(value){brushValue=typeof value==='number'?Math.max(0,Math.min(255,Math.round(value))):value?255:0;white=brushValue>=128;syncProperties();window.dispatchEvent(new CustomEvent('mask-brush-change',{detail:{value:brushValue,hardness:brushHardness}}));},
+ setMaskHardness(value){brushHardness=Math.max(0,Math.min(1,value));},
  setMaskDisplay(mode){if(!['overlay','gray'].includes(mode))return;maskDisplayMode=mode;showMask=true;syncProperties();draw();},
  chooseMask(id,toolName='brush'){if(loading||busy||gesture||freeTransform||applying||!maskNames[id])return;const layer=active()?.kind==='foreground'?active():doc?.layers.find(l=>l.kind==='foreground');if(!layer){say('请先导入连续人物层');return;}window.atelierWorkspace?.view('split');showMask=toolName==='brush';$('selection-target').value=id;selectLayer(layer.id,toolName==='brush'?id:'image');setTool(toolName);syncProperties();say(layer.locked?'人物层已锁定，先解锁再制作 Mask':toolName==='brush'?'正在绘制 '+maskNames[id]+' Mask · X 切换黑白':'建立选区后点击“选区写入当前 Mask”');},
  unlockMaskLayer(){if(loading||busy||gesture||freeTransform||applying||active()?.kind!=='foreground')return;const layer=active();if(layer.locked)mutate('解锁人物层制作 Mask',()=>layer.locked=false);},
@@ -726,10 +742,10 @@ window.cardEditorHost={
  async cacheTitle(src){const im=await imageFrom(src);if(im.naturalWidth>8192||im.naturalHeight>8192||im.naturalWidth*im.naturalHeight>16*1024*1024)throw Error('字标图片超过尺寸上限');titleImages.set(src,im);return im;},
  scaleTitle(id,value){if(!Number.isFinite(value)||value<.01||value>10)throw Error('缩放范围 1% 到 1000%');return this.mutate('缩放图片字标',(d)=>{const l=d.layers.find(l=>l.id===id);if(!l||l.locked||l.kind!=='text')throw Error('请选择未锁定的字标');scaleLayer(l,value);});},
  editTitle(id){if(!this.selectLayer(id))return false;setTool('move');window.atelierWorkspace.view('split');transformStart();return true;},
- state:()=>({desktop,mode:document.body.dataset.appMode,document:doc,workshop,layer:active(),tool,target,busy:busy||loading||applying||!!gesture||freeTransform,dirty:revision!==savedRevision,revision,documentToken,showMask,white,maskDisplayMode,selection:!!selection}),
+ state:()=>({brushValue,brushHardness,desktop,mode:document.body.dataset.appMode,document:doc,workshop,layer:active(),tool,target,busy:busy||loading||applying||!!gesture||freeTransform,dirty:revision!==savedRevision,revision,documentToken,showMask,white,maskDisplayMode,selection:!!selection}),
  flushSession,openRecent:async(id,cardId)=>openHomeResult(await bridge.invoke('home-open',{id,cardId})),openFileData:async(text)=>openHomeResult(await bridge.invoke('home-open-file',text===undefined?{}:{text})),pickFile:()=>bridge.invoke('home-choose-file'),openFileSelection:async(selection)=>openHomeResult(await bridge.invoke('home-open-file',{selection})),opened,
  refreshPreview(){syncPreview();},workshop:workshopOperation,invoke:(method,args)=>bridge.invoke(method,args),command,
- mutate(label,fn){if(loading||busy||gesture||freeTransform||applying){say('请先结束当前处理或变换');return false;}const next=snapshot();fn(next,next.layers.find(l=>l.id===selected[0]));window.CardRuntime.validate(next);const signature=d=>JSON.stringify([d.previewMode,d.effects,d.locale,d.composition,d.armor,d.material,d.particles,d.spatial,d.deformation,d.actions,d.slots,d.shader,d.frameStyle,d.frameStyles,d.layers.map(l=>[l.id,l.x,l.y,l.scale,l.opacity,l.adjustments,l.blend,l.slotId,l.role,l.spatial,l.attachment,l.text,l.visible,l.textStyle,l.titleArt])]);if(signature(next)===signature(doc))return false;mutate(label,()=>doc=next);return true;},say,fit,
+ mutate(label,fn){if(loading||busy||gesture||freeTransform||applying){say('请先结束当前处理或变换');return false;}const next=snapshot();fn(next,next.layers.find(l=>l.id===selected[0]));window.CardRuntime.validate(next);const signature=d=>JSON.stringify([d.previewMode,d.effects,d.locale,d.composition,d.armor,d.material,d.particles,d.spatial,d.deformation,d.actions,d.slots,d.shader,d.frameStyle,d.frameStyles,d.layers.map(l=>[l.id,l.x,l.y,l.scale,l.rotation,l.pivot,l.motionAnchor,l.opacity,l.adjustments,l.blend,l.slotId,l.role,l.spatial,l.attachment,l.text,l.visible,l.textStyle,l.titleArt])]);if(signature(next)===signature(doc))return false;mutate(label,()=>doc=next);return true;},say,fit,
  async refine(operation,radius){try{if(!selection||selectionLayer!==active().id){say('请先在当前图层建立选区');return;}const image=await localSelection();await processTask('修整选区 / '+operation,'refine_selection',{image,operation,radius},async result=>{smartSession=null;await setSelectionImage(result.image);});}catch(e){say(e.message);}},
  compile(config){if(!doc||busy||gesture||freeTransform||applying||loading)throw Error('请先结束当前处理或变换');const shader={...window.CardRuntime.defaults.shader,...config};window.CardRuntime.validate({...doc,shader});window.cardPreview.compileShader(shader);mutate('编译 GLSL 几何与材质效果',()=>{doc.previewMode='authored';doc.shader=shader;});syncTextures();},
  previewAction(id,seconds=0,paused=false){if(!doc||loading||busy||gesture||freeTransform||applying)return false;this.activateRuntime();syncPreview();window.cardPreview.playAction(id,seconds,paused);syncPreview();return true;},
@@ -760,6 +776,7 @@ window.cardAIHost={
   let mask=null;if(mode==='inpaint'&&selection&&selectionLayer===layer.id){let selectionImage=await localSelection();if(!wasPolygon&&Number($('selection-feather').value)>0)selectionImage=(await bridge.invoke('process',{op:'feather',args:{image:selectionImage,radius:Number($('selection-feather').value)}})).image;const local=await imageFrom(selectionImage);const c=canvasFor(im.naturalWidth,im.naturalHeight),cc=c.getContext('2d');cc.fillStyle='black';cc.fillRect(0,0,c.width,c.height);const r=sourceWindow||{x:0,y:0,width:c.width,height:c.height};cc.drawImage(local,r.x,r.y,r.width,r.height);mask=c.toDataURL('image/png');}
   if(boundToken!==documentToken||boundRevision!==revision||active().id!==layer.id)throw Error('准备期间工程已变化，请重新提交');return {source,mask,sourceWindow,layerId:layer.id,layerName:layer.name,documentToken:boundToken,revision:boundRevision,locked:layer.locked};
  },
+ async repair(job,selectionMask){if(!selectionMask)throw Error('补全任务缺少区域 Mask');return applyProductionCommands([{op:'repairLayer',layerId:job.layerId,jobId:job.id,selectionMask,feather:0,protectRigid:true}],undefined,'AI 补全后层缺口');},
  async apply(job,src,asNew=false,fitExpanded=false){
   const check=()=>{if(job.documentToken!==documentToken)throw Error('这是另一个工程的候选图；请重新提交任务');if(gesture||freeTransform||applying||loading||busy)throw Error('请先结束当前操作');const l=doc.layers.find(l=>l.id===job.layerId);if(!asNew&&(!l||l.locked||revision!==job.revision))throw Error('工程已变化或图层被锁定；请作为新图层加入，或重新提交');if(asNew&&doc.layers.length>=64)throw Error('图层已达 64 层上限');return l;};
   const bound=check();if(!asNew){const current=pngFromImage(images.get(bound.id)),raw=Uint8Array.from(atob(current.split(',')[1]),c=>c.charCodeAt(0)),digest=await crypto.subtle.digest('SHA-256',raw),fingerprint=[...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');if(fingerprint!==job.sourceHash)throw Error('源图已变化，请作为新图层加入或重新提交');}const im=await imageFrom(src);check();const before=snapshot();let layer=doc.layers.find(l=>l.id===job.layerId);

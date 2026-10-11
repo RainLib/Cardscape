@@ -1,6 +1,7 @@
 .home-screen,.home-loading{display:none}
 body[data-app-mode=home] .home-screen{display:flex}
 body[data-app-mode=boot] .home-loading,body[data-app-mode=loading] .home-loading{display:flex}
+body[data-loading-surface=native] .home-loading{display:none!important}
 body:not([data-app-mode=editor]) .workspace,body:not([data-app-mode=editor]) .options,body:not([data-app-mode=editor]) .editor-statusbar{display:none!important}
 body:not([data-app-mode=editor]) .menubar [data-command]:not([data-command=new]):not([data-command=open]):not([data-command=shortcuts]),body:not([data-app-mode=editor]) #workshop-toggle,body:not([data-app-mode=editor]) #workspace-mode,body:not([data-app-mode=editor]) .layout-controls,body:not([data-app-mode=editor]) #agent-open,body:not([data-app-mode=editor]) #titlebar-document,body:not([data-app-mode=editor]) #home-back{display:none}
 #home-back{background:transparent;border:0;font-size:17px;line-height:1;width:28px;padding:3px;color:#bbb}

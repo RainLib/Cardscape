@@ -3,7 +3,8 @@
 'use strict';
 const $=id=>document.getElementById(id),host=()=>window.cardEditorHost;
 let entries=[],running=false,returnMode='home';
-const paint=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+document.body.dataset.loadingSurface=window.atelier?'native':'inline';
+const paint=()=>window.CardLoadingYield.paint(window);
 const native=(action,data={})=>window.atelier?.invoke('loading-window',{action,...data})||Promise.resolve();
 function mode(value){
  document.body.dataset.appMode=value;

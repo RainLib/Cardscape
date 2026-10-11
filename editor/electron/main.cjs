@@ -14,7 +14,8 @@ app.setName('Cardscape');
 app.setPath('userData',path.join(runtimeDir,'electron-profile'));
 const ownsInstance=app.requestSingleInstanceLock();
 if(!ownsInstance)app.quit();
-app.on('second-instance',()=>{if(win){if(win.isMinimized())win.restore();win.show();win.focus();}});
+app.on('second-instance',()=>loadingWindow?.focus());
+app.on('activate',()=>loadingWindow?.focus());
 const command=c=>win?.webContents.send('atelier:command',c);
 const choose=async options=>(await dialog.showOpenDialog(win,options)).filePaths?.[0];
 app.whenReady().then(async()=>{

@@ -33,6 +33,22 @@ func run() -> void:
 	scene.add_child(second)
 	await process_frame
 	await process_frame
+	first._definition.effects["flowSpeed"]=2.5
+	first._update(0)
+	check(is_equal_approx(float(first._surfaces[0].material_override.get_shader_parameter("flow_speed")),2.5),"flow speed reaches instance shader")
+	check(not second._definition.effects.has("flowSpeed"),"flow speed override does not affect another instance")
+	var anchor_layer := {"id":"qa-segment", "attachment":{"anchor":{"edge":"segment","root":[0,0],"tip":[1023,1535]}}}
+	var anchor_image := first._attachment_mask(anchor_layer).get_image()
+	check(anchor_image.get_pixel(0,0).r==0,"segment anchor pins its root")
+	check(anchor_image.get_pixel(127,191).r==1,"segment anchor releases its tip")
+	var pivot_layer: Dictionary = first._definition.layers[0].duplicate(true)
+	pivot_layer.merge({"id":"qa-pivot","kind":"image","x":30,"y":20,"scale":1.2,"rotation":90,"pivot":{"u":.75,"v":.7},"slotId":""},true)
+	pivot_layer.erase("splitSourceId")
+	pivot_layer.erase("attachment")
+	var pivot_surface := first._surface(pivot_layer,first._surfaces[0].mesh,.1,0,0,false)
+	var actual_pivot := pivot_surface.transform*Vector3(.25,-.3,0)
+	var registration: float = pivot_surface.get_meta("registration",1.0)
+	check(absf(actual_pivot.x-(30.0/1024+.25*1.2)*registration)<.00001 and absf(actual_pivot.y-(-20.0/1024-.3*1.2)*registration)<.00001,"custom layer pivot stays stationary during rotation")
 	check(first._surfaces.size()>0,"dynamic surfaces exist")
 	check(first._surfaces[0].material_override!=second._surfaces[0].material_override,"materials are per instance")
 	check(first._surfaces[0].mesh!=null,"geometry loaded")

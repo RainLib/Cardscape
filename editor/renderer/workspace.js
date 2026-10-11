@@ -2,9 +2,11 @@
 'use strict';
 const $=id=>document.getElementById(id),host=window.cardEditorHost,runtime=window.CardRuntime;
 let state=null,actionId='idle',slotId='',documentId=null,shaderDraft=false,lastTool=null,maskChannel='motion';
-let saved={};try{saved=JSON.parse(localStorage.getItem('atelier-workspace-v4')||'{}');}catch{}
+const layoutKey='atelier-workspace-v5';
+// Apply the new split direction once while retaining all other workspace preferences.
+let saved={};try{const current=localStorage.getItem(layoutKey);saved=current?JSON.parse(current):{...JSON.parse(localStorage.getItem('atelier-workspace-v4')||'{}'),axis:'rows'};}catch{}
 const previewLayout=window.CardWorkspaceLayout.normalize(saved);
-function saveLayout(){localStorage.setItem('atelier-workspace-v4',JSON.stringify({...previewLayout,view:document.querySelector('.view-stage').dataset.view,collapsed:document.body.classList.contains('dock-collapsed'),toolsHidden:document.body.classList.contains('tools-hidden'),focused:document.body.classList.contains('panels-hidden'),panel:document.querySelector('[data-panel-tab].active')?.dataset.panelTab}));}
+function saveLayout(){localStorage.setItem(layoutKey,JSON.stringify({...previewLayout,view:document.querySelector('.view-stage').dataset.view,collapsed:document.body.classList.contains('dock-collapsed'),toolsHidden:document.body.classList.contains('tools-hidden'),focused:document.body.classList.contains('panels-hidden'),panel:document.querySelector('[data-panel-tab].active')?.dataset.panelTab}));}
 function syncLayout(){
  const focused=document.body.classList.contains('panels-hidden'),visible=!focused&&!document.body.classList.contains('dock-collapsed'),tools=!focused&&!document.body.classList.contains('tools-hidden'),current=document.querySelector('[data-panel-tab].active')?.dataset.panelTab;
  for(const [id,on] of [['layout-left',tools],['layout-right',visible],['panels-toggle',focused]]){const b=$(id);b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));if(id!=='panels-toggle')b.setAttribute('aria-expanded',String(on));}
@@ -84,7 +86,7 @@ function refreshMasks(next){
  $('mask-region-highlight').disabled=!person||next.busy;$('mask-person-select').disabled=!person||next.busy;$('mask-person-select').hidden=same;$('mask-person-unlock').hidden=!locked;$('mask-person-unlock').disabled=next.busy;
  for(const b of document.querySelectorAll('[data-mask-channel]')){b.disabled=!person||next.busy;const on=b.dataset.maskChannel===maskChannel;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));}
  for(const id of ['mask-start-brush','mask-start-smart','mask-start-rect','mask-write-mode','mask-write-gradient','mask-brush-size','mask-brush-strength'])$(id).disabled=!enabled;
- for(const b of document.querySelectorAll('[data-mask-paint]')){b.disabled=!enabled;b.setAttribute('aria-pressed',String((b.dataset.maskPaint==='white')===next.white));}
+ for(const b of document.querySelectorAll('[data-mask-paint]')){b.disabled=!enabled;b.setAttribute('aria-pressed',String((b.dataset.maskPaint==='white'?255:0)===(next.brushValue??(next.white?255:0))));}
  field('mask-brush-size',$('brush-size').value,!enabled);field('mask-brush-strength',$('brush-strength').value,!enabled);$('mask-display-mode').value=next.maskDisplayMode;$('mask-display-mode').disabled=!enabled;
  $('mask-write-selection').disabled=!enabled||!next.selection;$('mask-soften').disabled=!enabled||next.target==='image';$('mask-toggle-preview').disabled=!same||next.busy;$('mask-toggle-preview').textContent=next.showMask?'隐藏区域':'显示区域';$('mask-play-preview').disabled=!person||next.busy;
  const effect=['motion','emission','phase','foil'].includes(maskChannel);$('mask-effect-setting').hidden=!effect;$('mask-effect-enabled').checked=maskChannel==='motion'?next.document.effects.cape:maskChannel==='foil'?next.document.armor.enabled:next.document.effects.flow;$('mask-effect-enabled').disabled=next.busy;$('mask-effect-label').textContent=maskChannel==='motion'?'启用披风运动':maskChannel==='foil'?'启用盔甲反光':'启用武器流光';

@@ -304,8 +304,15 @@ func _attachment_mask(layer: Dictionary) -> Texture2D:
 			for x in 128:
 				var px := float(x)/127*1024
 				var py := float(y)/191*1536
-				var value: float = {"top":py,"bottom":1536-py,"left":px,"right":1024-px}[anchor.edge]
-				var t := clampf((value-float(anchor.pin))/(float(anchor.release)-float(anchor.pin)),0,1)
+				var t: float
+				if anchor.edge=="segment":
+					var root := Vector2(float(anchor.root[0]),float(anchor.root[1]))
+					var delta := Vector2(float(anchor.tip[0]),float(anchor.tip[1]))-root
+					t=clampf((Vector2(px,py)-root).dot(delta)/delta.length_squared(),0,1)
+				else:
+					var distance: float = {"top":py,"bottom":1536-py,"left":px,"right":1024-px}[anchor.edge]
+					t=clampf((distance-float(anchor.pin))/(float(anchor.release)-float(anchor.pin)),0,1)
+				var value: float
 				value=t*t*(3-2*t)
 				image.set_pixel(x,y,Color(value,value,value,1))
 		var texture := ImageTexture.create_from_image(image)
@@ -372,11 +379,16 @@ func _surface(layer: Dictionary, mesh: Mesh, z: float, priority: int, pass_id: f
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.position = Vector3(float(layer.get("x",0))/1024.0,-float(layer.get("y",0))/1024.0,z)
 	node.scale = Vector3(float(layer.get("scale",1)),float(layer.get("scale",1)),1)
+	node.rotation.z = -deg_to_rad(float(layer.get("rotation",0)))
 	for slot in _definition.get("slots", []):
 		if slot.id == layer.get("slotId", ""):
 			node.position += Vector3(float(slot.u)-.5,.75-float(slot.v)*1.5,float(slot.z) if _definition.get("spatial",{}).get("enabled",false) else float(slot.z)-z)
 			node.scale *= Vector3(float(slot.scale),float(slot.scale),1)
-			node.rotation.z = -deg_to_rad(float(slot.rotation))
+			node.rotation.z += -deg_to_rad(float(slot.rotation))
+	var pivot: Dictionary = layer.get("pivot",{})
+	var pivot_point := Vector2(float(pivot.get("u",.5))-.5,.75-float(pivot.get("v",.5))*1.5)*node.scale.x
+	var offset := pivot_point-pivot_point.rotated(node.rotation.z)
+	node.position += Vector3(offset.x,offset.y,0)
 	var registered: bool = _definition.get("spatial",{}).get("enabled",false) and layer.kind!="frame" and layer.id!="back"
 	var registration := (_camera_distance()-node.position.z)/(_camera_distance()-.045) if registered else 1.0
 	node.scale.x*=registration
@@ -521,6 +533,7 @@ func _update(_delta: float) -> void:
 		mat.set_shader_parameter("depth",depth_strength)
 		mat.set_shader_parameter("geometry_bend",float(_definition.get("deformation",{}).get("bend",0))+extra_bend)
 		mat.set_shader_parameter("motion_gain",motion*float(_definition.get("deformation",{}).get("wind",1)) if effects_playing and _definition.effects.get("cape",false) else 0.0)
+		mat.set_shader_parameter("flow_speed",float(_definition.effects.get("flowSpeed",1)))
 		mat.set_shader_parameter("flow_gain",flow if effects_playing and _definition.effects.get("flow",false) else 0.0)
 		mat.set_shader_parameter("wind_speed",float(_definition.get("deformation",{}).get("speed",1)))
 		mat.set_shader_parameter("metrics",Vector4(float(style.width)/1024.0,float(style.corner)/1024.0,float(style.depth)/1024.0,minf(float(style.bevel),float(style.width)*.4)/1024.0))

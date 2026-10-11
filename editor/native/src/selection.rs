@@ -53,15 +53,19 @@ pub fn combine(args:&Value)->Result<Value,String>{
     let mut image=decode(args,"image")?.to_luma8();let sel=decode(args,"selection")?.to_luma8();
     if image.dimensions()!=sel.dimensions(){return Err("selection dimensions must match mask".into());}
     let mode=args["mode"].as_str().unwrap_or("replace");if !["replace","add","subtract"].contains(&mode){return Err("invalid selection combine mode".into());}
-    let gradient=args["gradient"].as_str().unwrap_or("solid");if !["solid","down","up"].contains(&gradient){return Err("invalid weight gradient".into());}
+    let gradient=args["gradient"].as_str().unwrap_or("solid");if !["solid","down","up","right","left","radial","line"].contains(&gradient){return Err("invalid weight gradient".into());}
     let value=args["value"].as_f64().unwrap_or(1.0);if !value.is_finite()||!(0.0..=1.0).contains(&value){return Err("invalid mask value".into());}
-    let w=image.width() as usize;let mut top=image.height() as usize;let mut bottom=0;
+    let start_value=args["startValue"].as_f64().unwrap_or(0.0);if !start_value.is_finite()||!(0.0..=1.0).contains(&start_value){return Err("invalid gradient start value".into());}
+    let point=|key:&str|->Result<[f32;2],String>{let p: [f32;2]=serde_json::from_value(args[key].clone()).map_err(|_|format!("invalid gradient {key}"))?;if p.iter().any(|v|!v.is_finite())||p[0]<0.0||p[1]<0.0||p[0]>image.width() as f32-1.0||p[1]>image.height() as f32-1.0{return Err(format!("gradient {key} outside image"));}Ok(p)};
+    let line=if gradient=="line"{let a=point("start")?;let b=point("end")?;if (b[0]-a[0]).hypot(b[1]-a[1])<1.0{return Err("gradient anchors too close".into());}Some((a,b))}else{None};
+    let w=image.width() as usize;let mut top=image.height() as usize;let mut bottom=0;let mut left=w;let mut right=0;
     let mut gates=Vec::new();
     for key in ["coverage","guard"]{if args[key].is_string(){let gate=decode(args,key)?.to_luma8();if gate.dimensions()!=image.dimensions(){return Err(format!("{key} dimensions must match mask"));}gates.push((key,gate));}}
-    for (i,v) in sel.as_raw().iter().enumerate(){if *v>0{top=top.min(i/w);bottom=bottom.max(i/w);}}
+    for (i,v) in sel.as_raw().iter().enumerate(){if *v>0{top=top.min(i/w);bottom=bottom.max(i/w);left=left.min(i%w);right=right.max(i%w);}}
     image.as_mut().par_iter_mut().enumerate().for_each(|(i,p)|{
         let t=((i/w).saturating_sub(top) as f32/(bottom.saturating_sub(top).max(1)) as f32).clamp(0.0,1.0);
-        let gain=match gradient{"down"=>t,"up"=>1.0-t,_=>1.0};let selected=sel.as_raw()[i] as f32/255.0;let v=value as f32*gain*255.0;
+        let x=(i%w) as f32;let y=(i/w) as f32;let h=((i%w).saturating_sub(left) as f32/right.saturating_sub(left).max(1) as f32).clamp(0.0,1.0);
+        let gain=match gradient{"down"=>t,"up"=>1.0-t,"right"=>h,"left"=>1.0-h,"radial"=>{let cx=(left+right) as f32/2.0;let cy=(top+bottom) as f32/2.0;((x-cx)/(right.saturating_sub(left).max(1) as f32/2.0)).hypot((y-cy)/(bottom.saturating_sub(top).max(1) as f32/2.0)).min(1.0)},"line"=>{let (a,b)=line.unwrap();let dx=b[0]-a[0];let dy=b[1]-a[1];((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy)},_=>1.0}.clamp(0.0,1.0);let selected=sel.as_raw()[i] as f32/255.0;let v=(if gradient=="solid"{value as f32}else{start_value as f32+(value-start_value) as f32*gain})*255.0;
         let limit=gates.iter().fold(255.0f32,|limit,(key,gate)|{let g=gate.as_raw()[i];limit*(if *key=="guard"{(255-g) as f32}else{g as f32})/255.0});
         let incoming=v*selected*limit/255.0;
         // Existing values were gated when created. Preserve them when editing a
@@ -73,6 +77,7 @@ pub fn combine(args:&Value)->Result<Value,String>{
 
 #[cfg(test)]mod tests{
  use super::*;
+ #[test]fn configurable_gradients_match_endpoints_and_gray_weights(){let black=encode(&DynamicImage::ImageLuma8(GrayImage::new(9,9))).unwrap();let white=encode(&DynamicImage::ImageLuma8(GrayImage::from_pixel(9,9,image::Luma([255])))).unwrap();for (gradient,start,end) in [("right",(0,4),(8,4)),("left",(8,4),(0,4)),("radial",(4,4),(8,4))]{let m=combine(&json!({"image":black,"selection":white,"gradient":gradient,"startValue":0.25,"value":0.75})).unwrap();let m=decode(&m,"image").unwrap().to_luma8();assert_eq!(m.get_pixel(start.0,start.1)[0],64);assert_eq!(m.get_pixel(end.0,end.1)[0],191);}let m=combine(&json!({"image":black,"selection":white,"gradient":"line","start":[0,0],"end":[8,8],"startValue":1,"value":0})).unwrap();let m=decode(&m,"image").unwrap().to_luma8();assert_eq!(m.get_pixel(0,0)[0],255);assert_eq!(m.get_pixel(4,4)[0],128);assert_eq!(m.get_pixel(8,8)[0],0);assert!(combine(&json!({"image":black,"selection":white,"gradient":"line","start":[0,0],"end":[0,0]})).is_err());}
  #[test]fn polygon_excludes_outside(){let image=DynamicImage::ImageLuma8(GrayImage::from_pixel(20,20,image::Luma([100])));let s=trace(&json!({"image":encode(&image).unwrap(),"points":[[4,4],[16,4],[16,16],[4,16]]})).unwrap();let mask=decode(&s,"image").unwrap().to_luma8();assert_eq!(mask.get_pixel(0,0)[0],0);assert_eq!(mask.get_pixel(10,10)[0],255);}
  #[test]fn reject_non_registered_selection(){let png=encode(&DynamicImage::ImageLuma8(GrayImage::new(10,10))).unwrap();assert!(trace(&json!({"image":png,"points":[[0,0],[20,0],[0,9]]})).is_err());}
  #[test]fn gradient_pins_top_and_preserves_guard(){let black=encode(&DynamicImage::ImageLuma8(GrayImage::new(8,8))).unwrap();let white=encode(&DynamicImage::ImageLuma8(GrayImage::from_pixel(8,8,image::Luma([255])))).unwrap();let s=combine(&json!({"image":black,"selection":white,"gradient":"down"})).unwrap();let m=decode(&s,"image").unwrap().to_luma8();assert_eq!(m.get_pixel(4,0)[0],0);assert_eq!(m.get_pixel(4,7)[0],255);let guarded=combine(&json!({"image":black,"selection":white,"guard":white})).unwrap();assert_eq!(decode(&guarded,"image").unwrap().to_luma8().get_pixel(4,7)[0],0);}

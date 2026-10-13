@@ -6,7 +6,9 @@ var previous := Vector2.ZERO
 func _ready() -> void:
 	var camera := Camera3D.new()
 	camera.position.z = 2.7
-	camera.fov = 42
+	camera.keep_aspect = Camera3D.KEEP_HEIGHT
+	camera.fov = CardscapeCard.preview_fov(get_viewport().get_visible_rect().size)
+	get_viewport().size_changed.connect(func():camera.fov=CardscapeCard.preview_fov(get_viewport().get_visible_rect().size))
 	camera.current = true
 	add_child(camera)
 	var catalog := load("res://library.tres") as CardscapeLibrary

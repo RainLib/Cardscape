@@ -38,6 +38,7 @@ app.whenReady().then(async()=>{
     saveWorkshop:async name=>(await dialog.showSaveDialog(win,{defaultPath:path.join(runtimeDir,String(name||'workshop')+'.cardworkshop'),filters:[{name:'多卡片工坊',extensions:['cardworkshop']}]})).filePath,
     saveImage:async name=>(await dialog.showSaveDialog(win,{defaultPath:path.join(runtimeDir,name),filters:[{name:'PNG 图像',extensions:['png']}]})).filePath,
     openProject:()=>choose({properties:['openFile'],filters:[{name:'卡牌与工坊工程',extensions:['cardproj','cardworkshop']}]}),
+    importMaterialMaker:()=>choose({properties:['openFile','openDirectory']}),
     importFont:()=>choose({properties:['openFile'],filters:[{name:'字体',extensions:['ttf','otf','woff2']}]}),
     importImage:()=>choose({properties:['openFile'],filters:[{name:'图像',extensions:['png','jpg','jpeg','webp']}]}),
     exportDirectory:()=>choose({properties:['openDirectory','createDirectory']})

@@ -13,11 +13,50 @@ const {CutoutWorker}=require('./cutout-client.cjs');
 const {prepareAuthoring}=require('./authoring-service.cjs');
 const {createCheckpoints}=require('./production-checkpoints.cjs');
 const {createEditorSession}=require('./editor-session.cjs');
+const {createMaterialMaker}=require('./material-maker-service.cjs');
 const APP_VERSION=require('../package.json').version;
 const ROOT = path.resolve(__dirname,'..');
 const ASSETS = path.join(ROOT,'assets');
 const MAX_DOCUMENT = 64 * 1024 * 1024;
 const OPS = new Set(['ping','feather','resize','mask_stats','mesh','selection','mask_combine','clean_alpha','underpaint','repair_split','alpha','image_channel','refine_selection','adjust_image','wand_selection','title_raster']);
+function byteInventory(doc,stripEditorSources=null) {
+  const assets=new Map();
+  const metadata=JSON.stringify(doc,(_key,value)=>{
+    if(stripEditorSources&&value?.schema==='card-atelier/1'&&Array.isArray(value.layers)){
+      return {...value,layers:value.layers.map(layer=>{
+        const result={...layer};
+        const archive=(object,key)=>{const src=object[key];if(typeof src==='string'&&src.startsWith('data:image/')){stripEditorSources.add(src);delete object[key];}};
+        for(const key of ['master','splitEdgeOriginal'])archive(result,key);
+        if(layer.underpaint){result.underpaint={...layer.underpaint};for(const key of ['original','originalMaster','candidate','preSplitEdges'])archive(result.underpaint,key);}
+        return result;
+      })};
+    }
+    if(typeof value!=='string'||!value.startsWith('data:'))return value;
+    if(!assets.has(value))assets.set(value,assets.size);
+    return {$asset:assets.get(value)};
+  });
+  let bytes=Buffer.byteLength(metadata)+2;
+  for(const src of assets.keys())bytes+=Buffer.byteLength(JSON.stringify(src))+1;
+  return {bytes,assets};
+}
+function documentBytes(doc){return byteInventory(doc).bytes;}
+function embeddedScenes(doc){return [doc.backScene,...Object.values(doc.componentScenes||{}),...['material','particles'].map(k=>doc[k]?.document?doc[k]:null)].filter(Boolean);}
+function ownDocument(doc){
+  const own={...doc};delete own.backScene;delete own.componentScenes;
+  if(doc.backScene)delete own.back;
+  for(const kind of ['material','particles'])if(doc[kind]?.document){
+    own[kind]={...doc[kind]};for(const key of ['document','layerRasters','titleRasters'])delete own[kind][key];
+  }
+  return own;
+}
+function ownDocumentBytes(doc){return documentBytes(ownDocument(doc));}
+function documentBudget(doc){
+  const sources=new Set(),render=byteInventory(doc,sources);
+  // Shared master/current pixels belong to the render budget once. A reference
+  // outside the explicit editor-source fields still counts as rendering data.
+  return {renderBytes:render.bytes,sourceBytes:documentBytes({editorSources:[...sources].filter(src=>!render.assets.has(src))})};
+}
+function ownDocumentBudget(doc){return documentBudget(ownDocument(doc));}
 function validateProject(doc) {
   if (!doc || doc.schema !== 'card-atelier/1' || doc.width !== 1024 || doc.height !== 1536 || !Array.isArray(doc.layers) || doc.layers.length > 64) throw Error('工程格式或画布尺寸不支持');
   if (!doc.masks || typeof doc.masks !== 'object') throw Error('工程缺少 Mask');
@@ -39,7 +78,23 @@ function validateProject(doc) {
   if(doc.fonts){if(!Array.isArray(doc.fonts)||doc.fonts.length>16)throw Error('工程最多 16 个嵌入字体');const families=new Set();for(const font of doc.fonts){if(!/^AtelierFont-[0-9]+$/.test(font.family)||families.has(font.family)||typeof font.name!=='string'||font.name.length>200||!/^data:font\/(ttf|otf|woff2);base64,[A-Za-z0-9+/=]+$/.test(font.src)||font.src.length>17*1024*1024)throw Error('工程字体无效');families.add(font.family);}}
   require('../renderer/layer-tree.js').validate(doc);
   runtimeModel.validate(doc);
-  if (JSON.stringify(doc).length > MAX_DOCUMENT) throw Error('工程超过 64 MB 上限');
+  for(const scene of embeddedScenes(doc)){
+    if(scene.document){
+      if(embeddedScenes(scene.document).length)throw Error('组件编辑文档不能嵌套组件');
+      validateProject(scene.document);
+    }
+    const budget=scene===doc.backScene?{scene,fallback:doc.back}:scene;
+    const sizes=documentBudget(budget);
+    if(sizes.renderBytes>MAX_DOCUMENT)throw Error('组件去重后超过 64 MB 上限（显示素材）');
+    if(sizes.sourceBytes>MAX_DOCUMENT)throw Error('组件编辑源素材去重后超过 64 MB 上限');
+  }
+  // A linked reverse or component is an independent editable scene. Its own
+  // Display assets and retained editable originals have separate bounded
+  // budgets. Originals are preserved but never allocated as runtime surfaces.
+  const sizes=ownDocumentBudget(doc);
+  if (sizes.renderBytes > MAX_DOCUMENT) throw Error('工程去重后超过 64 MB 上限（显示素材）');
+  if (sizes.sourceBytes > MAX_DOCUMENT) throw Error('工程编辑源素材去重后超过 64 MB 上限');
+  if (documentBytes(doc) > workshopStorage.MAX_BYTES) throw Error('工程组合后超过 192 MB 上限');
   return doc;
 }
 async function atomicWrite(file, data) {
@@ -60,6 +115,7 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
   runtimeDir=path.resolve(runtimeDir);
   const worker = new NativeWorker(),selectionWorker=new SelectionWorker(),cutoutWorker=new CutoutWorker(); let projectFile = initialProject;
   const agents=createAgentService({runtimeDir,dialogs}),checkpoints=createCheckpoints({runtimeDir,validate:validateProject,write:atomicWrite});
+  const materialMaker=createMaterialMaker({runtimeDir,dialogs,write:atomicWrite,processImage:(op,args)=>worker.call(op,args)});
   const session=createEditorSession({runtimeDir,validate:validateProject,write:atomicWrite});
   const recent=require('./recent-projects.cjs').createRecentProjects({runtimeDir,write:atomicWrite,session});
   let pendingHome=null,pendingFile=null;
@@ -67,6 +123,7 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
   return {
     worker,
     async invoke(method,args={}) {
+      if(typeof method==='string'&&method.startsWith('material-maker-'))return materialMaker.invoke(method,args);
       if(typeof method==='string'&&method.startsWith('agent-'))return agents.invoke(method,args);
       switch(method) {
         case 'editor-session-save': {const result=await session.save(args,projectFile);if(!result.stale)await recent.record(args.project,projectFile,result.at,args.revision!==args.savedRevision);return result;}
@@ -151,7 +208,7 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
           await atomicWrite(file,text);projectFile=file;await recent.record(w,file);return {file,cards:w.cards.length,resources:w.resources.length};
         }
         case 'export-preview-stage': {
-          if(!/^[\w-]{1,100}$/.test(args.token)||!/^[\w-]{1,100}$/.test(args.cardId))throw Error('导出暂存标识无效');const text=JSON.stringify(args.output);if(text.length>24*1024*1024)throw Error('单卡导出图像超过 24 MB');pngBytes(args.output.front);for(const png of Object.values(args.output.layerRasters||{}))pngBytes(png);for(const locales of Object.values(args.output.titleRasters||{}))for(const png of Object.values(locales))pngBytes(png);await atomicWrite(path.join(runtimeDir,'export-staging',args.token,args.cardId+'.json'),text);return {staged:true,cardId:args.cardId};
+          if(!/^[\w-]{1,100}$/.test(args.token)||!/^[\w-]{1,100}$/.test(args.cardId))throw Error('导出暂存标识无效');const text=JSON.stringify(args.output);if(text.length>24*1024*1024)throw Error('单卡导出图像超过 24 MB');pngBytes(args.output.front);require('./card-export.cjs').framePreviewBytes(args.output.framePreview,pngBytes);for(const png of Object.values(args.output.layerRasters||{}))pngBytes(png);for(const locales of Object.values(args.output.titleRasters||{}))for(const png of Object.values(locales))pngBytes(png);await atomicWrite(path.join(runtimeDir,'export-staging',args.token,args.cardId+'.json'),text);return {staged:true,cardId:args.cardId};
         }
         case 'export-workshop': {
           const w=workshopStorage.unpack(args.workshop);workshopModel.validate(w,validateProject);
@@ -197,7 +254,7 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
         default: throw Error('未知编辑器命令');
       }
     },
-    close(){agents.close();worker.close();selectionWorker.close();cutoutWorker.close();}
+    close(){materialMaker.close();agents.close();worker.close();selectionWorker.close();cutoutWorker.close();}
   };
 }
-module.exports={createServices,validateProject,atomicWrite,ROOT,ASSETS};
+module.exports={createServices,validateProject,documentBytes,ownDocumentBytes,documentBudget,ownDocumentBudget,atomicWrite,ROOT,ASSETS};

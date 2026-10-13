@@ -12,7 +12,7 @@ function createEditorSession({runtimeDir,validate,write}){
   try{if((await fs.stat(target)).size>16*1024*1024)throw Error('恢复元数据过大');const record=JSON.parse(await fs.readFile(target,'utf8'));if(record.schema!=='card-editor-session/1')throw Error('恢复记录格式无效');
    if(sourceFile&&record.sourceFile!==path.resolve(sourceFile))return null;
    if(record.sourceFile){try{if((await fs.stat(record.sourceFile)).mtimeMs>record.at)return null;}catch(e){if(e.code!=='ENOENT')throw e;}}
-   const value=await expand(record.project),result=value.schema==='card-workshop/1'?{workshop:workshops.validate(value,validate)}:{document:validate(value)};
+   const value=await expand(record.project),result=value.schema==='card-workshop/1'?{workshop:workshops.validate(workshops.migrate(value,validate),validate)}:{document:validate(value)};
    return {...result,sourceFile:record.sourceFile,recovery:{view:record.view,revision:record.revision,savedRevision:record.savedRevision,at:record.at}};
   }catch(e){if(e.code==='ENOENT')return null;return {recoveryError:e.message};}
  }
@@ -28,7 +28,7 @@ function createEditorSession({runtimeDir,validate,write}){
    if(!args.project||!['card-workshop/1','card-atelier/1'].includes(args.project.schema))throw Error('恢复记录缺少工程');
    if(Buffer.byteLength(JSON.stringify(args.project))>16*1024*1024||Buffer.byteLength(JSON.stringify(args.view||{}))>16*1024)throw Error('恢复元数据过大');
    let bytes=0;for(const [id,src] of Object.entries(args.blobs||{})){if(!/^[a-f0-9]{64}$/.test(id)||typeof src!=='string'||!src.startsWith('data:')||hash(src)!==id)throw Error('恢复素材摘要不匹配');bytes+=Buffer.byteLength(src);if(bytes>storage.MAX_BYTES)throw Error('恢复素材超过 192 MB');await write(path.join(assets,id+'.txt'),src);cache.set(id,src);}
-   const value=await expand(args.project);if(value.schema==='card-workshop/1')workshops.validate(value,validate);else validate(value);
+   const value=await expand(args.project);if(value.schema==='card-workshop/1')workshops.validate(workshops.migrate(value,validate),validate);else validate(value);
    const at=Date.now(),record={schema:'card-editor-session/1',sourceFile:sourceFile?path.resolve(sourceFile):null,project:args.project,view:args.view,revision:args.revision,savedRevision:args.savedRevision,at};
    if(args.token!==token)throw Error('编辑会话已切换，忽略旧恢复记录');
    // Keep each project's last recovery, including drafts, when another is opened.

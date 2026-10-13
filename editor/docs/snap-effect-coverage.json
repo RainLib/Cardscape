@@ -1,0 +1,2584 @@
+{
+  "date": "2026-10-12",
+  "source": "Snap.Fan public effect indexes; catalog includes legacy/unreleased names and is a bounded snapshot",
+  "counts": {
+    "particles": 92,
+    "material": 53,
+    "frame": 92
+  },
+  "items": [
+    {
+      "id": "Bananas",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Bananas/",
+      "name": "Bananas  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-bananas",
+      "status": "official-clip-glyph-and-local-motion-calibrated-needs-full-cycle-validation",
+      "accepted_1_to_1": false,
+      "reference_verified": true,
+      "reference_video": "../outputs/snap-gap-v89/official-customization.gif",
+      "reference_source": "https://marvelsnap.com/new-feature-character-mastery/",
+      "reference_sha256": "4120a49fbed32da8db275adeb08174bf4f2c0f60497368ef2b3a03fbc5dcca86",
+      "reference_observation": "Official Hit-Monkey GIF verified: thick gold crescents with inner ridge, dark tips and freckles; ten exterior motion fits over 69 frames/4.610s. Two six-frame glyph tracks compared against actual WebGL captures with pose/length matching; other ten frames give mean silhouette F1 0.648 baseline vs 0.776 current. Full game cycle, emitter distribution and all-angle fidelity remain unverified.",
+      "validation": "bananas-motion-v90.md",
+      "motion_measurement": "../outputs/snap-gap-v90/bananas-reference-motion.json",
+      "surface_measurement": "../outputs/snap-gap-v90/banana-comparison.json",
+      "additional_reference_source": "https://www.youtube.com/watch?v=w2e4TfaTu60",
+      "additional_reference_video": "../outputs/snap-gap-v90/mastery-walkthrough.mp4",
+      "additional_reference_sha256": "5cb799d64ad3c555c4f0551d70db6347530d3250e76b03d94f3f5a853d4700d8",
+      "additional_reference_interval_seconds": [
+        111.06666666666666,
+        120.5
+      ],
+      "additional_motion_measurement": "../outputs/snap-gap-v90/bananas-video-measurement.json",
+      "additional_reference_observation": "Official MarvelSnap 720p/60fps walkthrough downloaded and played; 142 sampled frames registered across a continuous Infinaut Prism/Bananas shot. Cost/power badges excluded. Nine exterior local-motion candidates provide a second check, but frame/badge crossings censor tracks; visible spans are not full particle lifetimes. This shot has not been used for full-cycle acceptance or further production parameter changes."
+    },
+    {
+      "id": "Bubbles",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Bubbles/",
+      "name": "Blue Bubbles  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-bubbles",
+      "status": "official-clip-surface-and-rise-calibrated-needs-full-cycle-validation",
+      "accepted_1_to_1": false,
+      "reference_verified": true,
+      "reference_video": "../outputs/snap-gap-v89/official-customization-01.gif",
+      "reference_source": "https://marvelsnap.com/new-feature-character-mastery/",
+      "reference_sha256": "86dbcefbc1f891615c187e8ce6c22f3ba70805bb92f26bbc9b6b5b691a9401fe",
+      "validation": "bubbles-motion-v89.md",
+      "motion_measurement": "../outputs/snap-gap-v89/bubbles-reference-motion.json",
+      "surface_comparison": "../outputs/snap-gap-v89/bubble-comparison.json",
+      "reference_observation": "Official Jeff GIF: tinted blue film, narrow reflected rim and a diffuse lower glint; one retained exterior bubble moves upward and outward over 24 frames. Camera pose, GIF quantization and fades limit inference.",
+      "observed_motion": "v89: independent constant sizes, upward motion from chosen contour, normal alpha blend and exterior fade; WebGL/Godot shared surface and SDK sampler checks passed. Density, complete cycle, emitter distributions and all views remain unverified."
+    },
+    {
+      "id": "Comic",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Comic/",
+      "name": "Rainbow Tone  Super Rare",
+      "kind": "particles",
+      "recipe": "particles-rainbow-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicBlack",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicBlack/",
+      "name": "Black Tone  Super Rare",
+      "kind": "particles",
+      "recipe": "particles-black-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicBlue",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicBlue/",
+      "name": "Blue Tone  Rare",
+      "kind": "particles",
+      "recipe": "particles-blue-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicCopper",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicCopper/",
+      "name": "Copper Tone  Rare",
+      "kind": "particles",
+      "recipe": "particles-copper-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicGold",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicGold/",
+      "name": "Gold Tone  Super Rare",
+      "kind": "particles",
+      "recipe": "particles-gold-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicGreen",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicGreen/",
+      "name": "Green Tone  Rare",
+      "kind": "particles",
+      "recipe": "particles-green-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicOrange",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicOrange/",
+      "name": "Orange Tone  Rare",
+      "kind": "particles",
+      "recipe": "particles-orange-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicPink",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicPink/",
+      "name": "Pink Tone  Rare",
+      "kind": "particles",
+      "recipe": "particles-pink-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicPurple",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicPurple/",
+      "name": "Purple Tone  Rare",
+      "kind": "particles",
+      "recipe": "particles-purple-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicRed",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicRed/",
+      "name": "Red Tone  Rare",
+      "kind": "particles",
+      "recipe": "particles-red-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicSilver",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicSilver/",
+      "name": "Silver Tone  Rare",
+      "kind": "particles",
+      "recipe": "particles-silver-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicTeal",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicTeal/",
+      "name": "Teal Tone  Rare",
+      "kind": "particles",
+      "recipe": "particles-teal-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "ComicWhite",
+      "url": "https://snap.fan/cosmetics/reveal-effects/ComicWhite/",
+      "name": "White Tone  Rare",
+      "kind": "particles",
+      "recipe": "particles-white-tone",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Confetti",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Confetti/",
+      "name": "Rainbow Confetti  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-rainbow-confetti",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Deadpool",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Deadpool/",
+      "name": "Doodlepool  Super Rare  Deadpools Diner",
+      "kind": "particles",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_verified": false,
+      "reference_video": "../outputs/snap-reference-2026-10-11/Deadpool-motion.webp",
+      "reference_observation": "Downloaded preview shows ordinary Wasp without the named Doodlepool particles. It cannot be used for visual or motion calibration."
+    },
+    {
+      "id": "DiamondGold",
+      "url": "https://snap.fan/cosmetics/reveal-effects/DiamondGold/",
+      "name": "DiamondGold  Ultimate  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-gold-diamond-flare",
+      "status": "prototype-calibrated-v91-needs-full-game-motion-acceptance",
+      "accepted_1_to_1": false,
+      "reference_observation": "Official MarvelSnap video 183.5-186.5 seconds visibly shows a temporary scatter followed by close-rim rotating faceted crystals. Public media HTTP 403 remains historical; official video now confirms morphology.",
+      "reference_video": {
+        "url": "https://www.youtube.com/watch?v=w2e4TfaTu60",
+        "local": "../outputs/snap-gap-v90/mastery-walkthrough.mp4",
+        "sha256": "5cb799d64ad3c555c4f0551d70db6347530d3250e76b03d94f3f5a853d4700d8",
+        "seconds": [
+          183.5,
+          186.5
+        ],
+        "fullGameLoopConfirmed": false
+      },
+      "calibration": {
+        "version": "0.19.91",
+        "design": "diamond-trails-v91.md",
+        "verification": "../outputs/snap-gap-v91/verification.json",
+        "sameSceneFullCycleAcceptance": false
+      }
+    },
+    {
+      "id": "DiamondPurple",
+      "url": "https://snap.fan/cosmetics/reveal-effects/DiamondPurple/",
+      "name": "DiamondPurple  Ultimate  Character Mastery",
+      "kind": "particles",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_observation": "Public page accessible; linked media returned HTTP 403 on 2026-10-12; morphology and motion remain unverified."
+    },
+    {
+      "id": "DiamondSilver",
+      "url": "https://snap.fan/cosmetics/reveal-effects/DiamondSilver/",
+      "name": "DiamondSilver  Ultimate  Character Mastery",
+      "kind": "particles",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_observation": "Public page accessible; linked media returned HTTP 403 on 2026-10-12; morphology and motion remain unverified."
+    },
+    {
+      "id": "Embers",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Embers/",
+      "name": "Fire Embers  Ultimate  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-fire-embers",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "EmbersBlue",
+      "url": "https://snap.fan/cosmetics/reveal-effects/EmbersBlue/",
+      "name": "Blue Embers  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-blue-embers",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "EmbersGreen",
+      "url": "https://snap.fan/cosmetics/reveal-effects/EmbersGreen/",
+      "name": "Green Embers  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-green-embers",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Flowers",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Flowers/",
+      "name": "Rainbow Flowers  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-flowers",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Fud",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Fud/",
+      "name": "Fud  Super Rare",
+      "kind": "particles",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GalacticStorm",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GalacticStorm/",
+      "name": "Galactic Storm  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Glimmer",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Glimmer/",
+      "name": "Rainbow Glimmer  Super Rare",
+      "kind": "particles",
+      "recipe": "particles-rainbow-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlimmerBlack",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerBlack/",
+      "name": "Black Glimmer  Super Rare",
+      "kind": "particles",
+      "recipe": "particles-black-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlimmerBlue",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerBlue/",
+      "name": "Blue Glimmer  Rare",
+      "kind": "particles",
+      "recipe": "particles-blue-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlimmerCopper",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerCopper/",
+      "name": "Copper Glimmer  Rare",
+      "kind": "particles",
+      "recipe": "particles-copper-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlimmerGold",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerGold/",
+      "name": "Gold Glimmer  Super Rare",
+      "kind": "particles",
+      "recipe": "particles-gold-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "calibration": {
+        "version": "0.19.35",
+        "reference": "../outputs/snap-reference-2026-10-11/gold-glimmer-reference.webp",
+        "referenceSeconds": 2.31,
+        "observedPhases": [
+          "radial reveal 0..0.18s",
+          "sustained flakes 0.30..2.28s including outer margins"
+        ],
+        "rendererFeatures": [
+          "one-shot reveal",
+          "bounded field fringe",
+          "seeded size and spin",
+          "same batch and total budget"
+        ],
+        "measurement": "../outputs/editor-v19.28/glimmer-margin-observations-v35.json",
+        "fullGameLoopVerified": false
+      }
+    },
+    {
+      "id": "GlimmerGreen",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerGreen/",
+      "name": "Green Glimmer  Rare",
+      "kind": "particles",
+      "recipe": "particles-green-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlimmerOrange",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerOrange/",
+      "name": "Orange Glimmer  Rare",
+      "kind": "particles",
+      "recipe": "particles-orange-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlimmerPink",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerPink/",
+      "name": "Pink Glimmer  Rare",
+      "kind": "particles",
+      "recipe": "particles-pink-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlimmerPurple",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerPurple/",
+      "name": "Purple Glimmer  Rare",
+      "kind": "particles",
+      "recipe": "particles-purple-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlimmerRed",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerRed/",
+      "name": "Red Glimmer  Rare",
+      "kind": "particles",
+      "recipe": "particles-red-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlimmerSilver",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerSilver/",
+      "name": "Silver Glimmer  Rare",
+      "kind": "particles",
+      "recipe": "particles-silver-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlimmerTeal",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerTeal/",
+      "name": "Teal Glimmer  Rare",
+      "kind": "particles",
+      "recipe": "particles-teal-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlimmerWhite",
+      "url": "https://snap.fan/cosmetics/reveal-effects/GlimmerWhite/",
+      "name": "White Glimmer  Rare",
+      "kind": "particles",
+      "recipe": "particles-white-glimmer",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Hearts",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Hearts/",
+      "name": "Rainbow Hearts  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-rainbow-hearts",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Kirby",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Kirby/",
+      "name": "Rainbow Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-rainbow-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbyBlack",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbyBlack/",
+      "name": "Black Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-black-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbyBlue",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbyBlue/",
+      "name": "Blue Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-blue-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbyCopper",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbyCopper/",
+      "name": "Copper Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-copper-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbyGold",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbyGold/",
+      "name": "Gold Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-gold-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbyGreen",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbyGreen/",
+      "name": "Green Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-green-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbyOrange",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbyOrange/",
+      "name": "Orange Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-orange-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbyPink",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbyPink/",
+      "name": "Pink Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-pink-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbyPurple",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbyPurple/",
+      "name": "Purple Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-purple-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbyRed",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbyRed/",
+      "name": "Red Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-red-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbySilver",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbySilver/",
+      "name": "Silver Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-silver-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbyTeal",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbyTeal/",
+      "name": "Teal Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-teal-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "KirbyWhite",
+      "url": "https://snap.fan/cosmetics/reveal-effects/KirbyWhite/",
+      "name": "White Krackle  Ultimate",
+      "kind": "particles",
+      "recipe": "particles-white-krackle",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Leaves",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Leaves/",
+      "name": "Green Leaves  Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-green-leaves",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "LeavesAutumn",
+      "url": "https://snap.fan/cosmetics/reveal-effects/LeavesAutumn/",
+      "name": "Autumn Leaves  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-autumn-leaves",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Misc",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Misc/",
+      "name": "Misc  Rare",
+      "kind": "particles",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "NeonTrails",
+      "url": "https://snap.fan/cosmetics/reveal-effects/NeonTrails/",
+      "name": "Rainbow Neon Trails  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-neon-trails",
+      "status": "prototype-calibrated-v92-needs-full-game-motion-acceptance",
+      "accepted_1_to_1": false,
+      "reference_observation": "Official MarvelSnap video 181.033-182.8 seconds shows fast white-core colored radial trails followed by shorter slower late trails. The finite shot cannot establish exact birth time, lifetime, or exclude low-frequency idle trails.",
+      "reference_video": {
+        "url": "https://www.youtube.com/watch?v=w2e4TfaTu60",
+        "local": "../outputs/snap-gap-v90/mastery-walkthrough.mp4",
+        "sha256": "5cb799d64ad3c555c4f0551d70db6347530d3250e76b03d94f3f5a853d4700d8",
+        "seconds": [
+          181,
+          183
+        ],
+        "fullGameLoopConfirmed": false
+      },
+      "calibration": {
+        "version": "0.19.92",
+        "design": "neon-trails-v92.md",
+        "verification": "../outputs/neon-trails-v92/verification.json",
+        "sameSceneFullCycleAcceptance": false
+      }
+    },
+    {
+      "id": "None",
+      "url": "https://snap.fan/cosmetics/reveal-effects/None/",
+      "name": "Base  Rare",
+      "kind": "particles",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PawPrints",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PawPrints/",
+      "name": "Rainbow Paw Prints  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-paws",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Pixels",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Pixels/",
+      "name": "Rainbow Pixels  Rare",
+      "kind": "particles",
+      "recipe": "particles-rainbow-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsBlack",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsBlack/",
+      "name": "Black Pixels  Super Rare",
+      "kind": "particles",
+      "recipe": "particles-black-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsBlue",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsBlue/",
+      "name": "Blue Pixels  Rare",
+      "kind": "particles",
+      "recipe": "particles-blue-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsCopper",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsCopper/",
+      "name": "Copper Pixels  Rare",
+      "kind": "particles",
+      "recipe": "particles-copper-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsGold",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsGold/",
+      "name": "Gold Pixels  Super Rare",
+      "kind": "particles",
+      "recipe": "particles-gold-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsGreen",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsGreen/",
+      "name": "Green Pixels  Rare",
+      "kind": "particles",
+      "recipe": "particles-green-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsOrange",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsOrange/",
+      "name": "Orange Pixels  Rare",
+      "kind": "particles",
+      "recipe": "particles-orange-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsPink",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsPink/",
+      "name": "Pink Pixels  Rare",
+      "kind": "particles",
+      "recipe": "particles-pink-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsPurple",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsPurple/",
+      "name": "Purple Pixels  Rare",
+      "kind": "particles",
+      "recipe": "particles-purple-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsRed",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsRed/",
+      "name": "Red Pixels  Rare",
+      "kind": "particles",
+      "recipe": "particles-red-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsSilver",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsSilver/",
+      "name": "Silver Pixels  Rare",
+      "kind": "particles",
+      "recipe": "particles-silver-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsTeal",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsTeal/",
+      "name": "Teal Pixels  Rare",
+      "kind": "particles",
+      "recipe": "particles-teal-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PixelsWhite",
+      "url": "https://snap.fan/cosmetics/reveal-effects/PixelsWhite/",
+      "name": "White Pixels  Rare",
+      "kind": "particles",
+      "recipe": "particles-white-pixels",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Pizza",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Pizza/",
+      "name": "Pizza  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-pizza",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Snow",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Snow/",
+      "name": "Snow  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-snow",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Space",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Space/",
+      "name": "Cosmic  Super Rare  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-cosmic",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_media": "../outputs/snap-reference-2026-10-11/space-flare-reference.webp",
+      "observed_clip_seconds": 2.28,
+      "full_game_loop_verified": false
+    },
+    {
+      "id": "Sparkle",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Sparkle/",
+      "name": "Rainbow Stardust  Super Rare",
+      "kind": "particles",
+      "recipe": "particles-rainbow-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparkleBlack",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparkleBlack/",
+      "name": "Black Stardust  Super Rare",
+      "kind": "particles",
+      "recipe": "particles-black-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparkleBlue",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparkleBlue/",
+      "name": "Blue Stardust  Rare",
+      "kind": "particles",
+      "recipe": "particles-blue-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparkleCopper",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparkleCopper/",
+      "name": "Copper Stardust  Rare",
+      "kind": "particles",
+      "recipe": "particles-copper-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparkleGold",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparkleGold/",
+      "name": "Gold Stardust  Super Rare",
+      "kind": "particles",
+      "recipe": "particles-gold-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparkleGreen",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparkleGreen/",
+      "name": "Green Stardust  Rare",
+      "kind": "particles",
+      "recipe": "particles-green-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparkleOrange",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparkleOrange/",
+      "name": "Orange Stardust  Rare",
+      "kind": "particles",
+      "recipe": "particles-orange-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparklePink",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparklePink/",
+      "name": "Pink Stardust  Rare",
+      "kind": "particles",
+      "recipe": "particles-pink-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparklePurple",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparklePurple/",
+      "name": "Purple Stardust  Rare",
+      "kind": "particles",
+      "recipe": "particles-purple-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparkleRed",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparkleRed/",
+      "name": "Red Stardust  Rare",
+      "kind": "particles",
+      "recipe": "particles-red-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparkleSilver",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparkleSilver/",
+      "name": "Silver Stardust  Rare",
+      "kind": "particles",
+      "recipe": "particles-silver-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparkleTeal",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparkleTeal/",
+      "name": "Teal Stardust  Rare",
+      "kind": "particles",
+      "recipe": "particles-teal-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SparkleWhite",
+      "url": "https://snap.fan/cosmetics/reveal-effects/SparkleWhite/",
+      "name": "White Stardust  Rare",
+      "kind": "particles",
+      "recipe": "particles-white-stardust",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Wakanda",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Wakanda/",
+      "name": "Purple Wakanda  Ultimate  Character Mastery",
+      "kind": "particles",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_media": {
+        "path": "wakanda-reference.webp",
+        "seconds": 2.31,
+        "full_game_loop": false,
+        "effect_visible": false
+      },
+      "reference_observation": "Public render shows base card only; no identifiable named effect in sampled frames."
+    },
+    {
+      "id": "WakandaGold",
+      "url": "https://snap.fan/cosmetics/reveal-effects/WakandaGold/",
+      "name": "Gold Wakanda  Ultimate  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-gold-wakandan-tech",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_media": {
+        "path": "tech-gold-reference.webp",
+        "seconds": 2.34,
+        "full_game_loop": false,
+        "effect_visible": false
+      },
+      "reference_observation": "Public render shows base card only; no identifiable named effect in sampled frames."
+    },
+    {
+      "id": "WakandaPurple",
+      "url": "https://snap.fan/cosmetics/reveal-effects/WakandaPurple/",
+      "name": "Purple Wakandan Tech  Ultimate  Character Mastery",
+      "kind": "particles",
+      "recipe": "particles-purple-wakandan-tech",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_media": {
+        "path": "tech-purple-reference.webp",
+        "seconds": 2.31,
+        "full_game_loop": false,
+        "effect_visible": true
+      },
+      "reference_observation": "Interlocking outlined hexagons, small solid nodes, upward shafts and edge haze are visible; full motion cycle unverified."
+    },
+    {
+      "id": "Wolverine",
+      "url": "https://snap.fan/cosmetics/reveal-effects/Wolverine/",
+      "name": "Adamantium  Super Rare  Deadpools Diner",
+      "kind": "particles",
+      "recipe": "particles-adamantium",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_verified": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/reveal-Wolverine-motion.webp",
+      "reference_observation": "Animated yellow/black mask emblems with blue circular rims and white eyes are visible around the contour and over the card. Public sequence is 2310 ms; full in-game birth, drift and loop timing are unverified.",
+      "motion_measurement": "../outputs/emblem-v51-measurement/reference-motion.json",
+      "observed_motion": "Radial outward expansion with decelerating growth, staggered cycles and a longer visible fade. v85 varied-500-final adopted after actual GPU comparisons; JS production packed samples equal the captured candidate. Density, size and observed fade are closer; speed/growth curve statistics and full game loops remain unverified.",
+      "size_comparison": "../outputs/emblem-v85/final-size.json",
+      "validation": "emblem-envelope-v85.md",
+      "temporal_comparison": "../outputs/emblem-v85/final-temporal.json",
+      "envelope_comparison": "../outputs/emblem-v85/final-envelope.json"
+    },
+    {
+      "id": "Bananas",
+      "url": "https://snap.fan/cosmetics/split-effects/Bananas/",
+      "name": "Bananas  Super Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-bananas",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Circuits",
+      "url": "https://snap.fan/cosmetics/split-effects/Circuits/",
+      "name": "Circuits  Ultimate  Character Mastery",
+      "kind": "material",
+      "recipe": "material-circuits",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/snap-reference-2026-10-11/Circuits-motion.webp",
+      "reference_visual_verified": true,
+      "reference_observation": "Visible reference effect confirmed in four sampled frames; short public render is not a full in-game loop or all-angle fidelity check.",
+      "calibration": {
+        "version": "0.19.59",
+        "scope": "Three exposed reference regions only; fixed long buses and background-only default. Full game motion and all angles remain unverified.",
+        "evidence": "../outputs/circuits-v58/verification.json",
+        "accepted_1_to_1": false
+      }
+    },
+    {
+      "id": "Deadpool",
+      "url": "https://snap.fan/cosmetics/split-effects/Deadpool/",
+      "name": "Doodlepool  Super Rare  Deadpools Diner",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Fire",
+      "url": "https://snap.fan/cosmetics/split-effects/Fire/",
+      "name": "Fire  Super Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-fire",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Flannel",
+      "url": "https://snap.fan/cosmetics/split-effects/Flannel/",
+      "name": "Red Flannel  Super Rare  Promo",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_media": {
+        "path": "flannel-reference.webp",
+        "seconds": 2.34,
+        "full_game_loop": false,
+        "effect_visible": false
+      },
+      "reference_observation": "Public render shows base card only; no identifiable named effect in sampled frames."
+    },
+    {
+      "id": "Fluid",
+      "url": "https://snap.fan/cosmetics/split-effects/Fluid/",
+      "name": "Fluid  Ultimate  Promo",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Fog",
+      "url": "https://snap.fan/cosmetics/split-effects/Fog/",
+      "name": "Fog  Super Rare",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Foil",
+      "url": "https://snap.fan/cosmetics/split-effects/Foil/",
+      "name": "Foil  Rare",
+      "kind": "material",
+      "recipe": "material-foil",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Frosted",
+      "url": "https://snap.fan/cosmetics/split-effects/Frosted/",
+      "name": "Frosted  Ultimate  Character Mastery",
+      "kind": "material",
+      "recipe": "material-frosted",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/snap-reference-2026-10-11/Frosted-motion.webp",
+      "reference_visual_verified": true,
+      "reference_observation": "Visible reference effect confirmed in four sampled frames; short public render is not a full in-game loop or all-angle fidelity check."
+    },
+    {
+      "id": "GalacticStorm",
+      "url": "https://snap.fan/cosmetics/split-effects/GalacticStorm/",
+      "name": "GalacticStorm  Super Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-galacticstorm",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlassCircuits",
+      "url": "https://snap.fan/cosmetics/split-effects/GlassCircuits/",
+      "name": "Green Circuits Glass  Ultimate",
+      "kind": "material",
+      "recipe": "material-glasscircuits",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlassFrosted",
+      "url": "https://snap.fan/cosmetics/split-effects/GlassFrosted/",
+      "name": "Frosted Glass  Ultimate",
+      "kind": "material",
+      "recipe": "material-glass",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlassVibranium",
+      "url": "https://snap.fan/cosmetics/split-effects/GlassVibranium/",
+      "name": "Purple Wakanda Glass  Ultimate  Character Mastery",
+      "kind": "material",
+      "recipe": "material-wakandanglass",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "GlassWakanda",
+      "url": "https://snap.fan/cosmetics/split-effects/GlassWakanda/",
+      "name": "GlassWakanda  Ultimate  Character Mastery",
+      "kind": "material",
+      "recipe": "material-wakandanglass",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/snap-reference-2026-10-11/GlassWakanda-motion.webp",
+      "reference_visual_verified": true,
+      "reference_observation": "Visible reference effect confirmed in four sampled frames; short public render is not a full in-game loop or all-angle fidelity check."
+    },
+    {
+      "id": "GoldFoil",
+      "url": "https://snap.fan/cosmetics/split-effects/GoldFoil/",
+      "name": "Gold  Ultimate",
+      "kind": "material",
+      "recipe": "material-gold",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Ink",
+      "url": "https://snap.fan/cosmetics/split-effects/Ink/",
+      "name": "Ink  Ultimate",
+      "kind": "material",
+      "recipe": "material-ink",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "MetallicCopper",
+      "url": "https://snap.fan/cosmetics/split-effects/MetallicCopper/",
+      "name": "Copper Metallic  Super Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-copper",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "MetallicFoil",
+      "url": "https://snap.fan/cosmetics/split-effects/MetallicFoil/",
+      "name": "MetallicFoil  Super Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-foilmetallic",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "MetallicGold",
+      "url": "https://snap.fan/cosmetics/split-effects/MetallicGold/",
+      "name": "MetallicGold  Super Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-goldmetallic",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "MetallicSteel",
+      "url": "https://snap.fan/cosmetics/split-effects/MetallicSteel/",
+      "name": "Steel Metallic  Ultimate  Character Mastery",
+      "kind": "material",
+      "recipe": "material-steel",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PrismBlack",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismBlack/",
+      "name": "Black Prism  Ultimate  Character Mastery",
+      "kind": "material",
+      "recipe": "material-blackprism",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PrismBlue",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismBlue/",
+      "name": "Blue Prism  Rare",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_observation": "Downloaded preview shows original Wasp background only; requested Prism effect is not visibly rendered. Cannot calibrate from this asset.",
+      "reference_video": "../outputs/snap-reference-2026-10-11/PrismBlue-motion.webp",
+      "reference_visual_verified": false
+    },
+    {
+      "id": "PrismFoil",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismFoil/",
+      "name": "Prism  Rare",
+      "kind": "material",
+      "recipe": "material-prism",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PrismGold",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismGold/",
+      "name": "Gold Prism  Ultimate  Character Mastery",
+      "kind": "material",
+      "recipe": "material-goldprism",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PrismGoldTarot",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismGoldTarot/",
+      "name": "Dark Gold Prism  Ultimate  Character Mastery",
+      "kind": "material",
+      "recipe": "material-gildedprism",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "PrismGreen",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismGreen/",
+      "name": "Green Prism  Rare",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_observation": "Downloaded preview shows original Wasp background only; requested Prism effect is not visibly rendered. Cannot calibrate from this asset.",
+      "reference_video": "../outputs/snap-reference-2026-10-11/PrismGreen-motion.webp",
+      "reference_visual_verified": false
+    },
+    {
+      "id": "PrismHeatVision",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismHeatVision/",
+      "name": "Thermal Prism  Rare",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_observation": "Downloaded preview shows original Wasp background only; requested Prism effect is not visibly rendered. Cannot calibrate from this asset.",
+      "reference_video": "../outputs/snap-reference-2026-10-11/PrismHeatVision-motion.webp",
+      "reference_visual_verified": false
+    },
+    {
+      "id": "PrismOrange",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismOrange/",
+      "name": "Orange Prism  Rare",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_observation": "Downloaded preview shows original Wasp background only; requested Prism effect is not visibly rendered. Cannot calibrate from this asset.",
+      "reference_video": "../outputs/snap-reference-2026-10-11/PrismOrange-motion.webp",
+      "reference_visual_verified": false
+    },
+    {
+      "id": "PrismPink",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismPink/",
+      "name": "Pink Prism  Rare",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_observation": "Downloaded preview shows original Wasp background only; requested Prism effect is not visibly rendered. Cannot calibrate from this asset.",
+      "reference_video": "../outputs/snap-reference-2026-10-11/PrismPink-motion.webp",
+      "reference_visual_verified": false
+    },
+    {
+      "id": "PrismRed",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismRed/",
+      "name": "Red Prism  Rare",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_observation": "Downloaded preview shows original Wasp background only; requested Prism effect is not visibly rendered. Cannot calibrate from this asset.",
+      "reference_video": "../outputs/snap-reference-2026-10-11/PrismRed-motion.webp",
+      "reference_visual_verified": false
+    },
+    {
+      "id": "PrismRedBlue",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismRedBlue/",
+      "name": "Vintage Prism  Rare",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_observation": "Downloaded preview shows original Wasp background only; requested Prism effect is not visibly rendered. Cannot calibrate from this asset.",
+      "reference_video": "../outputs/snap-reference-2026-10-11/PrismRedBlue-motion.webp",
+      "reference_visual_verified": false
+    },
+    {
+      "id": "PrismRetro",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismRetro/",
+      "name": "80s Prism  Super Rare",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_observation": "Downloaded preview shows original Wasp background only; requested Prism effect is not visibly rendered. Cannot calibrate from this asset.",
+      "reference_video": "../outputs/snap-reference-2026-10-11/PrismRetro-motion.webp",
+      "reference_visual_verified": false
+    },
+    {
+      "id": "PrismSilver",
+      "url": "https://snap.fan/cosmetics/split-effects/PrismSilver/",
+      "name": "Silver Prism  Super Rare",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_observation": "Downloaded preview shows original Wasp background only; requested Prism effect is not visibly rendered. Cannot calibrate from this asset.",
+      "reference_video": "../outputs/snap-reference-2026-10-11/PrismSilver-motion.webp",
+      "reference_visual_verified": false
+    },
+    {
+      "id": "Psychedelic",
+      "url": "https://snap.fan/cosmetics/split-effects/Psychedelic/",
+      "name": "Psychedelic  Ultimate  Character Mastery",
+      "kind": "material",
+      "recipe": "material-psychedelic",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "RaysBlackBlue",
+      "url": "https://snap.fan/cosmetics/split-effects/RaysBlackBlue/",
+      "name": "Blue Rays  Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-blue-rays",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/rays-v87/RaysBlackBlue-motion.webp",
+      "reference_visual_verified": false,
+      "reference_observation": "Inspected frames 0,26,52,76 show ordinary Wasp artwork; no visible named ray stripes. Not a usable reference for the named surface effect.",
+      "reference_metadata": "../outputs/rays-v87/other-rays-metadata.json"
+    },
+    {
+      "id": "RaysBlackGreen",
+      "url": "https://snap.fan/cosmetics/split-effects/RaysBlackGreen/",
+      "name": "Green Rays  Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-green-rays",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/rays-v87/RaysBlackGreen-motion.webp",
+      "reference_visual_verified": false,
+      "reference_observation": "Inspected frames 0,26,52,76 show ordinary Wasp artwork; no visible named ray stripes. Not a usable reference for the named surface effect.",
+      "reference_metadata": "../outputs/rays-v87/other-rays-metadata.json"
+    },
+    {
+      "id": "RaysBlackPink",
+      "url": "https://snap.fan/cosmetics/split-effects/RaysBlackPink/",
+      "name": "Pink Rays  Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-pink-rays",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/rays-v87/RaysBlackPink-motion.webp",
+      "reference_visual_verified": false,
+      "reference_observation": "Inspected frames 0,26,52,76 show ordinary Wasp artwork; no visible named ray stripes. Not a usable reference for the named surface effect.",
+      "reference_metadata": "../outputs/rays-v87/other-rays-metadata.json"
+    },
+    {
+      "id": "RaysBlackRed",
+      "url": "https://snap.fan/cosmetics/split-effects/RaysBlackRed/",
+      "name": "Red Rays  Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-red-rays",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/rays-v87/RaysBlackRed-motion.webp",
+      "reference_visual_verified": false,
+      "reference_observation": "Inspected frames 0,26,52,76 show ordinary Wasp artwork; no visible named ray stripes. Not a usable reference for the named surface effect.",
+      "reference_metadata": "../outputs/rays-v87/other-rays-metadata.json"
+    },
+    {
+      "id": "RaysBlackWhite",
+      "url": "https://snap.fan/cosmetics/split-effects/RaysBlackWhite/",
+      "name": "Black and White Rays  Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-black-and-white-rays",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/rays-v87/RaysBlackWhite-motion.webp",
+      "reference_visual_verified": false,
+      "reference_observation": "Inspected frames 0,26,52,76 show ordinary Wasp artwork; no visible named ray stripes. Not a usable reference for the named surface effect.",
+      "reference_metadata": "../outputs/rays-v87/other-rays-metadata.json"
+    },
+    {
+      "id": "RaysOrange",
+      "url": "https://snap.fan/cosmetics/split-effects/RaysOrange/",
+      "name": "Orange Rays  Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-orange-rays",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/rays-v87/RaysOrange-motion.webp",
+      "reference_visual_verified": false,
+      "reference_observation": "Inspected frames 0,26,52,76 show ordinary Wasp artwork; no visible named ray stripes. Not a usable reference for the named surface effect.",
+      "reference_metadata": "../outputs/rays-v87/other-rays-metadata.json"
+    },
+    {
+      "id": "RaysPurple",
+      "url": "https://snap.fan/cosmetics/split-effects/RaysPurple/",
+      "name": "RaysPurple",
+      "kind": "material",
+      "recipe": "material-purple-rays",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/snap-reference-2026-10-11/RaysPurple-motion.webp",
+      "reference_visual_verified": true,
+      "reference_observation": "Visible purple/black spiral ribbons rotate slowly in the public sequence. Previously assumed fixed topology was rejected by full-sequence comparison.",
+      "calibration": {
+        "version": "0.19.86",
+        "scope": "Fixed exposed background regions over 77 presentation frames; actual rotation added. Full camera, color and game-loop fidelity remain unverified.",
+        "evidence": "../outputs/rays-v86/gpu-animated-comparison.json",
+        "productionPixelParity": "../outputs/rays-v86/production-candidate-pixel-parity.json",
+        "validation": "rays-geometry-v86.md",
+        "accepted_1_to_1": false
+      }
+    },
+    {
+      "id": "RaysRainbow",
+      "url": "https://snap.fan/cosmetics/split-effects/RaysRainbow/",
+      "name": "RaysRainbow",
+      "kind": "material",
+      "recipe": "material-rainbow-rays",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/snap-reference-2026-10-11/RaysRainbow-motion.webp",
+      "reference_visual_verified": true,
+      "reference_observation": "Visible black/silver spiral ribbons rotate with varying phase advance, with pink/cyan film reflection in the public 77-frame clip. Not a verified full game loop.",
+      "calibration": {
+        "version": "0.19.87",
+        "scope": "Fixed exposed background regions and measured phase advance over 77 public presentation frames; all-camera and full-loop fidelity unverified.",
+        "evidence": "../outputs/rays-v87/gpu-eased-comparison.json",
+        "motionEvidence": "../outputs/rays-v87/gpu-eased-phase.json",
+        "productionPixelParity": "../outputs/rays-v87/production-candidate-pixel-parity.json",
+        "runtimeLog": "../outputs/rays-v87/godot-runtime.log",
+        "validation": "rainbow-rays-v87.md",
+        "accepted_1_to_1": false
+      }
+    },
+    {
+      "id": "Refraction",
+      "url": "https://snap.fan/cosmetics/split-effects/Refraction/",
+      "name": "Refraction  Super Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-refraction",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Space",
+      "url": "https://snap.fan/cosmetics/split-effects/Space/",
+      "name": "Cosmic  Ultimate  Character Mastery",
+      "kind": "material",
+      "recipe": "material-cosmic",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "SymbioteWebBlack",
+      "url": "https://snap.fan/cosmetics/split-effects/SymbioteWebBlack/",
+      "name": "SymbioteWebBlack  Super Rare",
+      "kind": "material",
+      "recipe": "material-symbiote-black",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_observation": {
+        "media": "editor/outputs/snap-reference-2026-10-11/SymbioteWebBlack-motion.webp",
+        "visual_verified": true,
+        "full_game_loop": false,
+        "contour_comparison": "../outputs/surface-v53/region-comparison.json",
+        "validation": "symbiote-detail-v53.md",
+        "local_junctions_calibrated": true,
+        "whole_surface_calibrated": false
+      }
+    },
+    {
+      "id": "SymbioteWebGreen",
+      "url": "https://snap.fan/cosmetics/split-effects/SymbioteWebGreen/",
+      "name": "SymbioteWebGreen  Super Rare",
+      "kind": "material",
+      "recipe": "material-symbiote-green",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_observation": {
+        "media": "editor/outputs/snap-reference-2026-10-11/SymbioteWebGreen-motion.webp",
+        "visual_verified": true,
+        "full_game_loop": false
+      }
+    },
+    {
+      "id": "SymbioteWebPurple",
+      "url": "https://snap.fan/cosmetics/split-effects/SymbioteWebPurple/",
+      "name": "SymbioteWebPurple  Super Rare",
+      "kind": "material",
+      "recipe": "material-symbiote-purple",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_observation": {
+        "media": "editor/outputs/snap-reference-2026-10-11/SymbioteWebPurple-motion.webp",
+        "visual_verified": true,
+        "full_game_loop": false
+      }
+    },
+    {
+      "id": "SymbioteWebRed",
+      "url": "https://snap.fan/cosmetics/split-effects/SymbioteWebRed/",
+      "name": "SymbioteWebRed  Super Rare",
+      "kind": "material",
+      "recipe": "material-symbiote-red",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_observation": {
+        "media": "editor/outputs/snap-reference-2026-10-11/SymbioteWebRed-motion.webp",
+        "visual_verified": true,
+        "full_game_loop": false
+      }
+    },
+    {
+      "id": "SymbioteWebWhite",
+      "url": "https://snap.fan/cosmetics/split-effects/SymbioteWebWhite/",
+      "name": "SymbioteWebWhite  Super Rare",
+      "kind": "material",
+      "recipe": "material-symbiote-white",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_observation": {
+        "media": "editor/outputs/snap-reference-2026-10-11/SymbioteWebWhite-motion.webp",
+        "visual_verified": true,
+        "full_game_loop": false
+      }
+    },
+    {
+      "id": "SymbioteWebYellow",
+      "url": "https://snap.fan/cosmetics/split-effects/SymbioteWebYellow/",
+      "name": "SymbioteWebYellow  Super Rare",
+      "kind": "material",
+      "recipe": "material-symbiote-yellow",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_observation": {
+        "media": "editor/outputs/snap-reference-2026-10-11/SymbioteWebYellow-motion.webp",
+        "visual_verified": true,
+        "full_game_loop": false
+      }
+    },
+    {
+      "id": "Water",
+      "url": "https://snap.fan/cosmetics/split-effects/Water/",
+      "name": "Blue Water  Super Rare  Character Mastery",
+      "kind": "material",
+      "recipe": "material-water",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Web",
+      "url": "https://snap.fan/cosmetics/split-effects/Web/",
+      "name": "Spider-Verse Web  Super Rare  Promo",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false
+    },
+    {
+      "id": "Wolverine",
+      "url": "https://snap.fan/cosmetics/split-effects/Wolverine/",
+      "name": "Adamantium  Super Rare  Deadpools Diner",
+      "kind": "material",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_video": "../outputs/snap-reference-2026-10-11/surface-Wolverine-2026-10-13.webp",
+      "reference_visual_verified": false,
+      "reference_observation": "2026-10-13 fresh download: ordinary Wasp artwork in frames 0,26,52,77; Adamantium surface pattern not established. Kept implementation-missing; not an accepted visual reference.",
+      "reference_metadata": "../outputs/snap-reference-2026-10-11/surface-Wolverine-2026-10-13.metadata.json"
+    },
+    {
+      "id": "ChromaticAqua",
+      "url": "https://marvelsnapzone.com/borders/ChromaticAqua/",
+      "name": "ChromaticAqua sample Chromatic · Teal Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "ChromaticBlack",
+      "url": "https://marvelsnapzone.com/borders/ChromaticBlack/",
+      "name": "ChromaticBlack sample Chromatic · Black Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "ChromaticBlue",
+      "url": "https://marvelsnapzone.com/borders/ChromaticBlue/",
+      "name": "ChromaticBlue sample Chromatic · Blue Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false,
+      "reference_observation": "2026-10-12: directory HTML accessible; linked static.marvelsnap.pro image returned HTTP 404. No visible shape/motion reference verified."
+    },
+    {
+      "id": "ChromaticColorPop",
+      "url": "https://marvelsnapzone.com/borders/ChromaticColorPop/",
+      "name": "ChromaticColorPop sample Chromatic · Rainbow Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "ChromaticGilded",
+      "url": "https://marvelsnapzone.com/borders/ChromaticGilded/",
+      "name": "ChromaticGilded sample Chromatic · Gold Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "ChromaticGold",
+      "url": "https://marvelsnapzone.com/borders/ChromaticGold/",
+      "name": "ChromaticGold sample Chromatic · Gold Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false,
+      "reference_observation": "2026-10-12: directory HTML accessible; linked static.marvelsnap.pro image returned HTTP 404. No visible shape/motion reference verified."
+    },
+    {
+      "id": "ChromaticGreen",
+      "url": "https://marvelsnapzone.com/borders/ChromaticGreen/",
+      "name": "ChromaticGreen sample Chromatic · Green Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "ChromaticOrange",
+      "url": "https://marvelsnapzone.com/borders/ChromaticOrange/",
+      "name": "ChromaticOrange sample Chromatic · Orange Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "ChromaticPink",
+      "url": "https://marvelsnapzone.com/borders/ChromaticPink/",
+      "name": "ChromaticPink sample Chromatic · Pink Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "ChromaticRainbow",
+      "url": "https://marvelsnapzone.com/borders/ChromaticRainbow/",
+      "name": "ChromaticRainbow sample Chromatic · Rainbow Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false,
+      "reference_observation": "2026-10-12: directory HTML accessible; linked static.marvelsnap.pro image returned HTTP 404. No visible shape/motion reference verified."
+    },
+    {
+      "id": "ChromaticRed",
+      "url": "https://marvelsnapzone.com/borders/ChromaticRed/",
+      "name": "ChromaticRed sample Chromatic · Red Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "ChromaticRedBlue",
+      "url": "https://marvelsnapzone.com/borders/ChromaticRedBlue/",
+      "name": "ChromaticRedBlue sample Chromatic Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "ChromaticSilver",
+      "url": "https://marvelsnapzone.com/borders/ChromaticSilver/",
+      "name": "ChromaticSilver sample Chromatic · Silver Added in 56.4.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "WebBlue",
+      "url": "https://marvelsnapzone.com/borders/WebBlue/",
+      "name": "WebBlue sample Web · Blue Jul 06, 2026 Team Up",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "WebOrange",
+      "url": "https://marvelsnapzone.com/borders/WebOrange/",
+      "name": "WebOrange sample Web · Orange Jul 06, 2026 Champion Arena",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "WebPurple",
+      "url": "https://marvelsnapzone.com/borders/WebPurple/",
+      "name": "WebPurple sample Web · Purple Jul 03, 2026 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "WebYellow",
+      "url": "https://marvelsnapzone.com/borders/WebYellow/",
+      "name": "WebYellow sample Web · Yellow Jul 03, 2026 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "WebGreen",
+      "url": "https://marvelsnapzone.com/borders/WebGreen/",
+      "name": "WebGreen sample Web · Green Jul 06, 2026",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "AntiqueGold",
+      "url": "https://marvelsnapzone.com/borders/AntiqueGold/",
+      "name": "AntiqueGold sample Antique Gold Apr 01, 2026",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "Faction_Avengers",
+      "url": "https://marvelsnapzone.com/borders/Faction_Avengers/",
+      "name": "Faction_Avengers sample Faction_Avengers Added in 49.5.0",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "Faction_BrotherhoodOfMutants",
+      "url": "https://marvelsnapzone.com/borders/Faction_BrotherhoodOfMutants/",
+      "name": "Faction_BrotherhoodOfMutants sample Faction_Brotherhood Of Mutants Added in 49.5.0",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "Faction_GuardiansOfTheGalaxy",
+      "url": "https://marvelsnapzone.com/borders/Faction_GuardiansOfTheGalaxy/",
+      "name": "Faction_GuardiansOfTheGalaxy sample Faction_Guardians Of The Galaxy Added in 49.5.0",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "Faction_Thunderbolts",
+      "url": "https://marvelsnapzone.com/borders/Faction_Thunderbolts/",
+      "name": "Faction_Thunderbolts sample Faction_Thunderbolts Added in 49.5.0",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "Faction_WebSlingers",
+      "url": "https://marvelsnapzone.com/borders/Faction_WebSlingers/",
+      "name": "Faction_WebSlingers sample Faction_Web Slingers Added in 49.5.0",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "Faction_XMen",
+      "url": "https://marvelsnapzone.com/borders/Faction_XMen/",
+      "name": "Faction_XMen sample Faction_X Men Added in 49.5.0",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "WebPink",
+      "url": "https://marvelsnapzone.com/borders/WebPink/",
+      "name": "WebPink sample Web · Pink Jul 31, 2026 Champion Arena",
+      "kind": "frame",
+      "recipe": "frame-web-pink",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/WebPink-motion.webp",
+      "reference_visual_verified": true,
+      "reference_observation": "Visible reference effect confirmed in four sampled frames; short public render is not a full in-game loop or all-angle fidelity check."
+    },
+    {
+      "id": "BorderBrainsGreen",
+      "url": "https://marvelsnapzone.com/borders/BorderBrainsGreen/",
+      "name": "BorderBrainsGreen sample Brains · Green Oct 27, 2025",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "BorderCandyCane_Halloween",
+      "url": "https://marvelsnapzone.com/borders/BorderCandyCane_Halloween/",
+      "name": "BorderCandyCane_Halloween sample Candy Cane · Orange Oct 27, 2025",
+      "kind": "frame",
+      "recipe": "frame-candy-halloween",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/candy-v63/BorderCandyCane_Halloween.webp",
+      "reference_observation": "2026-10-13: inspected 76-frame/2.25-second public preview. Implemented fixed purple/orange diagonal bands, correctly oriented cylindrical shading and bounded purple outer light. 11 WebGL captures and 18-palette Godot GPU regression pass. Registration and full-game motion still require calibration.",
+      "verification_document": "candy-border-v63.md",
+      "verification_evidence": "../outputs/candy-v63/verification.json"
+    },
+    {
+      "id": "BorderStickerHalloween",
+      "url": "https://marvelsnapzone.com/borders/BorderStickerHalloween/",
+      "name": "BorderStickerHalloween sample Border Sticker Halloween · Green Oct 27, 2025",
+      "kind": "frame",
+      "recipe": "frame-halloween-stickers",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/candy-v63/BorderStickerHalloween.webp",
+      "reference_observation": "2026-10-13: v71 calibrates the top spider with curved legs, head peaks, slower horizontal travel, angle-coupled projection/orbit/light and front/back ordering behind other top decorations. Both versions use the corrected 75 x 30 ms reference clock and one fixed registration. All-75 top bright IoU .289259 to .300373 and RGB error 44.516 to 43.130; 11 frames regress. The 61 visually unreviewed frames are not a blind holdout because numeric scores informed iteration. Three earlier candidates are retained, including the rejected fixed-front composition. Left moon/rail unchanged; non-top differences are 0-2 pixels at one channel unit. WebGL and Godot regression evidence is linked; full in-game loop, all shapes and material remain unverified, not accepted 1:1.",
+      "verification_document": "sticker-calibration-v71.md",
+      "verification_evidence": "../outputs/stickers-v71/verification.json"
+    },
+    {
+      "id": "BorderBrains",
+      "url": "https://marvelsnapzone.com/borders/BorderBrains/",
+      "name": "BorderBrains sample Brains · Grey Added in 46.18.0",
+      "kind": "frame",
+      "recipe": "frame-brains",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/BorderBrains-rechecked.webp",
+      "reference_observation": "2026-10-13: 76-frame/2.28-second public preview inspected. Implemented silver-white folds, dark grooves and view-dependent highlights; actual WebGL and 17-palette Godot GPU regression pass. Full fold topology and full-game motion still require calibration.",
+      "verification_document": "brains-border-v62.md",
+      "verification_evidence": "../outputs/brains-v62/verification.json"
+    },
+    {
+      "id": "BorderBrainsPurple",
+      "url": "https://marvelsnapzone.com/borders/BorderBrainsPurple/",
+      "name": "BorderBrainsPurple sample Brains · Purple Added in 46.18.0",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "MetalChainsGold",
+      "url": "https://marvelsnapzone.com/borders/MetalChainsGold/",
+      "name": "MetalChainsGold sample Chains · Gold Sep 19, 2025 Overloaded",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false,
+      "reference_observation": "2026-10-12: Snap.Fan detail page verified, linked media returned HTTP 403; morphology and game motion remain unverified."
+    },
+    {
+      "id": "Champion",
+      "url": "https://marvelsnapzone.com/borders/Champion/",
+      "name": "Champion sample Champion Added in 43.11.2",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "FireGreen",
+      "url": "https://marvelsnapzone.com/borders/FireGreen/",
+      "name": "FireGreen sample Fire · Green Sep 18, 2025",
+      "kind": "frame",
+      "recipe": "frame-fire-green",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/FireGreen-motion.webp",
+      "reference_observation": "2026-10-12: visible upward flame tongues, bright thin rim core; 2.28-2.31 second public preview does not prove a complete game loop."
+    },
+    {
+      "id": "Fire",
+      "url": "https://marvelsnapzone.com/borders/Fire/",
+      "name": "Fire sample Fire · Orange Jun 22, 2025",
+      "kind": "frame",
+      "recipe": "frame-fire",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/Fire-motion.webp",
+      "reference_observation": "2026-10-12: visible upward flame tongues, bright thin rim core; 2.28-2.31 second public preview does not prove a complete game loop."
+    },
+    {
+      "id": "FireBlue",
+      "url": "https://marvelsnapzone.com/borders/FireBlue/",
+      "name": "FireBlue sample Fire · Blue Jun 16, 2025",
+      "kind": "frame",
+      "recipe": "frame-fire-blue",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/FireBlue-motion.webp",
+      "reference_observation": "2026-10-12: visible upward flame tongues, bright thin rim core; 2.28-2.31 second public preview does not prove a complete game loop."
+    },
+    {
+      "id": "DistressedGreen",
+      "url": "https://marvelsnapzone.com/borders/DistressedGreen/",
+      "name": "DistressedGreen sample Distressed · Green Added in 41.10.1",
+      "kind": "frame",
+      "recipe": "frame-distressed-green",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_static_only": true
+    },
+    {
+      "id": "FireGold",
+      "url": "https://marvelsnapzone.com/borders/FireGold/",
+      "name": "FireGold sample Fire · Gold Added in 41.10.1",
+      "kind": "frame",
+      "recipe": "frame-fire-gold",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/FireGold-motion.webp",
+      "reference_observation": "2026-10-12: visible upward flame tongues, bright thin rim core; 2.28-2.31 second public preview does not prove a complete game loop."
+    },
+    {
+      "id": "FirePink",
+      "url": "https://marvelsnapzone.com/borders/FirePink/",
+      "name": "FirePink sample Fire · Pink Added in 41.10.1",
+      "kind": "frame",
+      "recipe": "frame-fire-pink",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/FirePink-motion.webp",
+      "reference_observation": "2026-10-12: visible upward flame tongues, bright thin rim core; 2.28-2.31 second public preview does not prove a complete game loop."
+    },
+    {
+      "id": "FirePurple",
+      "url": "https://marvelsnapzone.com/borders/FirePurple/",
+      "name": "FirePurple sample Fire · Purple Added in 41.10.1",
+      "kind": "frame",
+      "recipe": "frame-fire-purple",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/FirePurple-motion.webp",
+      "reference_observation": "2026-10-12: visible upward flame tongues, bright thin rim core; 2.28-2.31 second public preview does not prove a complete game loop."
+    },
+    {
+      "id": "FireRainbow",
+      "url": "https://marvelsnapzone.com/borders/FireRainbow/",
+      "name": "FireRainbow sample Fire · Rainbow Added in 41.10.1",
+      "kind": "frame",
+      "recipe": "frame-fire-rainbow",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": false,
+      "reference_video": "../outputs/snap-reference-2026-10-11/FireRainbow-motion.webp",
+      "reference_observation": "2026-10-12: visible upward flame tongues, bright thin rim core; 2.28-2.31 second public preview does not prove a complete game loop."
+    },
+    {
+      "id": "FireRed",
+      "url": "https://marvelsnapzone.com/borders/FireRed/",
+      "name": "FireRed sample Fire · Red Added in 41.10.1",
+      "kind": "frame",
+      "recipe": "frame-fire-red",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/FireRed-motion.webp",
+      "reference_observation": "2026-10-12: visible upward flame tongues, bright thin rim core; 2.28-2.31 second public preview does not prove a complete game loop."
+    },
+    {
+      "id": "FireWhite",
+      "url": "https://marvelsnapzone.com/borders/FireWhite/",
+      "name": "FireWhite sample Fire · White Added in 41.10.1",
+      "kind": "frame",
+      "recipe": "frame-fire-white",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/FireWhite-motion.webp",
+      "reference_observation": "2026-10-12: visible upward flame tongues, bright thin rim core; 2.28-2.31 second public preview does not prove a complete game loop."
+    },
+    {
+      "id": "Overloaded",
+      "url": "https://marvelsnapzone.com/borders/Overloaded/",
+      "name": "Overloaded sample Overloaded Added in 41.10.1 Overloaded",
+      "kind": "frame",
+      "recipe": "frame-overloaded",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_observation": "2026-10-12: four reference frames and full resolution inspected; short public preview does not prove a complete game animation loop."
+    },
+    {
+      "id": "DistressedGold",
+      "url": "https://marvelsnapzone.com/borders/DistressedGold/",
+      "name": "DistressedGold sample Distressed · Gold Dec 18, 2025",
+      "kind": "frame",
+      "recipe": "frame-distressed-gold",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_static_only": true
+    },
+    {
+      "id": "CosmicPurple",
+      "url": "https://marvelsnapzone.com/borders/CosmicPurple/",
+      "name": "CosmicPurple sample Cosmic · Purple Added in 40.10.1",
+      "kind": "frame",
+      "recipe": null,
+      "status": "implementation-missing",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "DistressedCopperPatina",
+      "url": "https://marvelsnapzone.com/borders/DistressedCopperPatina/",
+      "name": "DistressedCopperPatina sample Distressed · Copper Added in 40.10.1",
+      "kind": "frame",
+      "recipe": "frame-distressed-copper",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "DistressedGrey",
+      "url": "https://marvelsnapzone.com/borders/DistressedGrey/",
+      "name": "DistressedGrey sample Distressed · Grey Added in 40.10.1",
+      "kind": "frame",
+      "recipe": "frame-distressed-grey",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_static_only": true
+    },
+    {
+      "id": "DistressedOrange",
+      "url": "https://marvelsnapzone.com/borders/DistressedOrange/",
+      "name": "DistressedOrange sample Distressed · Orange Added in 40.10.1",
+      "kind": "frame",
+      "recipe": "frame-distressed-orange",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_static_only": true
+    },
+    {
+      "id": "DistressedPink",
+      "url": "https://marvelsnapzone.com/borders/DistressedPink/",
+      "name": "DistressedPink sample Distressed · Pink Added in 40.10.1",
+      "kind": "frame",
+      "recipe": "frame-distressed-pink",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_static_only": true
+    },
+    {
+      "id": "DistressedPurple",
+      "url": "https://marvelsnapzone.com/borders/DistressedPurple/",
+      "name": "DistressedPurple sample Distressed · Purple Added in 40.10.1",
+      "kind": "frame",
+      "recipe": "frame-distressed-purple",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_static_only": true
+    },
+    {
+      "id": "DistressedRainbow",
+      "url": "https://marvelsnapzone.com/borders/DistressedRainbow/",
+      "name": "DistressedRainbow sample Distressed · Rainbow Added in 40.10.1",
+      "kind": "frame",
+      "recipe": "frame-distressed-rainbow",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "Pax2025",
+      "url": "https://marvelsnapzone.com/borders/Pax2025/",
+      "name": "Pax2025 sample Graffiti · Rainbow Added in 40.10.1 Promo",
+      "kind": "frame",
+      "recipe": "frame-pax-2025",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/Pax2025-rechecked.webp",
+      "reference_observation": "2026-10-12 v61: verified 76-frame/2.28-second public preview; printed color blocks, white negative strokes, localized yellow-to-red paint spray and short bottom drips. Printed details, emission distribution, full game loop and phase remain unverified.",
+      "calibration_evidence": "../outputs/pax-v61/region-comparison.json"
+    },
+    {
+      "id": "RefractionRainbow",
+      "url": "https://marvelsnapzone.com/borders/RefractionRainbow/",
+      "name": "RefractionRainbow sample Refraction · Rainbow Added in 40.10.1",
+      "kind": "frame",
+      "recipe": "frame-refraction-rainbow",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_observation": "2026-10-12: four reference frames and full resolution inspected; short public preview does not prove a complete game animation loop.",
+      "visual_calibration": {
+        "date": "2026-10-12",
+        "version": "0.19.60",
+        "reference": "https://snap.fan/cosmetics/borders/RefractionRainbow/",
+        "evidence": "../outputs/refraction-v60/region-comparison.json",
+        "document": "refraction-calibration-v60.md",
+        "scope": "Exposed left rail at seven times; rigid rails with moving prismatic reflection, approximate reference camera registration.",
+        "accepted_1_to_1": false
+      }
+    },
+    {
+      "id": "GlyphsGreen",
+      "url": "https://marvelsnapzone.com/borders/GlyphsGreen/",
+      "name": "GlyphsGreen sample Runes · Green Added in 38.12.1",
+      "kind": "frame",
+      "recipe": "frame-glyphs-green",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_observation": "2026-10-12: four reference frames and full resolution inspected; short public preview does not prove a complete game animation loop."
+    },
+    {
+      "id": "MetalChains",
+      "url": "https://marvelsnapzone.com/borders/MetalChains/",
+      "name": "MetalChains sample Chains · Silver Rare Added in 38.12.1",
+      "kind": "frame",
+      "recipe": "frame-chains-silver",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_observation": "2026-10-12 v56: exposed top chain segment calibrated against verified 77-frame/2.31s preview; silhouette F1 within 1.5px improved 0.657 to 0.872. Region mean RGB error did not improve. Full game loop and camera matching remain unverified.",
+      "calibration_evidence": "../outputs/chains-v56/region-comparison.json"
+    },
+    {
+      "id": "NeonNights",
+      "url": "https://marvelsnapzone.com/borders/NeonNights/",
+      "name": "NeonNights sample Neon · Pink Rare Added in 38.12.1",
+      "kind": "frame",
+      "recipe": "frame-neon-nights",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "CandyCane",
+      "url": "https://marvelsnapzone.com/borders/CandyCane/",
+      "name": "CandyCane sample Candy Cane · Red SuperRare Added in 33.16.4 Bundle",
+      "kind": "frame",
+      "recipe": "frame-candy",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "Common",
+      "url": "https://marvelsnapzone.com/borders/Common/",
+      "name": "Common sample Common Added in 33.16.4",
+      "kind": "frame",
+      "recipe": "frame-grade-common",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "CosmicBlack",
+      "url": "https://marvelsnapzone.com/borders/CosmicBlack/",
+      "name": "CosmicBlack sample Cosmic · Black Ultimate Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-cosmic-black",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "CosmicBlue",
+      "url": "https://marvelsnapzone.com/borders/CosmicBlue/",
+      "name": "CosmicBlue sample Cosmic · Blue SuperRare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-cosmic-blue",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "CosmicGold",
+      "url": "https://marvelsnapzone.com/borders/CosmicGold/",
+      "name": "CosmicGold sample Cosmic · Gold SuperRare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-cosmic-gold",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "CosmicGreen",
+      "url": "https://marvelsnapzone.com/borders/CosmicGreen/",
+      "name": "CosmicGreen sample Cosmic · Green SuperRare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-cosmic-green",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "CosmicOrange",
+      "url": "https://marvelsnapzone.com/borders/CosmicOrange/",
+      "name": "CosmicOrange sample Cosmic · Orange SuperRare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-cosmic-orange",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "CosmicPink",
+      "url": "https://marvelsnapzone.com/borders/CosmicPink/",
+      "name": "CosmicPink sample Cosmic · Pink SuperRare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-cosmic-pink",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "CosmicRainbow",
+      "url": "https://marvelsnapzone.com/borders/CosmicRainbow/",
+      "name": "CosmicRainbow sample Cosmic · Rainbow Ultimate Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-cosmic-rainbow",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "CosmicRed",
+      "url": "https://marvelsnapzone.com/borders/CosmicRed/",
+      "name": "CosmicRed sample Cosmic · Red SuperRare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-cosmic-red",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "DistressedBlue",
+      "url": "https://marvelsnapzone.com/borders/DistressedBlue/",
+      "name": "DistressedBlue sample Distressed · Blue Rare Added in 33.16.4 Deadpool Diner",
+      "kind": "frame",
+      "recipe": "frame-distressed-blue",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "DistressedRed",
+      "url": "https://marvelsnapzone.com/borders/DistressedRed/",
+      "name": "DistressedRed sample Distressed · Red Rare Added in 33.16.4 Deadpool Diner",
+      "kind": "frame",
+      "recipe": "frame-distressed-red",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "Epic",
+      "url": "https://marvelsnapzone.com/borders/Epic/",
+      "name": "Epic sample Epic Added in 33.16.4",
+      "kind": "frame",
+      "recipe": "frame-grade-epic",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "IceBlue",
+      "url": "https://marvelsnapzone.com/borders/IceBlue/",
+      "name": "IceBlue sample Ice · Blue SuperRare Added in 33.16.4",
+      "kind": "frame",
+      "recipe": "frame-ice",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "Infinity",
+      "url": "https://marvelsnapzone.com/borders/Infinity/",
+      "name": "Infinity sample Infinity Added in 33.16.4",
+      "kind": "frame",
+      "recipe": "frame-grade-infinity",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "Legendary",
+      "url": "https://marvelsnapzone.com/borders/Legendary/",
+      "name": "Legendary sample Legendary Added in 33.16.4",
+      "kind": "frame",
+      "recipe": "frame-grade-legendary",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "MatteBlack",
+      "url": "https://marvelsnapzone.com/borders/MatteBlack/",
+      "name": "MatteBlack sample Matte · Black SuperRare Added in 33.16.4 Deadpool Diner",
+      "kind": "frame",
+      "recipe": "frame-matte-black",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "MatteRed",
+      "url": "https://marvelsnapzone.com/borders/MatteRed/",
+      "name": "MatteRed sample Matte · Red SuperRare Added in 33.16.4 Deadpool Diner",
+      "kind": "frame",
+      "recipe": "frame-matte-red",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "MetallicCopper",
+      "url": "https://marvelsnapzone.com/borders/MetallicCopper/",
+      "name": "MetallicCopper sample Metallic · Copper Rare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-copper",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "MetallicGold",
+      "url": "https://marvelsnapzone.com/borders/MetallicGold/",
+      "name": "MetallicGold sample Metallic · Gold SuperRare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-gold",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "MetallicSilver",
+      "url": "https://marvelsnapzone.com/borders/MetallicSilver/",
+      "name": "MetallicSilver sample Metallic · Silver SuperRare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-silver",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "NeonBlue",
+      "url": "https://marvelsnapzone.com/borders/NeonBlue/",
+      "name": "NeonBlue sample Neon · Blue Rare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-neon-blue",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "visual_calibration": {
+        "version": "0.19.82",
+        "reference": "https://snap.fan/cosmetics/borders/NeonBlue/",
+        "aspect": "front-facing unoccluded right straight edge",
+        "reference_width_ratio": 0.033846153846153845,
+        "render_width_ratio": 0.0337215514435751,
+        "accepted_1_to_1": false,
+        "remaining": [
+          "source-separated inner spill radius and color calibration",
+          "complete game camera and idle capture",
+          "other neon palettes dynamic comparison"
+        ],
+        "render_source": "Godot 4.7.1 Compatibility / AMD Radeon Pro 5500M, independent production export",
+        "inner_halo": {
+          "implemented": true,
+          "bounded_px": 56,
+          "radius_source": "visual estimate, not separated Bloom capture",
+          "webgl_alpha_at_6_24_56px": [
+            66,
+            13,
+            0
+          ],
+          "webgl_premultiplied_coverage": true,
+          "godot_inner_edge_gain": 0.254901967942715,
+          "godot_inner_middle_gain": 0.0431372597813606,
+          "evidence": "outputs/neon-spill-v82/"
+        }
+      }
+    },
+    {
+      "id": "NeonGreen",
+      "url": "https://marvelsnapzone.com/borders/NeonGreen/",
+      "name": "NeonGreen sample Neon · Green Rare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-neon-green",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "NeonPurple",
+      "url": "https://marvelsnapzone.com/borders/NeonPurple/",
+      "name": "NeonPurple sample Neon · Purple Rare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-neon-purple",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "NeonRed",
+      "url": "https://marvelsnapzone.com/borders/NeonRed/",
+      "name": "NeonRed sample Neon · Red Rare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-neon-red",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "NeonWhite",
+      "url": "https://marvelsnapzone.com/borders/NeonWhite/",
+      "name": "NeonWhite sample Neon · White SuperRare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-neon-white",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "NeonYellow",
+      "url": "https://marvelsnapzone.com/borders/NeonYellow/",
+      "name": "NeonYellow sample Neon · Yellow SuperRare Added in 33.16.4 Cosmetics Vendor",
+      "kind": "frame",
+      "recipe": "frame-neon-yellow",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "Rare",
+      "url": "https://marvelsnapzone.com/borders/Rare/",
+      "name": "Rare sample Rare Added in 33.16.4",
+      "kind": "frame",
+      "recipe": "frame-grade-rare",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "SnowflakesBlue",
+      "url": "https://marvelsnapzone.com/borders/SnowflakesBlue/",
+      "name": "SnowflakesBlue sample Snow · Blue Rare Added in 33.16.4 Bundle",
+      "kind": "frame",
+      "recipe": "frame-snow-blue",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "SnowflakesRed",
+      "url": "https://marvelsnapzone.com/borders/SnowflakesRed/",
+      "name": "SnowflakesRed sample Snow · Red Rare Added in 33.16.4 Bundle",
+      "kind": "frame",
+      "recipe": "frame-snow-red",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "UltraLegendary",
+      "url": "https://marvelsnapzone.com/borders/UltraLegendary/",
+      "name": "UltraLegendary sample Ultra Added in 33.16.4",
+      "kind": "frame",
+      "recipe": "frame-grade-ultra",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    },
+    {
+      "id": "Uncommon",
+      "url": "https://marvelsnapzone.com/borders/Uncommon/",
+      "name": "Uncommon sample Uncommon Added in 33.16.4",
+      "kind": "frame",
+      "recipe": "frame-grade-uncommon",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true
+    },
+    {
+      "id": "WebBlack",
+      "url": "https://marvelsnapzone.com/borders/WebBlack/",
+      "name": "WebBlack sample Web · Black SuperRare Added in 33.16.4",
+      "kind": "frame",
+      "recipe": "frame-web-black",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/WebBlack-motion.webp",
+      "reference_visual_verified": true,
+      "reference_observation": "Visible reference effect confirmed in four sampled frames; short public render is not a full in-game loop or all-angle fidelity check."
+    },
+    {
+      "id": "WebRed",
+      "url": "https://marvelsnapzone.com/borders/WebRed/",
+      "name": "WebRed sample Web · Red Rare Added in 33.16.4",
+      "kind": "frame",
+      "recipe": "frame-web-red",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": true,
+      "reference_video": "../outputs/snap-reference-2026-10-11/WebRed-motion.webp",
+      "reference_visual_verified": true,
+      "reference_observation": "Visible reference effect confirmed in four sampled frames; short public render is not a full in-game loop or all-angle fidelity check."
+    },
+    {
+      "id": "WrappingPaper",
+      "url": "https://marvelsnapzone.com/borders/WrappingPaper/",
+      "name": "WrappingPaper sample Wrapping Paper · Green Rare Added in 33.16.4",
+      "kind": "frame",
+      "recipe": "frame-wrapping",
+      "status": "prototype-needs-visual-and-motion-calibration",
+      "accepted_1_to_1": false,
+      "reference_image_available": false
+    }
+  ],
+  "releaseLifecycleNote": {
+    "url": "https://marvelsnap.com/patch-notes-may-19th-2026/",
+    "observation": "Official May 19 patch removes Rays from future split pool but retains previous splits. Legacy effects stay in coverage; this does not explain invalid public previews."
+  }
+}

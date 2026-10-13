@@ -1,0 +1,26 @@
+// QA only: compare procedural rims against public preview crops, never export reference pixels.
+const fs=require('node:fs'),path=require('node:path');
+const R=require('../renderer/runtime-model.js'),K=require('../renderer/finish-catalog.js');
+const dir=path.resolve(__dirname,'../outputs/chains-v56');
+const baseline=JSON.parse(fs.readFileSync(path.join(dir,'baseline.json')));
+const shared=s=>s.slice(s.indexOf('// Shared procedural finish'),s.indexOf('\nvoid ',s.indexOf('// Shared procedural finish')));
+const data={baseline:{shader:shared(baseline.fragment),recipe:baseline.recipe.style||baseline.recipe},current:{shader:shared(R.fragment),recipe:K.value('frame-chains-silver').style}};
+fs.writeFileSync(path.join(dir,'chains-calibration.html'),`<!doctype html><meta charset="utf-8"><title>银色链环 · 形体校准</title>
+<style>body{background:#151b21;color:#dce8ef;font:14px system-ui;margin:20px}main{display:flex;gap:18px}section{width:280px}canvas,img{max-width:280px;height:auto}button{padding:7px 15px}pre{white-space:pre-wrap}small{color:#9db0bb}.strip{max-width:800px;width:800px;height:60px;object-fit:fill}</style>
+<h1>银色链环 · 切面、交错与孔隙</h1><small>公开短预览的无遮挡链段，只用于局部校准；相机未完全配准，不能据此认定整卡 1:1。</small>
+<p><button id="front">正面</button> <button id="tilt">倾斜反光</button> <button id="later">1.4 秒</button> <button id="export">导出 GPU 帧</button></p>
+<main><section><h2>Snap 参考</h2><img src="reference-26.png"></section></main>
+<h2>无遮挡顶边局部</h2><img class="strip" src="top-reference.png"><div id="strips"></div><pre id="report">初始化…</pre><a id="download" hidden>下载量测帧</a>
+<script>const data=${JSON.stringify(data)},renderers=[],rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
+function renderer(source,key){const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=1536;const gl=canvas.getContext('webgl',{alpha:true,premultipliedAlpha:false,preserveDrawingBuffer:true});if(!gl)throw Error('WebGL unavailable');const program=gl.createProgram();
+ const vertex='attribute vec2 point;varying vec2 uv;void main(){uv=(point*vec2(1.,-1.)+1.)*.5;gl_Position=vec4(point,0.,1.);}';
+ const fragment='precision highp float;varying vec2 uv;uniform vec2 view;uniform float clock;'+source.shader+'\\nvoid main(){vec4 m=vec4('+[source.recipe.width,source.recipe.corner,source.recipe.depth,source.recipe.bevel].map(n=>n/1024).join(',')+');float d=rimDistance(uv*vec2(1.,1.5),m.y);if(d<0.||d>m.x){gl_FragColor=vec4(0.);return;}gl_FragColor=vec4(rimColor(vec3('+rgb(source.recipe.color).join(',')+'),vec3('+rgb(source.recipe.accent).join(',')+'),uv,view,clock,m,12.,vec2(0.,.55),.75),rimCoverage(uv,m,12.));}';
+ for(const [type,code] of [[gl.VERTEX_SHADER,vertex],[gl.FRAGMENT_SHADER,fragment]]){const s=gl.createShader(type);gl.shaderSource(s,code);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));gl.attachShader(program,s);gl.deleteShader(s);}gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);const at=gl.getAttribLocation(program,'point');gl.enableVertexAttribArray(at);gl.vertexAttribPointer(at,2,gl.FLOAT,false,0,0);const u={view:gl.getUniformLocation(program,'view'),clock:gl.getUniformLocation(program,'clock')};
+ const strip=document.createElement('canvas');strip.width=711;strip.height=84;strip.className='strip';document.querySelector('#strips').append(strip);
+ function draw(time=.78,yaw=0,pitch=0){gl.uniform2f(u.view,yaw,pitch);gl.uniform1f(u.clock,time);gl.viewport(0,0,1024,1536);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);const error=gl.getError();if(error)throw Error('GL '+error);const ctx=strip.getContext('2d');ctx.clearRect(0,0,711,84);ctx.drawImage(canvas,200,0,355,28,0,0,711,84);return {key,time,yaw,pitch,glError:error,png:canvas.toDataURL('image/png')};}
+ const section=document.createElement('section');section.innerHTML='<h2>'+(key==='current'?'校准后':'校准前')+'</h2>';section.append(canvas);document.querySelector('main').append(section);return {canvas,draw};}
+try{for(const key of ['baseline','current'])renderers.push(renderer(data[key],key));const initial=renderers.map(r=>r.draw());document.querySelector('#report').textContent=JSON.stringify({accepted1to1:false,frames:initial.map(({png,...meta})=>meta),textures:0,passes:1},null,2);
+ document.querySelector('#front').onclick=()=>renderers.forEach(r=>r.draw());document.querySelector('#tilt').onclick=()=>renderers.forEach(r=>r.draw(.78,.3,.2));document.querySelector('#later').onclick=()=>renderers.forEach(r=>r.draw(1.4));
+ document.querySelector('#export').onclick=()=>{const frames=renderers.flatMap(r=>[r.draw(),r.draw(1.4),r.draw(.78,.3,.2)]);renderers.forEach(r=>r.draw());const a=document.querySelector('#download');a.href='data:application/json;base64,'+btoa(JSON.stringify({schema:'cardscape-chain-gpu-frames/1',width:1024,height:1536,frames}));a.download='chain-gpu-v56.json';a.hidden=false;document.querySelector('#report').textContent='已捕获 '+frames.length+' 帧，GL 错误码均为 0';};
+}catch(e){document.querySelector('#report').textContent=e.stack;throw e;}</script>`);
+console.log(path.join(dir,'chains-calibration.html'));

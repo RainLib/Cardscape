@@ -114,7 +114,7 @@ test('native complementary extraction preserves the master, geometry and global 
  const alreadyCorrect=await prepareAuthoring({document:result.document,documentToken:'test',commands:[{op:'repairSplitEdges',layerId:'rear',radius:6}]},{validate:v=>v,process});assert.equal(alreadyCorrect.document.layers.find(l=>l.id==='rear').src,piece.src);
  const mean=async im=>(await process('mask_stats',{image:(await process('image_channel',{image:im,channel:'alpha'})).image})).mean;
  assert.ok(Math.abs(await mean(main.src)+await mean(piece.src)-await mean(image))<.005);assert.ok(await mean(piece.src)>.1);assert.ok(await mean(main.src)>.5);assert.equal(d.layers.length,1);
- const second=await prepareAuthoring({document:result.document,documentToken:'test',commands:[{op:'splitLayer',layerId:'body',newLayerId:'front',name:'front cloth',role:'front',polygon:[[700,0],[1023,0],[1023,1535],[700,1535]],feather:2}]},{validate:v=>{S.validate(v);return R.ensure(v);},process});
- const ownedParts=await Promise.all(second.document.layers.map(l=>mean(l.src)));assert.ok(Math.abs(ownedParts.reduce((a,b)=>a+b,0)-await mean(image))<.005);assert.equal(second.document.layers.length,3);
+ const second=await prepareAuthoring({document:result.document,documentToken:'test',commands:[{op:'splitLayer',layerId:'body',newLayerId:'front',name:'front arm',role:'front',part:'arm',side:'right',polygon:[[700,0],[1023,0],[1023,1535],[700,1535]],feather:2}]},{validate:v=>{S.validate(v);return R.ensure(v);},process});
+ const ownedParts=await Promise.all(second.document.layers.map(l=>mean(l.src)));assert.ok(Math.abs(ownedParts.reduce((a,b)=>a+b,0)-await mean(image))<.005);assert.equal(second.document.layers.length,3);assert.equal(second.document.layers.find(l=>l.id==='front').attachment.mode,'rigid');assert.equal(second.document.layers.find(l=>l.id==='front').anatomy.part,'arm');
  }finally{svc.close();await fs.rm(dir,{recursive:true,force:true});}
 });

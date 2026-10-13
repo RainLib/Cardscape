@@ -5,7 +5,7 @@ let project=null,tabs=null,lastActive='',transition=false,busy=false,signature='
 const storageKey=id=>'cardscape-workshop-tabs-v1:'+id;
 function read(id){try{return JSON.parse(localStorage.getItem(storageKey(id)));}catch{return null;}}
 function save(){try{localStorage.setItem(storageKey(project.id),JSON.stringify({...tabs,active:restoreTarget||project.activeCardId}));}catch{/* Tab preferences must not prevent editing. */}}
-function closed(){return !!project&&!!tabs&&!tabs.open.length;}
+function closed(){return !!project&&!!tabs&&!project.editingAsset&&!tabs.open.length;}
 function syncEmpty(){
  const empty=closed();document.body.classList.toggle('workshop-tabs-empty',empty);$('ws-empty-editor').hidden=!empty;$('ws-empty-reopen').disabled=!tabs?.closed.length;
  if(emptyState!==empty){
@@ -23,7 +23,7 @@ function refresh(next,isBusy=false){
   const saved=changed?read(project.id):tabs;tabs=T.normalize(saved,project.cards);
   if(!changed&&lastActive!==project.activeCardId)tabs=T.open(tabs,project.activeCardId);
   // Recovery may still contain the previous card if a refresh follows a close immediately.
-  if(changed&&document.body.dataset.appMode==='editor'){const target=T.restoredActive(tabs,project.activeCardId,saved?.active);restoreTarget=target&&target!==project.activeCardId?target:null;}
+  if(changed&&!project.editingAsset&&document.body.dataset.appMode==='editor'){const target=T.restoredActive(tabs,project.activeCardId,saved?.active);restoreTarget=target&&target!==project.activeCardId?target:null;}
   lastActive=project.activeCardId;save();
  }
  if(menuCard&&!tabs.open.includes(menuCard))hideMenu(false);syncEmpty();render();
@@ -35,11 +35,11 @@ function refresh(next,isBusy=false){
 }
 function focusTab(id){bar.querySelector('[role=tab][data-card-id="'+CSS.escape(id)+'"]')?.focus();}
 function render(){
- const key=JSON.stringify([tabs,project?.activeCardId,project?.cards.map(c=>[c.id,c.name]),busy,transition]);if(signature===key)return;signature=key;
+ const key=JSON.stringify([tabs,project?.activeCardId,project?.editingAsset?.key,project?.cards.map(c=>[c.id,c.name]),busy,transition]);if(signature===key)return;signature=key;
  const focused=document.activeElement.closest?.('.ws-editor-tab'),focusId=focused?.dataset.cardId,focusAction=document.activeElement.dataset.tabAction;
  bar.replaceChildren();if(!tabs)return;
  for(const id of tabs.open){
-  const card=project.cards.find(c=>c.id===id),pinned=tabs.pinned.includes(id),active=id===project.activeCardId;
+  const card=project.cards.find(c=>c.id===id),pinned=tabs.pinned.includes(id),active=!project.editingAsset&&id===project.activeCardId;
   const item=document.createElement('div');item.className='ws-editor-tab';item.dataset.cardId=id;item.dataset.pinned=String(pinned);item.dataset.active=String(active);item.setAttribute('role','presentation');
   const tab=document.createElement('button');tab.className='ws-tab-name';tab.textContent=card.name;tab.title=card.name+(pinned?' · 已固定':'');tab.dataset.cardId=id;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;tab.disabled=busy||transition;tab.onclick=()=>activate(id);
   const actions=document.createElement('span');actions.className='ws-tab-actions';
@@ -65,7 +65,7 @@ async function perform(next,id,message){
  if(!project||busy||transition||host.state().busy){host.say('请先结束当前编辑或处理');return false;}
  const capturedId=project.id;restoreTarget=null;transition=true;hideMenu(false);render();
  try{
-  if(id&&id!==project.activeCardId)await host.workshop('switch',{id});
+  if(id&&(id!==project.activeCardId||project.editingAsset))await host.workshop('switch',{id});
   const current=host.state();if(current.workshop?.id!==capturedId)return false;
   project=current.workshop;tabs=T.normalize(next,project.cards);lastActive=project.activeCardId;save();host.say(message);return true;
  }catch(e){host.say(e.message);return false;}

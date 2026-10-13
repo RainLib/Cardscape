@@ -11,9 +11,12 @@ target/
 /outputs/
 /editor/runtime/
 /editor/qa/
+/editor/outputs/
 /editor/native-ai/models/
 /editor/native-ai/vendor/
 /editor/renderer/shader-editor.bundle.js
 *.cardproj
 *.tmp
 *.download
+/editor/renderer/shader-nodes.bundle.js
+/editor/renderer/shader-nodes.bundle.css

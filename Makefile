@@ -17,7 +17,7 @@ setup: install ## 首次准备：依赖、编辑器前端、Rust worker
 
 build: build-editor build-native ## 构建前端与原生 worker
 
-build-editor: ## 打包 GLSL 编辑器前端
+build-editor: ## 打包 Shader 代码与节点编辑器前端
 	$(NPM) --prefix $(EDITOR) run build:editor
 
 build-native: ## 构建 Rust release worker

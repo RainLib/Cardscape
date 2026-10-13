@@ -32,6 +32,7 @@ const help=[
  ['保存 / 另存为','⌘ S / ⌘ ⇧ S','Ctrl S / Ctrl Shift S'],['打开 / 新建','⌘ O / ⌘ N','Ctrl O / Ctrl N'],
  ['导入图像','⌘ ⌥ I','Ctrl Alt I'],['全选画幅','⌘ A','Ctrl A'],['取消选区','⌘ D / Esc','Ctrl D / Esc'],
  ['编组 / 取消编组','⌘ G / ⌘ ⇧ G','Ctrl G / Ctrl Shift G'],['反选','⌘ ⇧ I','Ctrl Shift I'],['复制图层 / 选区','⌘ J','Ctrl J'],['删除普通图层','Delete / Backspace','Delete / Backspace'],
+ ['时间轴 · 删除关键帧 / 清除轨道','⌫ / ⇧ ⌫','Delete / Shift Delete'],
  ['自由变换 / 应用 / 取消','⌘ T / Enter / Esc','Ctrl T / Enter / Esc'],
  ['适合窗口 / 100%','⌘ 0 / ⌘ 1','Ctrl 0 / Ctrl 1'],['放大 / 缩小','⌘ + / ⌘ −','Ctrl + / Ctrl −'],
  ['移动 / 选区 / 套索','V / M / L','V / M / L'],['磁性套索 / 智能对象 / 魔棒','⇧ L / S / W','Shift L / S / W'],

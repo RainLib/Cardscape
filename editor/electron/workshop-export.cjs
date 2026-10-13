@@ -8,7 +8,9 @@ async function exportWorkshop(directory,w,outputs,worker,io){
  const cards=[],manifests=new Map();
  for(const c of w.cards){const doc=model.resolve(w,c.id),dir=path.join(directory,'cards',c.id);await exportCard(dir,doc,outputs[c.id],worker,io);const m=JSON.parse(await fs.readFile(path.join(dir,'manifest.json'),'utf8'));
   async function move(file){const full=path.join(dir,file),target=await shared(await fs.readFile(full),path.extname(file).slice(1));await fs.rm(full);return '../../'+target;}
-  m.frontAsset=await move('front.png');m.backAsset=doc.back?await move(m.backAsset||'back.png'):null;m.maskAssets={};for(const id of m.masks)m.maskAssets[id]=await move('masks/'+id+'.png');
+  if(m.framePreview)m.framePreview.asset=await move(m.framePreview.asset);m.frontAsset=await move('front.png');m.backAsset=doc.back?await move(m.backAsset||'back.png'):null;if(m.backScene){m.backScene.src=m.backAsset;for(const l of m.backScene.layers)l.src=await move(l.src);}
+  m.maskAssets={};for(const id of m.masks)m.maskAssets[id]=await move('masks/'+id+'.png');
+  if(m.particles?.sprite)m.particles.sprite=await move(m.particles.sprite);
   for(const l of m.layers){if(l.asset)l.asset=await move(l.asset);if(l.cutoutMaskAsset)l.cutoutMaskAsset=await move(l.cutoutMaskAsset);for(const v of l.titleArt?.variants||[])if(v.rasterAsset)v.rasterAsset=await move(v.rasterAsset);}
   m.shaderAssets={vertex:await move('shaders/card.vert.glsl'),fragment:await move('shaders/card.frag.glsl')};if(m.foregroundMesh)m.foregroundMesh=await move(m.foregroundMesh);
   for(const f of doc.fonts||[]){const file='fonts/'+f.family+'.'+f.src.slice(10,f.src.indexOf(';')),ref=await move(file);for(const d of m.fontDependencies)if(d.family===f.family)d.embedded=ref;}
@@ -18,7 +20,7 @@ async function exportWorkshop(directory,w,outputs,worker,io){
   await fs.writeFile(path.join(dir,'README.txt'),'此卡的纹理、Mask、几何和 GLSL 路径见 manifest.json，指向工坊根目录 shared/。源工程为 ../../project.cardworkshop。启动根目录静态 HTTP 服务后打开 ../../index.html。PNG 可导入 Godot；完整godot/ 内包含可运行的动态 SDK、Resource 库和预览场景。\n');
   manifests.set(c.id,m);cards.push({id:c.id,name:c.name,player:'cards/'+c.id+'/index.html',thumbnail:m.frontAsset.slice(6),bindings:c.bindings});
  }
- const graph=await uri(w);await fs.writeFile(path.join(directory,'workshop.json'),JSON.stringify({schema:'card-workshop-assets/1',name:w.name,cards,resources:graph.resources,previewDefaults:graph.previewDefaults||{},recipes:graph.cards,sharedFileCount:written.size},null,2));
+ const runtimeWorkshop={...w};delete runtimeWorkshop.backgroundArchive;const graph=await uri(runtimeWorkshop);await fs.writeFile(path.join(directory,'workshop.json'),JSON.stringify({schema:'card-workshop-assets/1',name:w.name,cards,resources:graph.resources,previewDefaults:graph.previewDefaults||{},recipes:graph.cards,sharedFileCount:written.size},null,2));
  await io.atomicWrite(path.join(directory,'project.cardworkshop'),storage.serialized(w,io.validateProject));
  for(const name of ['workshop-player.js','workshop-player.css'])await fs.copyFile(path.join(__dirname,'../renderer',name),path.join(directory,name));await fs.copyFile(path.join(__dirname,'../renderer/workshop-player.html'),path.join(directory,'index.html'));
  await fs.writeFile(path.join(directory,'README.txt'),'启动静态 HTTP 服务后打开 index.html，选择卡片与动作。shared/ 按内容摘要去重图像、Mask、几何与 GLSL；workshop.json 保留卡片引用与资源版本。project.cardworkshop 是可重新打开的源工程。每张卡的播放器读取共享文件；godot/ 内包含可运行的动态 SDK、Resource 库和预览场景。\n');

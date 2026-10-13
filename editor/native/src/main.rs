@@ -176,9 +176,21 @@ fn run(op: &str, args: &Value) -> Result<Value, String> {
             if !["multiply","coverage"].contains(&mode){return Err("invalid alpha mode".into());}
             // Coverage already records final visibility, including source alpha.
             // Reapplying it to the preserved master must not attenuate edges twice.
-            img.as_mut().par_chunks_mut(4).zip(mask.as_raw().par_iter()).for_each(|(p,m)|p[3]=if mode=="coverage"{p[3].min(*m)}else{((p[3] as u32* *m as u32)/255) as u8});
+            let binary=args["binary_mask"].as_bool().unwrap_or(false);
+            img.as_mut().par_chunks_mut(4).zip(mask.as_raw().par_iter()).for_each(|(p,m)|{
+                let weight=if binary{if *m>=128{255}else{0}}else{*m};
+                p[3]=if mode=="coverage"{p[3].min(weight)}else{((p[3] as u32*weight as u32)/255) as u8};
+            });
             if let Some(source)=backing{processing::decontaminate_edges(&mut img,&source);}
-            Ok(json!({"image":encode(&DynamicImage::ImageRgba8(img))?}))
+            // Production cutouts may opt out of retaining the complete master
+            // RGB under zero alpha. Keep every visible/soft-edge pixel intact;
+            // editing sources retain the original payload by default.
+            let cleared=if args["clear_transparent_rgb"].as_bool().unwrap_or(false){
+                img.as_mut().par_chunks_mut(4).map(|p|{
+                    if p[3]==0&&p[..3].iter().any(|v|*v!=0){p[..3].fill(0);1usize}else{0}
+                }).sum::<usize>()
+            }else{0};
+            Ok(json!({"image":encode(&DynamicImage::ImageRgba8(img))?,"cleared_transparent_pixels":cleared}))
         },
         "mask_stats" => {
             let gray=decode(args,"image")?.to_luma8();let raw=gray.as_raw();
@@ -218,4 +230,41 @@ fn main() {
     #[test] fn feather_is_symmetric(){let mut a=vec![0;81];a[40]=255;let b=feather(&a,9,9,1);assert!(b[40]<255&&b[40]>0);for i in 0..81{assert_eq!(b[i],b[80-i]);}}
     #[test] fn reject_degenerate_mesh_region(){assert!(run("mesh",&json!({"bounds":[0.4,0.3,0.1,0.5]})).is_err());}
     #[test] fn regular_mesh_has_shared_vertices(){let m=run("mesh",&json!({"bounds":[0.0,0.0,1.0,1.0],"subdivisions":2})).unwrap();assert_eq!(m["uv"].as_array().unwrap().len(),18);assert_eq!(m["indices"].as_array().unwrap().len(),24);}
+    #[test] fn production_alpha_cleanup_preserves_all_visible_and_soft_edge_pixels(){
+        let source=image::RgbaImage::from_raw(4,1,vec![30,40,50,255,60,70,80,1,90,100,110,0,120,130,140,255]).unwrap();
+        let mask=GrayImage::from_raw(4,1,vec![255,255,255,0]).unwrap();
+        let input=encode(&DynamicImage::ImageRgba8(source.clone())).unwrap();
+        let mask=encode(&DynamicImage::ImageLuma8(mask)).unwrap();
+        for mode in ["coverage","multiply"]{
+            let args=json!({"image":input,"mask":mask,"mode":mode});
+            let ordinary=run("alpha",&args).unwrap();
+            let mut compact_args=args.clone();compact_args["clear_transparent_rgb"]=json!(true);
+            let compact=run("alpha",&compact_args).unwrap();
+            let ordinary=decode(&ordinary,"image").unwrap().to_rgba8();
+            let compact_image=decode(&compact,"image").unwrap().to_rgba8();
+            for (before,after) in ordinary.pixels().zip(compact_image.pixels()){
+                assert_eq!(before[3],after[3]);
+                if before[3]>0{assert_eq!(before,after);}else{assert_eq!(*after,image::Rgba([0,0,0,0]));}
+            }
+            assert_eq!(ordinary.get_pixel(2,0),source.get_pixel(2,0));
+            assert_eq!(compact["cleared_transparent_pixels"],2);
+        }
+    }
+    #[test] fn complementary_binary_ownership_recomposes_source_without_split_edge_seams(){
+        let source=image::RgbaImage::from_raw(6,1,vec![10,20,30,255,40,50,60,254,70,80,90,99,100,110,120,1,130,140,150,0,160,170,180,255]).unwrap();
+        let shape=vec![0,127,128,254,255,1];
+        let input=encode(&DynamicImage::ImageRgba8(source.clone())).unwrap();
+        let mut owned=Vec::new();
+        for weights in [shape.clone(),shape.iter().map(|v|255-v).collect()]{
+            let mask=encode(&DynamicImage::ImageLuma8(GrayImage::from_raw(6,1,weights).unwrap())).unwrap();
+            let result=run("alpha",&json!({"image":input,"mask":mask,"binary_mask":true,"clear_transparent_rgb":true})).unwrap();
+            owned.push(decode(&result,"image").unwrap().to_rgba8());
+        }
+        for (i,p) in source.pixels().enumerate(){
+            let left=owned[0].get_pixel(i as u32,0);let right=owned[1].get_pixel(i as u32,0);
+            assert_eq!(u16::from(left[3])+u16::from(right[3]),u16::from(p[3]));
+            assert!(left[3]==0||right[3]==0);
+            if p[3]>0{assert_eq!(if left[3]>0{left}else{right},p);}
+        }
+    }
 }

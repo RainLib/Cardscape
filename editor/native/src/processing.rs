@@ -24,8 +24,10 @@ pub fn repair_split(args:&Value)->Result<Value,String>{
 pub fn underpaint(args:&Value)->Result<Value,String>{
  let mut image=decode(args,"image")?.to_rgba8();let candidate=decode(args,"candidate")?.to_rgba8();let mask=decode(args,"mask")?.to_luma8();
  let (w,h)=image.dimensions();if candidate.dimensions()!=(w,h)||mask.dimensions()!=(w,h){return Err("underpaint images must share registered dimensions".into());}
+ let preserve_visible=args["preserve_visible"].as_bool().unwrap_or(false);
  let mut added=vec![0u8;(w*h) as usize];
  image.as_mut().par_chunks_mut(4).zip(added.par_iter_mut()).enumerate().for_each(|(i,(p,a))|{
+  if preserve_visible&&p[3]>0{return;}
   let c=&candidate.as_raw()[i*4..i*4+4];let back=c[3] as f32/255.0*mask.as_raw()[i] as f32/255.0;let front=p[3] as f32/255.0;
   let contribution=(1.0-front)*back;if contribution<=0.0{return;}
   let alpha=front+contribution;
@@ -139,4 +141,16 @@ pub fn title_raster(args:&Value)->Result<Value,String>{
  }
  #[test]fn morphology_has_predictable_boundaries(){let a=[0,0,255,0,0];assert_eq!(row_extreme(&a,1,true),[0,255,255,255,0]);assert_eq!(row_extreme(&[0,255,255,255,0],1,false),[0,0,255,0,0]);}
  #[test]fn separable_morphology_preserves_gray_and_zero_radius(){let a=[0,10,0,0,128,0,0,20,0];assert_eq!(extrema(&a,3,3,0,true),a);assert_eq!(extrema(&a,3,3,1,true),vec![128;9]);assert_eq!(extrema(&vec![90;63],9,7,64,false),vec![90;63]);}
+ #[test]fn registered_underpaint_can_restore_only_missing_pixels_without_changing_soft_edges(){
+  let source=image::RgbaImage::from_raw(4,1,vec![10,20,30,254,40,50,60,1,0,0,0,0,0,0,0,0]).unwrap();
+  let candidate=image::RgbaImage::from_pixel(4,1,image::Rgba([200,180,140,255]));
+  let mask=GrayImage::from_raw(4,1,vec![255,255,255,0]).unwrap();
+  let result=underpaint(&json!({"image":encode(&DynamicImage::ImageRgba8(source.clone())).unwrap(),"candidate":encode(&DynamicImage::ImageRgba8(candidate)).unwrap(),"mask":encode(&DynamicImage::ImageLuma8(mask)).unwrap(),"preserve_visible":true})).unwrap();
+  let restored=decode(&result,"image").unwrap().to_rgba8();
+  assert_eq!(restored.get_pixel(0,0),source.get_pixel(0,0));
+  assert_eq!(restored.get_pixel(1,0),source.get_pixel(1,0));
+  assert_eq!(restored.get_pixel(2,0).0,[200,180,140,255]);
+  assert_eq!(restored.get_pixel(3,0).0,[0,0,0,0]);
+  assert_eq!(result["filled_pixels"],1);
+ }
 }

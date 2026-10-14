@@ -230,6 +230,26 @@ fn main() {
     #[test] fn feather_is_symmetric(){let mut a=vec![0;81];a[40]=255;let b=feather(&a,9,9,1);assert!(b[40]<255&&b[40]>0);for i in 0..81{assert_eq!(b[i],b[80-i]);}}
     #[test] fn reject_degenerate_mesh_region(){assert!(run("mesh",&json!({"bounds":[0.4,0.3,0.1,0.5]})).is_err());}
     #[test] fn regular_mesh_has_shared_vertices(){let m=run("mesh",&json!({"bounds":[0.0,0.0,1.0,1.0],"subdivisions":2})).unwrap();assert_eq!(m["uv"].as_array().unwrap().len(),18);assert_eq!(m["indices"].as_array().unwrap().len(),24);}
+    #[test] fn alpha_connected_selection_keeps_soft_edges_and_ignores_retained_rgb(){
+        let pixels=vec![255,0,0,254,0,255,0,1,0,0,255,127,255,255,255,0,0,255,255,99,0,0,0,100];
+        let image=encode(&DynamicImage::ImageRgba8(image::RgbaImage::from_raw(6,1,pixels).unwrap())).unwrap();
+        let args=json!({"image":image,"x":0,"y":0,"tolerance":0,"alpha_only":true});
+        let result=run("wand_selection",&args).unwrap();
+        assert_eq!(decode(&result,"image").unwrap().to_luma8().as_raw(),&vec![255,255,255,0,0,0]);
+        let mut ordinary=args.clone();ordinary["alpha_only"]=json!(false);
+        let result=run("wand_selection",&ordinary).unwrap();
+        assert_eq!(decode(&result,"image").unwrap().to_luma8().as_raw(),&vec![255,0,0,0,0,0]);
+        let mut empty=args.clone();empty["x"]=json!(3);
+        let result=run("wand_selection",&empty).unwrap();
+        assert_eq!(decode(&result,"image").unwrap().to_luma8().as_raw(),&vec![0;6]);
+    }
+    #[test] fn alpha_selection_threshold_is_explicit_and_validated(){
+        let image=encode(&DynamicImage::ImageRgba8(image::RgbaImage::from_raw(3,1,vec![255,0,0,254,0,255,0,1,0,0,255,127]).unwrap())).unwrap();
+        let args=json!({"image":image,"x":0,"y":0,"tolerance":0,"alpha_only":true,"min_alpha":32,"contiguous":false});
+        let result=run("wand_selection",&args).unwrap();
+        assert_eq!(decode(&result,"image").unwrap().to_luma8().as_raw(),&vec![255,0,255]);
+        for invalid in [0,256]{let mut a=args.clone();a["min_alpha"]=json!(invalid);assert!(run("wand_selection",&a).is_err());}
+    }
     #[test] fn production_alpha_cleanup_preserves_all_visible_and_soft_edge_pixels(){
         let source=image::RgbaImage::from_raw(4,1,vec![30,40,50,255,60,70,80,1,90,100,110,0,120,130,140,255]).unwrap();
         let mask=GrayImage::from_raw(4,1,vec![255,255,255,0]).unwrap();

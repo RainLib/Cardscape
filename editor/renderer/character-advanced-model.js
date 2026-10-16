@@ -1,7 +1,7 @@
-/* Self-owned 2D skinning, two-link IK and additive facial morphs.
+/* Self-owned 2D skinning, ordered multi-link IK and additive facial morphs.
  * Rest vertices and morph deltas are source pixels; IK targets are registered
  * card pixels. Rendering adapters keep the source UVs and painter order. */
-(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.CardCharacterAdvanced=api;})(typeof window==='object'?window:globalThis,()=>{
+(function(root,factory){const api=factory(typeof module==='object'&&module.exports?require('./character-ik-model.js'):root.CardCharacterIK);if(typeof module==='object'&&module.exports)module.exports=api;else root.CardCharacterAdvanced=api;})(typeof window==='object'?window:globalThis,IK=>{
 'use strict';
 const finite=(v,a,b)=>Number.isFinite(v)&&v>=a&&v<=b;
 const validId=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(v)&&!['__proto__','constructor','prototype'].includes(v);
@@ -16,13 +16,7 @@ function validate(doc,compiled){
  const rig=doc.characterRig;if(!rig)return;
  const bones=new Map(rig.bones.map(b=>[b.id,b])),constraints=rig.constraints||[],expressions=rig.expressions||[],meshes=rig.meshes||[];
  if(!Array.isArray(constraints)||constraints.length>16||!Array.isArray(expressions)||expressions.length>32||!Array.isArray(meshes)||meshes.length>32)throw Error('人物高级绑定数量超限');
- const ids=new Set(),driven=new Set(),ancestor=(a,b)=>{for(let p=b;p;p=bones.get(p)?.parentId)if(p===a)return true;return false;};
- for(const c of constraints){
-  if(!fields(c,['id','name','rootId','tipId','end','target','bend','mix'])||!validId(c.id)||ids.has(c.id)||typeof c.name!=='string'||!c.name.trim()||c.name.length>100||!bones.has(c.rootId)||bones.get(c.tipId)?.parentId!==c.rootId||!pair(c.end,-4096,4096)||Math.hypot(...c.end)<.001||!pair(c.target,-4096,4096)||![1,-1].includes(c.bend)||!finite(c.mix,0,1))throw Error('IK 必须是有效的两节父子骨骼链');
-  const tip=bones.get(c.tipId);if(Math.hypot(tip.x,tip.y)<.001||driven.has(c.rootId)||driven.has(c.tipId))throw Error('IK 骨骼不能零长度或被重复驱动');
-  for(const id of [c.rootId,c.tipId])for(const other of driven)if(ancestor(id,other)||ancestor(other,id))throw Error('当前两节 IK 不支持相互包含的骨骼链，请使用独立分支');
-  ids.add(c.id);driven.add(c.rootId);driven.add(c.tipId);
- }
+ IK.validate(rig.bones,constraints);const ids=new Set(constraints.map(c=>c.id));
  const expressionIds=new Set();
  for(const e of expressions){if(!fields(e,['id','name','value'])||!validId(e.id)||expressionIds.has(e.id)||typeof e.name!=='string'||!e.name.trim()||e.name.length>100||!finite(e.value,0,1))throw Error('表情控制器无效');expressionIds.add(e.id);}
  const layers=new Set();let totalVertices=0;
@@ -41,27 +35,6 @@ function validate(doc,compiled){
    for(const values of Object.values(action[field])){if(!fields(values,Object.keys(specs)))throw Error('人物控制轨道无效');for(const [key,frames] of Object.entries(values)){const s=specs[key];if(!Array.isArray(frames)||!frames.length||frames.length>64)throw Error('人物控制关键帧无效');let last=-1;for(const f of frames){if(!fields(f,['at','value','ease'])||!finite(f.at,0,1)||f.at<=last||!finite(f.value,s.min,s.max)||!['linear','smooth','hold'].includes(f.ease||'linear'))throw Error('人物控制关键帧无效');last=f.at;}}}
   }
  }
-}
-
-// Analytic two-link solver. No stretching; unreachable targets clamp to the
-// annulus. Local rotation changes preserve all descendant hierarchy transforms.
-function solve(compiled,action,t,locals,build,sampleTrack){
- const diagnostics=new Map();let world=build();
- for(const c of compiled.constraints||[]){
-  const values=action?.ikTracks?.[c.id]||{},target=[sampleTrack(values.x,t,c.target[0]),sampleTrack(values.y,t,c.target[1])],mix=sampleTrack(values.mix,t,c.mix);
-  const root=world.get(c.rootId),tip=world.get(c.tipId),start=[root[4],root[5]],elbow=[tip[4],tip[5]],end=point(tip,...c.end),l1=Math.hypot(elbow[0]-start[0],elbow[1]-start[1]),l2=Math.hypot(end[0]-elbow[0],end[1]-elbow[1]);
-  if(mix>0&&l1>.000001&&l2>.000001){
-   const dx=target[0]-start[0],dy=target[1]-start[1],distance=Math.hypot(dx,dy),reach=clamp(distance,Math.abs(l1-l2)+.000001,l1+l2-.000001),aim=distance>.000001?Math.atan2(dy,dx):Math.atan2(elbow[1]-start[1],elbow[0]-start[0]);
-   const theta=aim-c.bend*Math.acos(clamp((reach*reach+l1*l1-l2*l2)/(2*reach*l1),-1,1));
-   const wantedRoot=angle(root)+wrap(theta-Math.atan2(elbow[1]-start[1],elbow[0]-start[0]));
-   const desiredElbow=[start[0]+Math.cos(theta)*l1,start[1]+Math.sin(theta)*l1],clampedTarget=[start[0]+Math.cos(aim)*reach,start[1]+Math.sin(aim)*reach];
-   const wantedTip=Math.atan2(clampedTarget[1]-desiredElbow[1],clampedTarget[0]-desiredElbow[0])-Math.atan2(c.end[1],c.end[0]);
-   locals.get(c.rootId).rotation+=wrap(wantedRoot-angle(root))*180/Math.PI*mix;world=build();
-   locals.get(c.tipId).rotation+=wrap(wantedTip-angle(world.get(c.tipId)))*180/Math.PI*mix;world=build();
-  }
-  const actual=point(world.get(c.tipId),...c.end);diagnostics.set(c.id,{target,actual,error:Math.hypot(actual[0]-target[0],actual[1]-target[1]),reachable:Math.hypot(target[0]-start[0],target[1]-start[1])<=l1+l2+.00001&&Math.hypot(target[0]-start[0],target[1]-start[1])>=Math.abs(l1-l2)-.00001,mix});
- }
- return {world,diagnostics};
 }
 
 function expressions(rig,action,t,sampleTrack){return new Map((rig.expressions||[]).map(e=>[e.id,sampleTrack(action?.expressionTracks?.[e.id]?.value,t,e.value)]));}
@@ -101,5 +74,5 @@ function morph(mesh,expressionId,center,radius,delta){
  const deltas=[];for(let i=0;i<mesh.vertices.length/2;i++){const distance=Math.hypot(mesh.vertices[i*2]-center[0],mesh.vertices[i*2+1]-center[1]);if(distance>=radius)continue;const f=(1-distance/radius)**2;deltas.push(i,delta[0]*f,delta[1]*f);}
  const current=mesh.morphs.find(m=>m.expressionId===expressionId);if(current)current.deltas=deltas;else mesh.morphs.push({expressionId,deltas});
 }
-return {validate,solve,expressions,geometry,grid,weights,morph,checksum,ikTracks,expressionTracks};
+return {validate,solve:IK.solve,ik:IK,expressions,geometry,grid,weights,morph,checksum,ikTracks,expressionTracks};
 });

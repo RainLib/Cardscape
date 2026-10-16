@@ -40,7 +40,7 @@ panel.innerHTML=`
 <button id="skin-paint">应用顶点权重</button><p id="skin-weights" class="panel-note"></p>
 </details>
 <details class="fold"><summary>自有 IK · 两节骨骼</summary>
-<p class="panel-note">目标使用卡片注册像素。两节必须是直接父子；不可达目标保持骨长并限于可达范围。</p>
+<p class="panel-note">支持连续的 1–16 节骨链。两节解析保留旧动作，多节 CCD 支持关节限制。目标可使用卡片坐标或独立骨骼的局部偏移；不拉伸骨长。</p>
 <label class="field">约束 <select id="ik-list" aria-label="IK 约束"></select></label>
 <label class="field">名称 <input id="ik-name" maxlength="100" value="瞄准" aria-label="IK 名称"></label>
 <label class="field">起始骨骼 <select id="ik-root" aria-label="IK 起始骨骼"></select></label>
@@ -77,7 +77,7 @@ function refresh(){
  if(!rig?.constraints?.some(c=>c.id===constraintId))constraintId=rig?.constraints?.[0]?.id||'';
  select('ik-list',(rig?.constraints||[]).map(c=>[c.id,c.name]),constraintId);
  const c=rig?.constraints?.find(c=>c.id===constraintId);
- if(c){set('ik-name',c.name);$('ik-root').value=c.rootId;$('ik-tip').value=c.tipId;set('ik-end-x',c.end[0]);set('ik-end-y',c.end[1]);set('ik-x',c.target[0]);set('ik-y',c.target[1]);set('ik-mix',c.mix);set('ik-bend',c.bend);}
+ if(c){set('ik-name',c.name);$('ik-root').value=c.rootId;$('ik-tip').value=c.tipId;set('ik-end-x',c.end[0]);set('ik-end-y',c.end[1]);set('ik-x',c.target[0]);set('ik-y',c.target[1]);set('ik-mix',c.mix);set('ik-bend',c.bend);}window.atelierIKPanel?.refresh(c,s);
  if(!rig?.expressions?.some(e=>e.id===expressionId))expressionId=rig?.expressions?.[0]?.id||'';
  select('expression-list',(rig?.expressions||[]).map(e=>[e.id,e.name]),expressionId);const e=rig?.expressions?.find(e=>e.id===expressionId);if(e){set('expression-name',e.name);set('expression-value',e.value);}
  $('skin-info').textContent=m?`${s.layer.name}：${n} 顶点，${m.triangles.length/3} 三角形，${m.morphs.length} 形变目标 · ${m.topology?.pins.length||0} 关键点 · ${m.topology?.edges.length||0} 约束边`:'当前图片尚无蒙皮网格';
@@ -125,11 +125,11 @@ $('skin-joint-weights').onclick=()=>mutate('调整选区父子关节过渡',d=>{
 
 $('skin-copy-weights').onclick=()=>{const n=weightView.copy();$('character-advanced-status').textContent=`已复制 ${n} 个顶点权重`;refresh();};$('skin-paste-weights').onclick=()=>mutate('粘贴顶点权重',d=>weightView.paste(mesh(d)));$('skin-prune').onclick=()=>mutate('清理小于 1% 的骨骼权重',d=>T.prune(mesh(d),.01,locked,weightView.selection()));
 $('skin-vertex').oninput=()=>{weightView.selectPrimary(Number($('skin-vertex').value));host.setAnimationFeedback(null);};$('skin-show').onchange=()=>host.setAnimationFeedback(null);
-function constraint(){return {name:$('ik-name').value.trim(),rootId:$('ik-root').value,tipId:$('ik-tip').value,end:[number('ik-end-x'),number('ik-end-y')],target:[number('ik-x'),number('ik-y')],bend:number('ik-bend'),mix:number('ik-mix')};}
-$('ik-create').onclick=()=>mutate('添加自有 IK',d=>{constraintId='ik-'+crypto.randomUUID();d.characterRig.constraints||=[];d.characterRig.constraints.push({id:constraintId,...constraint()});});
-$('ik-apply').onclick=()=>mutate('修改自有 IK',d=>Object.assign(d.characterRig.constraints.find(c=>c.id===constraintId),constraint()));
+function constraint(){return {name:$('ik-name').value.trim(),rootId:$('ik-root').value,tipId:$('ik-tip').value,end:[number('ik-end-x'),number('ik-end-y')],target:[number('ik-x'),number('ik-y')],bend:number('ik-bend'),mix:number('ik-mix'),...(window.atelierIKPanel?.read()||{})};}
+$('ik-create').onclick=()=>{const previous=constraintId;const added=mutate('添加自有 IK',d=>{constraintId='ik-'+crypto.randomUUID();d.characterRig.constraints||=[];d.characterRig.constraints.forEach((c,i)=>{if(c.order===undefined)c.order=i;});d.characterRig.constraints.push({id:constraintId,...constraint()});});if(!added){constraintId=previous;window.atelierIKPanel?.invalidate();refresh();}};
+$('ik-apply').onclick=()=>mutate('修改自有 IK',d=>{const i=d.characterRig.constraints.findIndex(c=>c.id===constraintId);if(i<0)throw Error('约束已不存在，请重新选择');d.characterRig.constraints[i]={id:constraintId,...constraint()};});
 $('ik-remove').onclick=()=>mutate('移除自有 IK',d=>{d.characterRig.constraints=d.characterRig.constraints.filter(c=>c.id!==constraintId);for(const a of d.actions)if(a.ikTracks)delete a.ikTracks[constraintId];constraintId='';});
-$('ik-list').onchange=()=>{constraintId=$('ik-list').value;refresh();};$('ik-animate').onclick=()=>window.atelierAnimation.selectBone(constraintId,'ik');
+$('ik-list').onchange=()=>{constraintId=$('ik-list').value;window.atelierIKPanel?.invalidate();$('character-advanced-status').textContent='';refresh();};$('ik-animate').onclick=()=>window.atelierAnimation.selectBone(constraintId,'ik');
 $('expression-create').onclick=()=>mutate('添加表情控制器',d=>{expressionId='expression-'+crypto.randomUUID();d.characterRig.expressions||=[];d.characterRig.expressions.push({id:expressionId,name:$('expression-name').value.trim(),value:number('expression-value')});});
 $('expression-apply').onclick=()=>mutate('修改表情控制器',d=>Object.assign(d.characterRig.expressions.find(e=>e.id===expressionId),{name:$('expression-name').value.trim(),value:number('expression-value')}));
 $('expression-remove').onclick=()=>mutate('移除表情控制器',d=>{d.characterRig.expressions=d.characterRig.expressions.filter(e=>e.id!==expressionId);for(const m of d.characterRig.meshes||[])m.morphs=m.morphs.filter(v=>v.expressionId!==expressionId);for(const a of d.actions)if(a.expressionTracks)delete a.expressionTracks[expressionId];expressionId='';});

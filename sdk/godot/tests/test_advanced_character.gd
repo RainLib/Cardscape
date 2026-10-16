@@ -89,9 +89,12 @@ func run():
 	assert(frame_hashes.size()>10)
 	camera.position=Vector3(0,.52,2.7)
 	camera.fov=8
+	var face_count: int=0
 	for action in ["blink","talk","emotion"]:
+		if not definition.actions.any(func(a):return a.id==action): continue
 		for seconds in [0.0,.5,1.0,1.5,2.0]:
+			face_count+=1
 			var face := await capture(card,{"action":action,"seconds":seconds},[0,0])
 			if not directory.is_empty():face.save_png(directory.path_join("face-%s-%.2f.png"%[action,seconds]))
-	print(JSON.stringify({"status":"passed","rendered_frames":count,"face_frames":15,"meshes":card._native_meshes.size(),"max_vertex_pixel_error":max_vertex_error,"max_ik_error":max_ik_error,"pause_stable":true,"meshes_reused":true,"visual_acceptance":"requires review"}))
+	print(JSON.stringify({"status":"passed","rendered_frames":count,"face_frames":face_count,"meshes":card._native_meshes.size(),"max_vertex_pixel_error":max_vertex_error,"max_ik_error":max_ik_error,"pause_stable":true,"meshes_reused":true,"visual_acceptance":"requires review"}))
 	quit(0)

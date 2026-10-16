@@ -22,8 +22,17 @@ pub fn repair_split(args:&Value)->Result<Value,String>{
 // Reconstruct only selected missing pixels, underneath the existing artwork.
 // Opaque portrait, hands and weapon pixels remain byte-for-byte unchanged.
 pub fn underpaint(args:&Value)->Result<Value,String>{
- let mut image=decode(args,"image")?.to_rgba8();let candidate=decode(args,"candidate")?.to_rgba8();let mask=decode(args,"mask")?.to_luma8();
+ let mut image=decode(args,"image")?.to_rgba8();let mut candidate=decode(args,"candidate")?.to_rgba8();let mask=decode(args,"mask")?.to_luma8();
  let (w,h)=image.dimensions();if candidate.dimensions()!=(w,h)||mask.dimensions()!=(w,h){return Err("underpaint images must share registered dimensions".into());}
+ // Generated hidden support can need registration without resampling the
+ // existing artwork. Transform the candidate only, then fill through the mask.
+ if let Some(reg)=args.get("registration"){
+  let scale=reg["scale"].as_f64().ok_or("invalid support registration scale")?;
+  let x=reg["x"].as_i64().ok_or("invalid support registration x")?;let y=reg["y"].as_i64().ok_or("invalid support registration y")?;
+  if !scale.is_finite()||!(0.125..=2.0).contains(&scale)||x.unsigned_abs()>w as u64||y.unsigned_abs()>h as u64{return Err("support registration out of bounds".into());}
+  let fitted=image::imageops::resize(&candidate,(w as f64*scale).round().max(1.) as u32,(h as f64*scale).round().max(1.) as u32,image::imageops::FilterType::Lanczos3);
+  candidate=image::RgbaImage::new(w,h);image::imageops::overlay(&mut candidate,&fitted,x,y);
+ }
  let preserve_visible=args["preserve_visible"].as_bool().unwrap_or(false);
  let mut added=vec![0u8;(w*h) as usize];
  image.as_mut().par_chunks_mut(4).zip(added.par_iter_mut()).enumerate().for_each(|(i,(p,a))|{
@@ -155,5 +164,13 @@ pub fn title_raster(args:&Value)->Result<Value,String>{
   assert_eq!(restored.get_pixel(2,0).0,[200,180,140,255]);
   assert_eq!(restored.get_pixel(3,0).0,[0,0,0,0]);
   assert_eq!(result["filled_pixels"],1);
+ }
+ #[test]fn support_registration_moves_only_candidate_and_rejects_unbounded_transforms(){
+  let mut source=image::RgbaImage::new(4,4);source.put_pixel(0,0,image::Rgba([10,20,30,1]));
+  let mut candidate=image::RgbaImage::new(4,4);candidate.put_pixel(0,0,image::Rgba([200,180,140,255]));
+  let mut args=json!({"image":encode(&DynamicImage::ImageRgba8(source.clone())).unwrap(),"candidate":encode(&DynamicImage::ImageRgba8(candidate)).unwrap(),"mask":encode(&DynamicImage::ImageLuma8(GrayImage::from_pixel(4,4,image::Luma([255])))).unwrap(),"preserve_visible":true,"registration":{"scale":1.,"x":1,"y":1}});
+  let result=underpaint(&args).unwrap();let out=decode(&result,"image").unwrap().to_rgba8();
+  assert_eq!(out.get_pixel(0,0),source.get_pixel(0,0));assert_eq!(out.get_pixel(1,1).0,[200,180,140,255]);assert_eq!(out.get_pixel(3,3).0,[0,0,0,0]);assert_eq!(result["filled_pixels"],1);
+  args["registration"]["scale"]=json!(3.);assert!(underpaint(&args).is_err());args["registration"]["scale"]=json!(1.);args["registration"]["x"]=json!(i64::MIN);assert!(underpaint(&args).is_err());
  }
 }

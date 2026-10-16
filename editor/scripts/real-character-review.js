@@ -23,18 +23,18 @@
   for(const sample of reference.samples){for(const [yaw,pitch] of sample.angles||reference.angles){
    const frame=capture(sample.action,sample.seconds,yaw,pitch),figure=document.createElement('figure');figure.style.margin='0';
    const img=new Image();img.src=frame.png;img.style.width='100%';const label=document.createElement('figcaption');label.textContent=`${sample.action} ${sample.seconds.toFixed(2)}s ${yaw}/${pitch}`;label.style.fontSize='10px';figure.append(img,label);contact.append(figure);
-   const id=`${sample.action}-${sample.seconds}-${yaw}-${pitch}`;
+   const id=sample.captureId||`${sample.action}-${sample.seconds}-${yaw}-${pitch}`;
    await fetch('/capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,png:frame.png})}).then(r=>{if(!r.ok)throw Error('capture failed');});
   }}
-  const a=capture('trigger',.45,0,0,false).png,b=capture('trigger',.45,0,0,false).png;report.pauseStable=a===b;if(!report.pauseStable)throw Error('paused frame changed');
+  const a=capture(reference.primaryAction||'trigger',reference.primarySeconds??.45,0,0,false).png,b=capture(reference.primaryAction||'trigger',reference.primarySeconds??.45,0,0,false).png;report.pauseStable=a===b;if(!report.pauseStable)throw Error('paused frame changed');
   for(const id of reference.hidden){
    preview.setRenderOverrides({layers:manifest.layers.map(l=>({...l,visible:l.visible&&l.id!==id}))});
-   const frame=capture('trigger',.45,20,12,false);
+   const frame=capture(reference.primaryAction||'trigger',reference.primarySeconds??.45,20,12,false);
    await fetch('/capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'hidden-'+id,png:frame.png})}).then(r=>{if(!r.ok)throw Error('capture failed');});
   }
   preview.setRenderOverrides({layers:manifest.layers});report.hidden=reference.hidden;
   const back=capture('flip',1.2,0,0,false);await fetch('/capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'back',png:back.png})}).then(r=>{if(!r.ok)throw Error('capture failed');});report.flipRendered=true;
-  capture('trigger',.45,0,0,false);
+  capture(reference.primaryAction||'trigger',reference.primarySeconds??.45,0,0,false);
   report.status='rendered-needs-visual-review';out.textContent=`${report.frames.length} 帧已导出；暂停稳定；待人工像素验收`;
   section.dataset.report=JSON.stringify(report);await fetch('/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});
  }catch(e){report.status='failed';document.getElementById('qa-result').textContent=e.message;section.dataset.report=JSON.stringify(report);}};

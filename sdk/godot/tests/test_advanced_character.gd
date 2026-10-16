@@ -82,7 +82,7 @@ func run():
 			if not directory.is_empty():frame.save_png(directory.path_join("%s-%.3f-%d-%d.png"%[sample.action,sample.seconds,angle[0],angle[1]]))
 			count+=1
 	assert(ids==card._surfaces.map(func(s):return s.mesh.get_instance_id()))
-	var paused := await capture(card,{"action":"trigger","seconds":.5},[20,12])
+	var paused := await capture(card,{"action":reference.get("primaryAction","trigger"),"seconds":reference.get("primarySeconds",.5)},[20,12])
 	for i in 6:await process_frame
 	RenderingServer.force_draw(false)
 	assert(paused.get_data()==capture_view.get_texture().get_image().get_data())

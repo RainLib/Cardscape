@@ -229,3 +229,8 @@ body:not([data-inspector-panel="motion"]) .character-tool-rail button[aria-press
 @media(max-width:1250px){.character-tool-header{gap:6px}.character-context-toolbar button{padding:4px 6px}.character-context-toolbar select{max-width:180px}.character-canvas-selection{display:none}#character-bone-slot select{max-width:130px}.character-pose-actions{margin-left:0}}
 body[data-character-domain="none"] #skin-panel,body[data-character-domain="none"] #character-rig-panel{display:none}
 body[data-inspector-panel="motion"]:not([data-character-domain="none"]) #editor-tools [data-tool="move"].active{background:none;border-color:transparent;color:inherit}
+#character-bone-tools{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.character-motion-check-status{margin:5px 0 0;font-size:10px;line-height:1.5;color:#ffd09a}.character-motion-check-status[data-ok="true"]{color:#80d7bf}
+
+/* Help and audit results share a fixed strip: changing status must not move
+   the canvas origin while a bone is being dragged. */
+.character-tool-messages{position:relative;height:32px;flex-shrink:0;margin-top:4px}.character-tool-messages #character-tool-hint,.character-tool-messages .character-motion-check-status{position:absolute;inset:0;height:32px;margin:0;overflow:auto;line-height:1.5}.character-tool-messages:has(.character-motion-check-status:not([hidden])) #character-tool-hint{visibility:hidden}

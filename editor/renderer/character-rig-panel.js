@@ -41,11 +41,11 @@ function updateToolbar(){if(auditKey&&auditKey!==currentAuditKey()){auditKey='';
  for(const id of ['rig-edit-stage','rig-pose-play','rig-pose-timeline','character-mesh-tool','character-weight-tool','rig-canvas-tool','rig-bone','rig-pose-ease','rig-motion-check'])$(id).disabled=s.busy;
  toolbarStatus.textContent=s.layer?.name||'请选择人物图层';toolbarStatus.title='当前网格 / 权重作用图层：'+(s.layer?.name||'');
  const hint=domain==='mesh'?'仅编辑当前图层可见区域；Shift 加选，拖框选点。手工轮廓：Enter 闭合，Esc 取消。':domain==='weights'?'先拖骨骼试姿势，再切回权重刷涂；Alt 点击骨骼切换影响，Shift 加选顶点。':stage==='setup'?'初始绑定：拖圆点调整关节，拖末端方块调整骨段；这会修改绑定结构，可撤销。':stage==='record'?'记录动画：拖圆点移动，拖骨段 / 旋转圈旋转，拖粉色 IK 目标控制手臂；松手写当前帧。':'试姿势：拖圆点移动，拖骨段 / 末端旋转，拖粉色 IK 目标控制手臂；确认后点“记录姿势”。';
- $('character-tool-hint').textContent=(draft?'● 试姿势未记录 · ':'')+hint;
+ $('character-tool-hint').textContent=(draft?'● 试姿势未记录 · ':'')+hint;window.atelierCharacterWorkspace?.syncDomain(domain);
 }
-function activate(next){if(host.state().busy)return;const mode=next==='mesh'?$('character-mesh-tool').value||'mesh-select':$('character-weight-tool').value||'vertex';host.selectTool('move',{character:true});if(document.body.dataset.inspectorPanel!=='motion')window.atelierWorkspace.panel('motion');domain=next;if(next==='mesh')resetPose();if(next==='weights'&&$('rig-edit-stage').value==='setup')$('rig-edit-stage').value='preview';
+function activate(next){if(host.state().busy)return;const mode=next==='mesh'?$('character-mesh-tool').value||'mesh-select':$('character-weight-tool').value||'vertex';host.selectTool('move',{character:true});if(document.body.dataset.inspectorPanel!=='motion')window.atelierWorkspace.panel('motion',false);domain=next;if(next==='mesh')resetPose();if(next==='weights'&&$('rig-edit-stage').value==='setup')$('rig-edit-stage').value='preview';
  if(next==='bones'){window.atelierCharacterAdvanced?.stopBrush();$('rig-canvas-tool').value=$('rig-edit-stage').value==='setup'?'rest':'select';$('skin-posed').checked=$('rig-edit-stage').value!=='setup';}else{$('skin-tool').value=mode;$('skin-tool').onchange();const fold=$('character-advanced-panel').querySelector('details');fold.open=true;}
- updateToolbar();host.refreshPreview();host.redraw();}
+ window.atelierCharacterWorkspace?.showDomain(next);updateToolbar();host.refreshPreview();host.redraw();}
 $('rig-edit-stage').onchange=()=>{resetPose();panel.open=$('rig-edit-stage').value==='setup';if($('rig-edit-stage').value==='setup'){$('rig-canvas-tool').value='rest';activate('bones');}else if(domain==='bones'){window.atelierCharacterAdvanced?.stopBrush();$('rig-canvas-tool').value='select';$('skin-posed').checked=true;host.redraw();}updateToolbar();};
 $('character-mesh-tool').onchange=()=>activate('mesh');$('character-weight-tool').onchange=()=>activate('weights');
 $('rig-pose-record').onclick=recordPose;$('rig-pose-reset').onclick=()=>resetPose();$('rig-pose-play').onclick=()=>{resetPose(false);window.atelierAnimation.play();};$('rig-pose-timeline').onclick=()=>window.atelierAnimation.isOpen()?window.atelierAnimation.close():window.atelierAnimation.open();
@@ -61,7 +61,7 @@ function refresh(){const state=host.state(),doc=state.document;if(!doc)return;co
  for(const id of ['rig-length','rig-direction','rig-apply-tip','rig-name','rig-parent','rig-x','rig-y','rig-rotation','rig-scale','rig-apply','rig-remove','rig-add-child','rig-animate','rig-export'])$(id).disabled=state.busy||!b;
  for(const id of ['rig-add-root','rig-import'])$(id).disabled=state.busy;
  const layer=state.layer,binding=doc.characterRig?.bindings.find(v=>v.layerId===layer?.id),bound=bones.find(v=>v.id===binding?.boneId);$('rig-binding').textContent=layer?layer.name+' → '+(bound?.name||'未独立绑定'):'请先选择人物图层';
- $('rig-bind').disabled=state.busy||!b||!layer||layer.locked||!['foreground','image'].includes(layer.kind)||layer.previewReference;$('rig-unbind').disabled=state.busy||!binding||layer?.locked;
+ $('rig-bind').disabled=state.busy||!b||!layer||layer.locked||!['foreground','image'].includes(layer.kind)||layer.previewReference;$('rig-unbind').disabled=state.busy||!binding||layer?.locked;window.atelierCharacterWorkspace?.refresh();
 }
 function mutate(label,fn){try{if(host.mutate(label,d=>{d.previewMode='authored';fn(d);})){refresh();window.cardPreview.stopAction();host.refreshPreview();status(label+' · 可撤销');}}catch(e){status(e.message);}}
 function add(parentId){const state=host.state(),l=state.layer,p=window.CardRuntime.placement(state.document,l),pivot=l?.pivot||{u:.5,v:.5},position=R.point(R.matrix(512+p.x,768+p.y,p.rotation*180/Math.PI,p.scale),(pivot.u-.5)*1024,(pivot.v-.5)*1536),id='bone-'+crypto.randomUUID();mutate(parentId?'新建子关节':'新建人物根关节',d=>{R.addBone(d,{id,name:parentId?(l?.name||'子关节'):'人物根节点',parentId,x:position.x,y:position.y});selected=id;});}

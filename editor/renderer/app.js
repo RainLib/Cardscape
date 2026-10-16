@@ -76,7 +76,11 @@ async function loadDocument(document,resetHistory=true){
   const prepared=new Map();const requests=[];
   await Promise.all([...(document.fonts||[]).map(registerFont),window.CardStats.loadThemes(document,imageFrom),window.CardFrameArtwork.loadDocument(document,imageFrom)]);
   for(const layer of document.layers){for(const v of layer.titleArt?.variants||[])if(v.src)requests.push(['title:'+v.src,v.src]);if(layer.src)requests.push(['layer:'+layer.id,layer.src]);if(layer.master)requests.push(['master:'+layer.id,layer.master]);}
-  requests.push(['back',document.back]);
+  // Back art is optional in portable projects (and may live in a back scene).
+  // Decode a neutral fallback instead of requesting the URL "undefined".
+  let backSource=document.back||document.backScene?.src;
+  if(!backSource){const blank=canvasFor();const cc=blank.getContext('2d');cc.fillStyle='#1c2934';cc.fillRect(0,0,1024,1536);backSource=blank.toDataURL('image/png');}
+  requests.push(['back',backSource]);
   for(const id of Object.keys(maskNames)){if(id==='foil'&&!document.masks[id]){const blank=canvasFor();blank.getContext('2d').fillRect(0,0,1024,1536);document.masks.foil=blank.toDataURL('image/png');}if(!document.masks[id])throw Error('工程缺少 '+maskNames[id]+' Mask');requests.push(['mask:'+id,document.masks[id]]);}
   let completed=0;await Promise.all(requests.map(async([id,src])=>{const im=await imageFrom(src);if(im.naturalWidth>8192||im.naturalHeight>8192||im.naturalWidth*im.naturalHeight>16*1024*1024)throw Error('图像超过 16 MP / 8192 px 上限');if(id.startsWith('mask:')&&(im.naturalWidth!==1024||im.naturalHeight!==1536))throw Error('Mask 与母版尺寸不一致');prepared.set(id,im);window.atelierHome.progress('解码素材 '+(++completed)+' / '+requests.length,25+completed/requests.length*35);}));
   window.atelierHome.progress('编译效果与建立连续网格…',65);await window.atelierHome.paint();
@@ -91,7 +95,7 @@ async function loadDocument(document,resetHistory=true){
   textCache.clear();
   window.cardPreview.setDocument(doc);
   for(const layer of doc.layers)if(layer.src){const im=prepared.get('layer:'+layer.id);images.set(layer.id,im);if(!layer.src.startsWith('data:'))layer.src=pngFromImage(im);if(layer.master&&!layer.master.startsWith('data:'))layer.master=pngFromImage(prepared.get('master:'+layer.id));}
-  const back=prepared.get('back');doc.back=document.back.startsWith('data:')?document.back:pngFromImage(back);
+  const back=prepared.get('back');doc.back=backSource.startsWith('data:')?backSource:pngFromImage(back);
   let maskCount=0;for(const id of Object.keys(maskNames)){window.atelierHome.progress('恢复 '+maskNames[id]+' Mask',70+(++maskCount)/Object.keys(maskNames).length*20);await window.atelierHome.paint();await registerMask(id,prepared.get('mask:'+id));doc.masks[id]=masks.get(id).canvas.toDataURL('image/png');}
   window.cardPreview.setTexture('art_back',back);images.set('space-back',back);
   syncTextures();

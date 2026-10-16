@@ -639,3 +639,7 @@ AI 回复直接显示正文，用户描述只保留蓝色轮廓。长正文完�
 ### Material Maker 原生节点联动（0.19.55）
 
 选中图层，在 Shader 面板点击 **Material Maker**。使用完整原生编辑器制作、预览节点和函数，保存后同步动态 GLSL、效果图片或灰度 Mask，确认后应用，可撤销。安装、恢复、Godot 导出与支持边界见 [联动说明](docs/material-maker-integration-v55.md)。
+
+### 自有人物动画 · 第一期
+
+新增人物关节层级、图片绑定和关节关键帧，通过现有 WebGL／Godot 表面变换播放；支持原生动画 JSON 交换及格式适配接口。制作、契约、验证方式和当前边界见 [自有人物动画](docs/native-character-animation.md)。Spine 导入、蒙皮、IK 和复杂表情尚未实现。

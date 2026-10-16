@@ -20,6 +20,16 @@ function harness(){
  return {context,preview,doc,canvas,events,componentTimes,node,frames,advance};
 }
 
+test('native character idle runs without unrelated effects and freezes the same pose after multiple loops',()=>{
+ const h=harness(),doc=require('./fixtures/character-animation.cjs').fixture();
+ doc.effects.paused=false;h.preview.setDocument(doc);h.preview.stopAction();
+ h.advance(100);const first=h.canvas.dataset.characterPose;h.advance(100);assert.notEqual(h.canvas.dataset.characterPose,first);
+ h.preview.playAction('idle',9.2,false);const before=h.canvas.dataset.characterPose;
+ h.preview.setPaused(true);assert.equal(h.canvas.dataset.characterPose,before);h.advance(100);assert.equal(h.canvas.dataset.characterPose,before);
+ h.preview.setPaused(false);h.advance(100);assert.notEqual(h.canvas.dataset.characterPose,before);
+ h.preview.playAction('idle',4,true);const endpoint=JSON.parse(h.canvas.dataset.characterPose).find(b=>b.id==='elbow');assert.ok(Math.abs(endpoint.matrix[1])<1e-10);
+});
+
 test('changing neon aperture coverage updates only its aura; color and clock changes retain every frame mesh',()=>{
  const h=harness(),F=require('../renderer/frame-model.js');
  h.doc.componentScenes={};h.doc.frameStyle={...F.defaults,width:42,finish:'metal'};h.preview.setDocument(h.doc);h.advance(40);

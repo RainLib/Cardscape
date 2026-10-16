@@ -149,3 +149,5 @@ node editor/scripts/test-godot.cjs --project EXPORTED_GODOT_DIR --script tests/t
 `particles.reveal.profile` 可选 `burst`（旧统一扩散）或 `trails`（快慢两组霓虹射线），`stagger` 限制为 0–0.8，`travel` 限制为 0–3 卡宽。缺省为 burst/0，保留旧工程行为；揭示仍复用固定 MultiMesh 与整体粒子预算。显式 `inspect()` / `flip_to_back()` 会立即同步发射面显隐，暂停特效时也生效。
 
 导出工程后执行 `node editor/scripts/test-godot.cjs --project EXPORTED_GODOT_DIR --script tests/test_particle_reveal.gd --output GPU_LOG_FILE --captures CAPTURE_DIRECTORY`，检查跨渲染采样、错峰边界、暂停与翻面。路径必须替换成实际位置。此项验证不代表与游戏相同场景的逐帧视觉验收。
+
+自有人物动画：`characterRig` 与 `actions[].boneTracks` 随卡片导出。自有采样器 `character_animation.gd` 支持父子关节、初始姿势补偿、部件位移／旋转／统一缩放／透明度；沿用 `play_action`、`seek_action` 和 `pause_action`。运行时图层覆盖保留为动画前的基础变换。网格蒙皮、IK、非均匀缩放和 Spine 文件加载尚未实现。使用 `tests/test_character_animation.gd` 对照由编辑器验证脚本生成的 JS 参考姿势与真实 GPU 画面。

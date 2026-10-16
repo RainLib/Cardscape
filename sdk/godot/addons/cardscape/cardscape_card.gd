@@ -1,6 +1,7 @@
 @tool
 class_name CardscapeCard
 extends Node3D
+const CharacterAnimation = preload("res://addons/cardscape/character_animation.gd")
 ## Game owns placement/state; each instance owns its materials and overrides.
 signal action_finished(id: String)
 @export var library: CardscapeLibrary:
@@ -35,6 +36,7 @@ var _queued: bool = false
 var _visual: Node3D
 var _surfaces: Array[MeshInstance3D] = []
 var _definition: Dictionary = {}
+var _character_compiled: Dictionary = {}
 var _attachment_masks: Dictionary = {}
 var _clock: float = 0.0
 var _particle_reveal_started: float = 0.0
@@ -86,6 +88,8 @@ func set_layer_transform(id: String, offset: Vector2, layer_scale: float = 1.0, 
 	for surface in _surfaces:
 		if surface.get_meta("layer_id", "") != id:
 			continue
+		if surface.has_meta("character_base"):
+			surface.transform=surface.get_meta("character_base")
 		if is_finite(z):
 			surface.position.z = z
 			surface.set_meta("depth_override",true)
@@ -94,11 +98,14 @@ func set_layer_transform(id: String, offset: Vector2, layer_scale: float = 1.0, 
 		surface.position.x = offset.x / 1024.0 * registration
 		surface.position.y = -offset.y / 1024.0 * registration
 		surface.scale = Vector3(layer_scale*registration, layer_scale*registration, 1.0)
+		surface.set_meta("character_base",surface.transform)
 		found = true
+	_update(0.0)
 	return found
 
 func set_effect_parameter(name: String, value: Variant) -> void:
 	for surface in _surfaces:
+		if name=="opacity":surface.set_meta("character_opacity",float(value))
 		(surface.material_override as ShaderMaterial).set_shader_parameter(name, value)
 
 func set_custom_shader(shader: Shader, layer_id: String = "") -> void:
@@ -134,7 +141,10 @@ func seek_action(seconds: float, paused: bool = true) -> void:
 	_update(0.0)
 
 func pause_action(paused: bool = true) -> void:
+	if paused and not _paused and _action.get("loop",false):
+		_action_time=fmod(_action_time,float(_action.duration))
 	_paused = paused
+	_update(0.0)
 
 func seek_effects(seconds: float) -> void:
 	_clock = maxf(0.0, seconds)
@@ -224,6 +234,7 @@ func rebuild() -> void:
 		return
 	_attachment_masks.clear()
 	_definition = _resolve_definition()
+	_character_compiled = CharacterAnimation.compile(_definition.get("characterRig",{}))
 	if _definition.is_empty():
 		push_warning("Cardscape: unknown card " + card_id)
 		return
@@ -545,6 +556,7 @@ func _surface(layer: Dictionary, mesh: Mesh, z: float, priority: int, pass_id: f
 	node.position.y*=registration
 	node.set_meta("registered",registered)
 	node.set_meta("registration",registration)
+	node.set_meta("character_base",node.transform)
 	node.set_meta("depth_override",registered)
 	_visual.add_child(node)
 	var mat := ShaderMaterial.new()
@@ -580,6 +592,7 @@ func _surface(layer: Dictionary, mesh: Mesh, z: float, priority: int, pass_id: f
 		if slot.id==layer.get("slotId",""):
 			mat.set_shader_parameter("clipped",slot.clip)
 			mat.set_shader_parameter("slot_effect",Vector3(1 if slot.effect=="pulse" else 2 if slot.effect=="flow" else 0,float(slot.strength),float(slot.speed)))
+	node.set_meta("character_opacity",float(layer.get("opacity",1)))
 	mat.set_shader_parameter("opacity",float(layer.get("opacity",1)))
 	var shader: Dictionary = _definition.shader
 	mat.set_shader_parameter("custom_effect",not layer.get("reverse",false) and shader.fragmentTarget in ["all",layer.id,layer.kind])
@@ -639,7 +652,7 @@ func _update(_delta: float) -> void:
 	var extra_bend := 0.0
 	if not _action.is_empty():
 		var duration := float(_action.duration)
-		progress = fmod(_action_time,duration)/duration if _action.loop else minf(1.0,_action_time/duration)
+		progress = fmod(_action_time,duration)/duration if _action.loop and not _paused else minf(1.0,_action_time/duration)
 		var tracks: Dictionary = _action.get("tracks",{})
 		var envelope := 1.0 if _action.loop else sin(progress*PI)
 		_visual.position = Vector3(_sample(tracks.get("x",[]),progress,0)/1024.0,-_sample(tracks.get("y",[]),progress,0)/1024.0,_sample(tracks.get("z",[]),progress,0))
@@ -652,6 +665,19 @@ func _update(_delta: float) -> void:
 		if not _action.loop and progress >= 1 and not _paused:
 			_paused = true
 			action_finished.emit(str(_action.id))
+	var character_action := _action
+	var character_progress := progress
+	if character_action.is_empty():
+		var candidates: Array=_definition.get("actions",[])
+		var idle: Array=candidates.filter(func(a):return a.id=="idle")
+		if idle.is_empty():idle=candidates.filter(func(a):return a.event=="idle")
+		if not idle.is_empty():
+			character_action=idle[0]
+			character_progress=fmod(_clock,float(character_action.duration))/float(character_action.duration) if character_action.loop else minf(1.0,_clock/float(character_action.duration))
+	var character_pose: Dictionary = CharacterAnimation.sample(_character_compiled,character_action,character_progress,_definition.layers) if effects_playing and _definition.get("cosmeticPreview",{}).get("motion",true) else {}
+	for surface in _surfaces:
+		if surface.has_meta("character_base"):
+			surface.transform=CharacterAnimation.apply(surface.get_meta("character_base"),float(surface.get_meta("registration",1.0)),character_pose.get(surface.get_meta("layer_id",""),{}))
 	var camera := get_viewport().get_camera_3d()
 	var eye := _visual.global_transform.affine_inverse() * camera.global_position if camera else Vector3(0,0,2.7)
 	var front := eye.z > .03
@@ -678,6 +704,9 @@ func _update(_delta: float) -> void:
 		var mat := surface.material_override as ShaderMaterial
 		if float(mat.get_shader_parameter("foreground_pass")) > 0 and not surface.get_meta("depth_override",false):
 			surface.position.z = .045 + .045 * depth_strength
+		if character_pose.has(surface.get_meta("layer_id","")) or surface.get_meta("character_animated_opacity",false):
+			mat.set_shader_parameter("opacity",float(surface.get_meta("character_opacity"))*float(character_pose.get(surface.get_meta("layer_id",""),{}).get("opacity",1)))
+			surface.set_meta("character_animated_opacity",character_pose.has(surface.get_meta("layer_id","")))
 		mat.set_shader_parameter("layer_transform",surface.transform)
 		if surface.has_meta("attachment_parent"):
 			for parent in _surfaces:

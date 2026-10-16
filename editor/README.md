@@ -640,6 +640,6 @@ AI 回复直接显示正文，用户描述只保留蓝色轮廓。长正文完�
 
 选中图层，在 Shader 面板点击 **Material Maker**。使用完整原生编辑器制作、预览节点和函数，保存后同步动态 GLSL、效果图片或灰度 Mask，确认后应用，可撤销。安装、恢复、Godot 导出与支持边界见 [联动说明](docs/material-maker-integration-v55.md)。
 
-### 自有人物动画 · 第一期
+### 自有人物动画
 
-新增人物关节层级、图片绑定和关节关键帧，通过现有 WebGL／Godot 表面变换播放；支持原生动画 JSON 交换及格式适配接口。制作、契约、验证方式和当前边界见 [自有人物动画](docs/native-character-animation.md)。Spine 导入、蒙皮、IK 和复杂表情尚未实现。
+提供人物关节层级、实心骨架与画布拖动、图片绑定、4 权重网格蒙皮、两节 IK 和叠加表情形变；权重支持热力图、刷涂、锁定、距离初绑与相邻平滑。WebGL／Godot 使用自有运行时，原生动画 JSON 包含绑定与高级轨道。制作、真实卡验证与边界见 [自有人物动画](docs/native-character-animation.md)。Spine 导入保留适配入口，文件转换尚未实现。

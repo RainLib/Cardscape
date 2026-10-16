@@ -1,5 +1,6 @@
 extends RefCounted
 ## Native registered-pixel rigid-part sampler; matches character-animation-model.js.
+const Deformation=preload("res://addons/cardscape/character_deformation.gd")
 
 static func _matrix(x: float, y: float, angle: float, size: float) -> Transform2D:
 	var r := deg_to_rad(angle)
@@ -23,7 +24,7 @@ static func compile(rig: Dictionary) -> Dictionary:
 		if not moved:
 			push_error("Cardscape: invalid character bone hierarchy")
 			return {}
-	return {"order":order,"rest":rest,"bindings":rig.get("bindings",[])}
+	return {"order":order,"rest":rest,"bindings":rig.get("bindings",[]),"constraints":rig.get("constraints",[]),"expressions":rig.get("expressions",[]),"meshes":rig.get("meshes",[])}
 
 static func _sample(frames: Array, progress: float, fallback: float) -> float:
 	if frames.is_empty():return fallback
@@ -39,24 +40,52 @@ static func _sample(frames: Array, progress: float, fallback: float) -> float:
 	return float(frames[-1].value)
 
 static func sample(compiled: Dictionary, action: Dictionary, progress: float, layers: Array) -> Dictionary:
-	if compiled.is_empty():return {}
+	return pose(compiled,action,progress,layers).get("layers",{})
+
+static func rest(compiled: Dictionary, layers: Array) -> Dictionary:
+	var bones: Dictionary={}
+	var result: Dictionary={}
+	for b in compiled.get("order",[]):bones[b.id]={"matrix":Transform2D.IDENTITY,"opacity":1.0}
+	for binding in compiled.get("bindings",[]):result[binding.layerId]=bones[binding.boneId]
+	for l in layers:
+		if not result.has(l.id) and result.has(l.get("splitSourceId","")):result[l.id]=result[l.splitSourceId]
+	var expressions: Dictionary={}
+	for e in compiled.get("expressions",[]):expressions[e.id]=0.0
+	return {"bones":bones,"layers":result,"expressions":expressions,"ik":{}}
+
+static func _world(order: Array, locals: Dictionary) -> Dictionary:
 	var world: Dictionary = {}
+	for b in order:
+		var parent: String = str(b.parentId) if b.get("parentId") != null else ""
+		var v: Dictionary=locals[b.id]
+		var base: Transform2D=world.get(parent,Transform2D.IDENTITY)
+		world[b.id]=base*_matrix(float(b.x)+v.x,float(b.y)+v.y,float(b.rotation)+v.rotation,float(b.scale)*v.scale)
+	return world
+
+static func pose(compiled: Dictionary, action: Dictionary, progress: float, layers: Array) -> Dictionary:
+	if compiled.is_empty():return {"layers":{},"bones":{},"expressions":{},"ik":{}}
+	var locals: Dictionary={}
+	for b in compiled.order:
+		var track: Dictionary=action.get("boneTracks",{}).get(b.id,{})
+		locals[b.id]={"x":_sample(track.get("x",[]),progress,0),"y":_sample(track.get("y",[]),progress,0),"rotation":_sample(track.get("rotation",[]),progress,0),"scale":_sample(track.get("scale",[]),progress,1),"opacity":_sample(track.get("opacity",[]),progress,1)}
+	var solved := Deformation.solve(compiled,action,progress,locals,func():return _world(compiled.order,locals),_sample)
+	var world: Dictionary=solved.world
 	var bones: Dictionary = {}
 	var result: Dictionary = {}
 	for b in compiled.order:
 		var parent: String = str(b.parentId) if b.get("parentId") != null else ""
-		var track: Dictionary = action.get("boneTracks",{}).get(b.id,{})
-		var base: Transform2D = world.get(parent,Transform2D.IDENTITY)
-		var posed := base * _matrix(float(b.x)+_sample(track.get("x",[]),progress,0),float(b.y)+_sample(track.get("y",[]),progress,0),float(b.rotation)+_sample(track.get("rotation",[]),progress,0),float(b.scale)*_sample(track.get("scale",[]),progress,1))
+		var posed: Transform2D=world[b.id]
 		var initial: Transform2D = compiled.rest[b.id]
 		var delta := posed * initial.affine_inverse()
 		world[b.id] = posed
-		bones[b.id] = {"matrix":delta,"opacity":_sample(track.get("opacity",[]),progress,1)*float(bones.get(parent,{}).get("opacity",1))}
+		bones[b.id] = {"matrix":delta,"opacity":float(locals[b.id].opacity)*float(bones.get(parent,{}).get("opacity",1))}
 	for binding in compiled.bindings:
 		result[binding.layerId] = bones[binding.boneId]
 	for l in layers:
 		if not result.has(l.id) and result.has(l.get("splitSourceId","")):result[l.id]=result[l.splitSourceId]
-	return result
+	var expressions: Dictionary={}
+	for e in compiled.expressions:expressions[e.id]=_sample(action.get("expressionTracks",{}).get(e.id,{}).get("value",[]),progress,float(e.value))
+	return {"layers":result,"bones":bones,"expressions":expressions,"ik":solved.diagnostics}
 
 static func apply(base: Transform3D, registration: float, pose: Dictionary) -> Transform3D:
 	if pose.is_empty():return base

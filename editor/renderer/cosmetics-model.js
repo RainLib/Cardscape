@@ -58,7 +58,9 @@ function dynamic(d,front=true){
  if(!d)return false;const c=d.cosmeticPreview||{},m=C.material(d.material),p=C.particles(d.particles),f=F.resolve(d),ls=(d.layers||[]).filter(l=>l.visible!==false);
  if(p.enabled&&C.resolveEmitter(p,d).ok)return true;
  if(front||d.assetKind==='back'){
-  const idle=(d.actions||[]).find(a=>a.id==='idle')||(d.actions||[]).find(a=>a.event==='idle');if(c.motion!==false&&d.characterRig?.bindings?.length&&Object.values(idle?.boneTracks||{}).some(values=>Object.values(values).some(frames=>frames.length>1&&frames.some(f=>f.value!==frames[0].value))))return true;
+  const idle=(d.actions||[]).find(a=>a.id==='idle')||(d.actions||[]).find(a=>a.event==='idle');
+  const animated=['boneTracks','ikTracks','expressionTracks'].some(field=>Object.values(idle?.[field]||{}).some(values=>Object.values(values).some(frames=>frames.length>1&&frames.some(f=>f.value!==frames[0].value))));
+  if(c.motion!==false&&(d.characterRig?.bindings?.length||d.characterRig?.meshes?.length)&&animated)return true;
   if(ls.some(l=>l.kind==='frame')&&(f.animation!=='none'||['cosmic','fire','fire-iridescent','ice','glyphs','refraction','neonnights','orbit-silver','twin-aurora','pax','brains','halloween-stickers'].includes(f.finish))&&f.animationSpeed>0)return true;
   if(m.enabled&&(m.target!=='back'||d.assetKind==='back')&&m.style!=='ink'&&m.speed>0)return true;
   if(c.motion!==false&&(d.effects?.cape&&d.deformation?.wind>0||d.effects?.flow&&ls.some(l=>l.kind==='foreground')||d.armor?.enabled&&d.armor.strength>0||d.shader?.fragmentStrength>0&&d.shader.fragmentBody!=='return color;'||(d.slots||[]).some(s=>s.effect!=='none'&&s.strength>0&&s.speed>0)))return true;

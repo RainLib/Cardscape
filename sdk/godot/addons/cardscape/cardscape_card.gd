@@ -37,6 +37,7 @@ var _visual: Node3D
 var _surfaces: Array[MeshInstance3D] = []
 var _definition: Dictionary = {}
 var _character_compiled: Dictionary = {}
+var _native_meshes: Dictionary = {}
 var _attachment_masks: Dictionary = {}
 var _clock: float = 0.0
 var _particle_reveal_started: float = 0.0
@@ -233,6 +234,7 @@ func rebuild() -> void:
 	if not library:
 		return
 	_attachment_masks.clear()
+	_native_meshes.clear()
 	_definition = _resolve_definition()
 	_character_compiled = CharacterAnimation.compile(_definition.get("characterRig",{}))
 	if _definition.is_empty():
@@ -282,6 +284,12 @@ func rebuild() -> void:
 					var limit := float(layer.get("attachment",{}).get("maxOffset",.025))
 					z=parent_z+clampf(z-parent_z,-limit,limit)
 		var shared_mesh: Mesh = rigid_character_mesh if fg and _rigid_part(layer) else _mesh(geometry,true,layer) if fg and not _rigid_part(layer) and layer.get("attachment",{}).has("motion") else character_mesh if fg else _mesh(geometry, false)
+		for skin in (_character_compiled.meshes if _definition.get("cosmeticPreview",{}).get("motion",true) else []):
+			if skin.layerId!=layer.id:continue
+			var points: Array=[]
+			for i in range(skin.vertices.size()/2):points.append_array([float(skin.vertices[i*2])/1024.0-.5,.75-float(skin.vertices[i*2+1])/1024.0,float(skin.get("depths",[])[i]) if skin.has("depths") else 0.0])
+			shared_mesh=_mesh({"positions":points,"uv":skin.uv,"indices":skin.triangles},false,{},true)
+			_native_meshes[layer.id]={"mesh":shared_mesh,"spec":skin,"rest":shared_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]}
 		if fg:
 			_surface(layer, shared_mesh, z, -60+order*2, 1.0, bg)
 			_surface(layer, shared_mesh, z, -60+order*2, 2.0, bg)
@@ -366,7 +374,7 @@ func _embed_component(kind: String, document: Dictionary, offset: Vector3) -> vo
 func _quad() -> Dictionary:
 	return {"positions":[-.5,.75,0,.5,.75,0,-.5,-.75,0,.5,-.75,0],"uv":[0,0,1,0,0,1,1,1],"indices":[0,2,1,1,2,3]}
 
-func _mesh(data: Dictionary, foreground: bool = false, cloth: Dictionary = {}) -> ArrayMesh:
+func _mesh(data: Dictionary, foreground: bool = false, cloth: Dictionary = {}, dynamic: bool=false) -> ArrayMesh:
 	var positions := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var colors := PackedColorArray()
@@ -434,7 +442,7 @@ func _mesh(data: Dictionary, foreground: bool = false, cloth: Dictionary = {}) -
 	arrays[Mesh.ARRAY_COLOR] = colors
 	arrays[Mesh.ARRAY_INDEX] = PackedInt32Array(data.indices)
 	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays,[],{},Mesh.ARRAY_FLAG_USE_DYNAMIC_UPDATE if dynamic else 0)
 	return mesh
 
 func _attachment_mask(layer: Dictionary) -> Texture2D:
@@ -578,14 +586,14 @@ func _surface(layer: Dictionary, mesh: Mesh, z: float, priority: int, pass_id: f
 	mat.set_shader_parameter("art",_texture(asset))
 	mat.set_shader_parameter("surfaceChannel",float(clampi(int(layer.get("shaderChannel",0)),0,255)))
 	mat.set_shader_parameter("surfaceTransparent",bool(layer.get("shaderTransparent",false)))
-	if layer.has("splitSourceId") and registered and not _rigid_part(layer):
+	if layer.has("splitSourceId") and registered and not _rigid_part(layer) and not _native_meshes.has(layer.id):
 		var join_texture := _attachment_mask(layer)
 		if join_texture:
 			node.set_meta("attachment_parent",str(layer.splitSourceId))
 			mat.set_shader_parameter("attached",true)
 			mat.set_shader_parameter("attachment_tex",join_texture)
 	mat.set_shader_parameter("foreground_pass",pass_id)
-	mat.set_shader_parameter("rigid_part",_rigid_part(layer))
+	mat.set_shader_parameter("rigid_part",_rigid_part(layer) or _native_meshes.has(layer.id))
 	mat.set_shader_parameter("background",bg)
 	mat.set_shader_parameter("clipped",bool(layer.get("spatial",{}).get("clip",false)))
 	for slot in _definition.get("slots",[]):
@@ -674,10 +682,25 @@ func _update(_delta: float) -> void:
 		if not idle.is_empty():
 			character_action=idle[0]
 			character_progress=fmod(_clock,float(character_action.duration))/float(character_action.duration) if character_action.loop else minf(1.0,_clock/float(character_action.duration))
-	var character_pose: Dictionary = CharacterAnimation.sample(_character_compiled,character_action,character_progress,_definition.layers) if effects_playing and _definition.get("cosmeticPreview",{}).get("motion",true) else {}
+	var pose: Dictionary = CharacterAnimation.pose(_character_compiled,character_action,character_progress,_definition.layers) if effects_playing else CharacterAnimation.rest(_character_compiled,_definition.layers)
+	var character_pose: Dictionary = pose.layers if effects_playing and _definition.get("cosmeticPreview",{}).get("motion",true) else {}
+	var skin_pose_key := [effects_playing,character_action.hash(),character_progress,_camera_distance()]
+	var updated: Dictionary={}
 	for surface in _surfaces:
 		if surface.has_meta("character_base"):
-			surface.transform=CharacterAnimation.apply(surface.get_meta("character_base"),float(surface.get_meta("registration",1.0)),character_pose.get(surface.get_meta("layer_id",""),{}))
+			var id: String=surface.get_meta("layer_id","")
+			if _native_meshes.has(id):
+				surface.transform=surface.get_meta("character_base")
+				if not updated.has(id):
+					var skin: Dictionary=_native_meshes[id]
+					if skin.get("pose_key",[])!=skin_pose_key:
+						var points: PackedVector3Array=CharacterAnimation.Deformation.geometry(skin.spec,pose,surface.transform,float(surface.get_meta("registration",1.0)),_camera_distance())
+						(skin.mesh as ArrayMesh).surface_update_vertex_region(0,0,points.to_byte_array())
+						skin["last_positions"]=points
+						skin["pose_key"]=skin_pose_key.duplicate()
+						(skin.mesh as ArrayMesh).custom_aabb=AABB(Vector3(-8,-8,-1),Vector3(16,16,2))
+					updated[id]=true
+			else:surface.transform=CharacterAnimation.apply(surface.get_meta("character_base"),float(surface.get_meta("registration",1.0)),character_pose.get(id,{}))
 	var camera := get_viewport().get_camera_3d()
 	var eye := _visual.global_transform.affine_inverse() * camera.global_position if camera else Vector3(0,0,2.7)
 	var front := eye.z > .03

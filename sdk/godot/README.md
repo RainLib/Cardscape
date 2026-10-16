@@ -150,4 +150,4 @@ node editor/scripts/test-godot.cjs --project EXPORTED_GODOT_DIR --script tests/t
 
 导出工程后执行 `node editor/scripts/test-godot.cjs --project EXPORTED_GODOT_DIR --script tests/test_particle_reveal.gd --output GPU_LOG_FILE --captures CAPTURE_DIRECTORY`，检查跨渲染采样、错峰边界、暂停与翻面。路径必须替换成实际位置。此项验证不代表与游戏相同场景的逐帧视觉验收。
 
-自有人物动画：`characterRig` 与 `actions[].boneTracks` 随卡片导出。自有采样器 `character_animation.gd` 支持父子关节、初始姿势补偿、部件位移／旋转／统一缩放／透明度；沿用 `play_action`、`seek_action` 和 `pause_action`。运行时图层覆盖保留为动画前的基础变换。网格蒙皮、IK、非均匀缩放和 Spine 文件加载尚未实现。使用 `tests/test_character_animation.gd` 对照由编辑器验证脚本生成的 JS 参考姿势与真实 GPU 画面。
+自有人物动画：`characterRig` 与 `actions[].boneTracks` 随卡片导出。自有采样器 `character_animation.gd` 支持父子关节、初始姿势补偿、部件位移／旋转／统一缩放／透明度；沿用 `play_action`、`seek_action` 和 `pause_action`。运行时图层覆盖保留为动画前的基础变换。同时支持原生 `meshes / constraints / expressions`：自有 4 权重 LBS、保持骨长的两节 IK、蒙皮前叠加形变，以及 `ikTracks / expressionTracks`。内外绘制共享动态网格，暂停复用位置缓冲，UV 与 Mask 保持注册；高级网格跳过旧衣料风动，使用骨骼与形变控制。`tests/test_character_animation.gd` 验证刚性兼容，`tests/test_advanced_character.gd` 使用编辑器生成的参考逐顶点对照并采集真实 GPU 画面。非均匀缩放、复杂多链约束和 Spine 文件加载尚未实现。完整契约见 [人物动画文档](../../editor/docs/native-character-animation.md)。

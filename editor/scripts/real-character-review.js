@@ -15,11 +15,12 @@
   const frame={action,seconds,yaw,pitch,glError:canvas.dataset.glError,pose:JSON.parse(canvas.dataset.characterPose),png:canvas.toDataURL('image/png')};
   const expected=reference.samples.find(s=>s.action===action&&Math.abs(s.seconds-seconds)<.00001);
   if(expected)for(const bone of frame.pose)for(let i=0;i<6;i++)if(Math.abs(bone.matrix[i]-expected.bones[bone.id].matrix[i])>.00001)throw Error('Character pose differs from reference');
+  if(expected?.geometry){const actual=preview.getCharacterGeometry();for(const [id,mesh] of Object.entries(expected.geometry)){if(actual[id]?.positions.length!==mesh.positions.length)throw Error('Skinned vertex count differs: '+id);for(let i=0;i<mesh.positions.length;i++){const error=Math.abs(actual[id].positions[i]-mesh.positions[i]);report.maxGeometryError=Math.max(report.maxGeometryError||0,error);if(error>.000005)throw Error('Skinned vertex buffer differs: '+id+' vertex '+i+' error '+error);}}}
   if(record)report.frames.push({...frame,png:undefined});return frame;
  }
  document.getElementById('qa-matrix').onclick=async()=>{try{
   const out=document.getElementById('qa-result'),contact=document.getElementById('qa-contact');out.textContent='正在渲染';contact.replaceChildren();report.frames=[];
-  for(const sample of reference.samples){for(const [yaw,pitch] of reference.angles){
+  for(const sample of reference.samples){for(const [yaw,pitch] of sample.angles||reference.angles){
    const frame=capture(sample.action,sample.seconds,yaw,pitch),figure=document.createElement('figure');figure.style.margin='0';
    const img=new Image();img.src=frame.png;img.style.width='100%';const label=document.createElement('figcaption');label.textContent=`${sample.action} ${sample.seconds.toFixed(2)}s ${yaw}/${pitch}`;label.style.fontSize='10px';figure.append(img,label);contact.append(figure);
    const id=`${sample.action}-${sample.seconds}-${yaw}-${pitch}`;

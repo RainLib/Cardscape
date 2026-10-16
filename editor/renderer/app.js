@@ -797,6 +797,12 @@ async function publishAsset(){
 }
 async function previewAsset(){if(!workshop?.editingAsset||loading||busy||applying||gesture||freeTransform)throw Error('请先结束组件编辑操作');const value=await assetOutput();await returnAsset(value);}
 window.cardEditorHost={loadImage:imageFrom,
+ async applyCharacterImport(next,context){
+  const check=()=>{if(loading||busy||gesture||freeTransform||applying||documentToken!==context.documentToken||revision!==context.revision)throw Error('工程已变化或正忙，请重新检查导入');};check();window.CardRuntime.validate(next);
+  // Decode all new sources before replacing live state or adding history.
+  await Promise.all(next.layers.filter(l=>l.src&&doc.layers.find(old=>old.id===l.id)?.src!==l.src).map(async l=>{const image=await imageFrom(l.src);if(image.naturalWidth>8192||image.naturalHeight>8192||image.naturalWidth*image.naturalHeight>16*1024*1024)throw Error('图集图片超过 16 MP / 8192 px');}));check();const before=snapshot(),beforeView=editorView();applying=true;
+  try{await updateDocument(next);applying=false;selected=[next.characterRig.meshes[0]?.layerId||selected[0]];push(before,'导入 Spine JSON 与图集');undo.at(-1).editorView=beforeView;renderLayers();syncProperties();syncPreview();draw();return true;}finally{applying=false;syncProperties();}
+ },
  editComponent(kind,id='',version=0){return editAsset(id,version,false,kind);},editAsset,returnAsset,publishAsset,previewAsset,
  emitterContext(){return workshop?.editingAsset?.kind==='particles'?W.resolve(workshop,workshop.activeCardId):doc;},
  redraw(){draw();},startEmitter(){if(loading||busy||applying||gesture||freeTransform)return;target='image';showMask=false;setTool('emitter');window.atelierWorkspace.view('split');syncProperties();draw();},

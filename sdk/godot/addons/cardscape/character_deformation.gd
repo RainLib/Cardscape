@@ -112,6 +112,48 @@ static func solve(compiled: Dictionary, action: Dictionary, progress: float, loc
 		diagnostics[c.id]={"target":target,"actual":actual,"error":error,"reachable":distance<=reach+.00001 and distance>=maxf(0,longest*2-reach)-.00001,"mix":record.mix,"enabled":c.get("enabled",true),"solver":c.get("solver","analytic"),"iterations":record.iterations,"limited":record.limited,"converged":error<=float(c.get("tolerance",.05)),"chain":record.chain}
 	return {"world":world,"diagnostics":diagnostics}
 
+static func bezier(t: float, curve: Array, a: float=0.0, b: float=1.0) -> float:
+	var lo: float=0.0
+	var hi: float=1.0
+	for i in 32:
+		var u: float=(lo+hi)/2.0
+		var x: float=3*pow(1-u,2)*u*float(curve[0])+3*(1-u)*u*u*float(curve[2])+u*u*u
+		if x<t: lo=u
+		else: hi=u
+	var u: float=(lo+hi)/2.0
+	return pow(1-u,3)*a+3*pow(1-u,2)*u*float(curve[1])+3*(1-u)*u*u*float(curve[3])+u*u*u*b
+
+static func offsets(values: Array) -> Dictionary:
+	var out: Dictionary={}
+	for i in range(0,values.size(),3): out[int(values[i])]=Vector2(float(values[i+1]),float(values[i+2]))
+	return out
+
+static func deforms(action: Dictionary, progress: float) -> Dictionary:
+	var out: Dictionary={}
+	for layer in action.get("deformTracks",{}):
+		out[layer]={}
+		for bone in action.deformTracks[layer]:
+			var frames: Array=action.deformTracks[layer][bone]
+			var values: Dictionary={}
+			if progress>=float(frames[0].at):
+				var a: Dictionary=frames[-1]
+				var b: Dictionary=a
+				var mix: float=0.0
+				for i in range(1,frames.size()):
+					if progress<=float(frames[i].at):
+						a=frames[i-1]
+						b=frames[i]
+						mix=(progress-float(a.at))/(float(b.at)-float(a.at))
+						if a.get("ease","linear")=="hold": mix=1.0 if progress==float(b.at) else 0.0
+						elif a.get("ease","linear")=="smooth": mix=mix*mix*(3-2*mix)
+						elif a.has("curve"): mix=bezier(mix,a.curve)
+						break
+				for pair in [[a,1.0-mix],[b,mix]]:
+					var delta: Dictionary=offsets(pair[0].deltas)
+					for index in delta: values[index]=values.get(index,Vector2.ZERO)+delta[index]*float(pair[1])
+			out[layer][bone]=values
+	return out
+
 static func geometry(mesh: Dictionary, pose: Dictionary, base: Transform3D, registration: float, camera: float=2.7) -> PackedVector3Array:
 	var vertices: Array=mesh.vertices.duplicate()
 	for morph in mesh.morphs:
@@ -120,6 +162,9 @@ static func geometry(mesh: Dictionary, pose: Dictionary, base: Transform3D, regi
 			var i: int=int(morph.deltas[j])*2
 			vertices[i]+=float(morph.deltas[j+1])*value
 			vertices[i+1]+=float(morph.deltas[j+2])*value
+	var bind_offsets: Dictionary={}
+	for id in mesh.get("binds",{}): bind_offsets[id]=offsets(mesh.binds[id])
+	var deform: Dictionary=pose.get("deforms",{}).get(mesh.layerId,{})
 	var inverse := base.affine_inverse()
 	var positions := PackedVector3Array()
 	for i in range(vertices.size()/2):
@@ -129,7 +174,10 @@ static func geometry(mesh: Dictionary, pose: Dictionary, base: Transform3D, regi
 		var weighted := Vector2.ZERO
 		for weight in mesh.weights[i]:
 			var bone: Transform2D=pose.bones[weight.boneId].matrix
-			weighted+=(bone*pixel)*float(weight.weight)
+			var offset: Vector2=bind_offsets.get(weight.boneId,{}).get(i,Vector2.ZERO)+deform.get(weight.boneId,{}).get(i,Vector2.ZERO)
+			var placed_offset: Vector3=base.basis*Vector3(offset.x/1024.0,-offset.y/1024.0,0)
+			var source_pixel: Vector2=pixel+Vector2(placed_offset.x,-placed_offset.y)/registration*1024.0
+			weighted+=(bone*source_pixel)*float(weight.weight)
 		var depth: float=mesh.get("depths",[])[i] if mesh.has("depths") else 0.0
 		var vertex_registration := registration-depth/(camera-.045)
 		positions.append(inverse*Vector3((weighted.x-512)/1024.0*vertex_registration,-(weighted.y-768)/1024.0*vertex_registration,base.origin.z+depth))

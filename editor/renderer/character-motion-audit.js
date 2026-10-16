@@ -5,7 +5,7 @@
 function audit(doc,action,{fps=60,minAreaRatio=.1}={}){
  if(!action||!Number.isFinite(action.duration)||action.duration<=0||!Number.isInteger(fps)||fps<1||fps>120)throw Error('请选择有效动作与 1–120 fps 的检查频率');
  const times=new Set(Array.from({length:Math.ceil(action.duration*fps)+1},(_,i)=>Math.min(action.duration,i/fps)));
- for(const field of ['boneTracks','ikTracks','expressionTracks'])for(const tracks of Object.values(action[field]||{}))for(const frames of Object.values(tracks))for(const f of frames)times.add(f.at*action.duration);
+ for(const field of ['boneTracks','ikTracks','expressionTracks','deformTracks','layerTracks'])for(const tracks of Object.values(action[field]||{}))for(const frames of Object.values(tracks))for(const f of frames)times.add(f.at*action.duration);
  const meshes=(doc.characterRig?.meshes||[]).map(mesh=>({mesh,layer:doc.layers.find(l=>l.id===mesh.layerId),base:R.placement(doc,doc.layers.find(l=>l.id===mesh.layerId))}));
  const result={actionId:action.id,name:action.name,duration:action.duration,fps,samples:times.size,meshCount:meshes.length,flippedTriangles:0,compressedTriangles:0,minAreaRatio:1,maxIKError:0,unreachableSamples:0,unresolvedSamples:0,firstIssue:null};
  for(const seconds of [...times].sort((a,b)=>a-b)){

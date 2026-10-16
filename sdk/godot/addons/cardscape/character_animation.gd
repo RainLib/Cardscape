@@ -34,6 +34,7 @@ static func _sample(frames: Array, progress: float, fallback: float) -> float:
 		var b: Dictionary = frames[i]
 		if progress <= float(b.at):
 			var t := (progress-float(a.at))/(float(b.at)-float(a.at))
+			if a.has("curve"):return Deformation.bezier(t,a.curve,float(a.value),float(b.value))
 			if a.get("ease","linear")=="hold":t=1.0 if progress==float(b.at) else 0.0
 			elif a.get("ease","linear")=="smooth":t=t*t*(3.0-2.0*t)
 			return lerpf(float(a.value),float(b.value),t)
@@ -46,7 +47,9 @@ static func rest(compiled: Dictionary, layers: Array) -> Dictionary:
 	var bones: Dictionary={}
 	var result: Dictionary={}
 	for b in compiled.get("order",[]):bones[b.id]={"matrix":Transform2D.IDENTITY,"opacity":1.0}
-	for binding in compiled.get("bindings",[]):result[binding.layerId]=bones[binding.boneId]
+	for binding in compiled.get("bindings",[]):
+		result[binding.layerId]=bones[binding.boneId].duplicate()
+		result[binding.layerId].opacity*=float(binding.get("opacity",1))
 	for l in layers:
 		if not result.has(l.id) and result.has(l.get("splitSourceId","")):result[l.id]=result[l.splitSourceId]
 	var expressions: Dictionary={}
@@ -80,12 +83,13 @@ static func pose(compiled: Dictionary, action: Dictionary, progress: float, laye
 		world[b.id] = posed
 		bones[b.id] = {"matrix":delta,"opacity":float(locals[b.id].opacity)*float(bones.get(parent,{}).get("opacity",1))}
 	for binding in compiled.bindings:
-		result[binding.layerId] = bones[binding.boneId]
+		result[binding.layerId] = bones[binding.boneId].duplicate()
+		result[binding.layerId].opacity*=_sample(action.get("layerTracks",{}).get(binding.layerId,{}).get("opacity",[]),progress,float(binding.get("opacity",1)))
 	for l in layers:
 		if not result.has(l.id) and result.has(l.get("splitSourceId","")):result[l.id]=result[l.splitSourceId]
 	var expressions: Dictionary={}
 	for e in compiled.expressions:expressions[e.id]=_sample(action.get("expressionTracks",{}).get(e.id,{}).get("value",[]),progress,float(e.value))
-	return {"layers":result,"bones":bones,"expressions":expressions,"ik":solved.diagnostics}
+	return {"layers":result,"bones":bones,"expressions":expressions,"ik":solved.diagnostics,"deforms":Deformation.deforms(action,progress)}
 
 static func apply(base: Transform3D, registration: float, pose: Dictionary) -> Transform3D:
 	if pose.is_empty():return base

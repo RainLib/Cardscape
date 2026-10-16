@@ -211,3 +211,21 @@ body[data-editing-asset]:not([data-editing-asset=""]) #back-picker-open{display:
 .ws-type-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px}.ws-type-filters button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ws-cards-pane>.ws-buttons{display:grid;grid-template-columns:1fr 1fr}
 
 .time-control #effect-seconds{flex:0 0 62px;width:62px;font-size:10px;padding:2px 4px}
+
+/* Photoshop-style character tool options live above the canvas, not over it. */
+.character-context-toolbar{flex-shrink:0;background:#222c37;border:1px solid #3d4b5c;border-bottom-color:#131b25;padding:5px 8px;min-width:0}
+body:not([data-inspector-panel="motion"]) .character-context-toolbar{display:none}
+.character-tool-header,.character-tool-options,.character-pose-actions,.character-domains,#character-brush-options,#character-bone-visibility,#character-mesh-actions{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
+.character-tool-header{gap:10px;border-bottom:1px solid #3c4754;padding-bottom:5px}.character-tool-options{padding-top:5px;gap:10px}
+.character-context-toolbar button{font-size:11px;padding:4px 8px;min-height:26px}.character-context-toolbar select{font-size:11px;padding:4px;max-width:240px}.character-context-toolbar label{font-size:11px;white-space:nowrap;padding:0}.character-context-toolbar input[type=number]{width:52px;padding:4px}
+.character-domains{gap:1px;border:1px solid #526176;border-radius:4px;overflow:hidden;flex-shrink:0}.character-domains button{border:0;border-radius:0;padding:5px 13px}.character-domains button[aria-pressed="true"]{background:#c4a36a;color:#101923}
+.character-pose-actions{margin-left:auto}#character-bone-slot .field{display:flex}#character-bone-slot select{max-width:180px}#rig-pose-record{border-color:#9b7b48;color:#ffda96}
+.character-canvas-selection{font-size:10px;color:#b3c2d5;max-width:230px;margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#character-tool-hint{font-size:10px;color:#abc3da;margin:5px 0 0;line-height:1.5}
+.character-tool-rail{display:flex;flex-direction:column;border-top:1px solid #586573;padding-top:5px;margin-top:3px}.character-tool-rail button{height:33px;font-size:21px}.character-tool-rail button[aria-pressed="true"]{background:#394653;border-color:#d9b77d;color:#ffda96}
+body[data-character-domain="bones"] #skin-panel{display:none}body:not([data-character-domain="bones"]) #character-rig-panel{display:none}
+body[data-character-domain="mesh"] #skin-weight-properties,body[data-character-domain="weights"] #skin-topology-panel{display:none}
+body:not([data-inspector-panel="motion"]) .character-tool-rail button[aria-pressed="true"]{background:none;border-color:transparent;color:inherit}
+@media(max-width:1250px){.character-tool-header{gap:6px}.character-context-toolbar button{padding:4px 6px}.character-context-toolbar select{max-width:180px}.character-canvas-selection{display:none}#character-bone-slot select{max-width:130px}.character-pose-actions{margin-left:0}}
+body[data-character-domain="none"] #skin-panel,body[data-character-domain="none"] #character-rig-panel{display:none}
+body[data-inspector-panel="motion"]:not([data-character-domain="none"]) #editor-tools [data-tool="move"].active{background:none;border-color:transparent;color:inherit}

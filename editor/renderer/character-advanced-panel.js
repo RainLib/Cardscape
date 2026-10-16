@@ -17,7 +17,7 @@ panel.innerHTML=`
 <div class="button-row"><button id="skin-pin">标记选中关键点</button><button id="skin-unpin">取消选中关键点</button></div>
 <div class="button-row"><button id="skin-edge-add">连接选中约束边</button><button id="skin-edge-remove">移除选中约束边</button></div>
 <p id="skin-topology-status" role="status" class="panel-note">青线为轮廓，橙线为手工约束边，金色菱形为关键点。自动补网保留已有点及绑定数据。手工加点、移动点会标为关键点；删除前可取消标记。</p>
-<button id="skin-rebuild">按轮廓重建当前网格</button><button id="skin-inherit-morphs">同步共享组表情形变</button><p class="panel-note">轮廓留出透明边距，内部按疏密布点，关节和表情区域加密。重建插值保留权重、表情与深度；同拓扑拆层同步重建，避免接缝两侧使用不同连边。</p></details><label><input id="skin-show" type="checkbox">显示网格与顶点</label><p id="skin-info" class="panel-note"></p>
+<button id="skin-rebuild">按轮廓重建当前网格</button><button id="skin-inherit-morphs">同步共享组表情形变</button><p class="panel-note">轮廓留出透明边距，内部按疏密布点，关节和表情区域加密。重建插值保留权重、表情与深度；同拓扑拆层同步重建，避免接缝两侧使用不同连边。</p></details><label><input id="skin-full-topology" type="checkbox">显示完整共享拓扑 · 含透明区</label><label><input id="skin-show" type="checkbox">显示网格与顶点</label><p id="skin-info" class="panel-note"></p>
 <label><input id="skin-posed" type="checkbox" checked>在当前动作姿势中编辑</label>
 <div class="button-row"><label>测试旋转 ° <input id="skin-test-angle" type="number" min="-90" max="90" step="1" value="0" aria-label="权重测试旋转角度"></label><button id="skin-test">测试弯曲 20°</button><button id="skin-test-reset">恢复姿势</button></div><p id="skin-test-status" role="status" class="panel-note">初始姿势下调权重通常不会移动图片。使用测试弯曲，查看当前骨骼如何驱动网格；测试姿势只用于预览。</p><label class="field">顶点圆饼 <select id="skin-pies" aria-label="顶点权重圆饼"><option value="all">全部可见顶点 · 自动避让</option><option value="bone">当前骨骼影响的顶点</option><option value="selected">仅选中顶点</option><option value="off">关闭圆饼</option></select></label>
 <label><input id="skin-links" type="checkbox" checked>显示顶点与骨骼关联线</label>
@@ -114,7 +114,7 @@ $('skin-position').onclick=()=>mutate('修改蒙皮顶点位置',d=>{const m=mes
 $('skin-paint').onclick=()=>mutate('修改蒙皮顶点权重',d=>{const m=mesh(d);for(const i of weightView.selection())m.weights[i]=T.setWeight(m.weights[i],$('skin-bone').value,number('skin-weight'),locked);});
 $('skin-bone').onchange=()=>{window.atelierCharacterRig.selectBone($('skin-bone').value);refresh();host.redraw();};
 $('skin-display').onchange=()=>{refresh();host.redraw();};
-$('skin-tool').onchange=()=>{if($('skin-tool').value!=='off'){host.selectTool('move');if($('skin-tool').value.startsWith('mesh-')){weightView.stopTest();$('skin-posed').checked=false;$('skin-display').value='off';$('skin-topology-panel').open=true;}else{$('skin-posed').checked=true;if($('skin-display').value==='off')$('skin-display').value='selected';}$('rig-canvas-tool').value='off';$('skin-show').checked=true;}weightView.stop();refresh();host.redraw();};
+$('skin-tool').onchange=()=>{if($('skin-tool').value!=='off'){host.selectTool('move',{character:true});if($('skin-tool').value.startsWith('mesh-')){weightView.stopTest();$('skin-posed').checked=false;$('skin-display').value='off';$('skin-topology-panel').open=true;}else{$('skin-posed').checked=true;if($('skin-display').value==='off')$('skin-display').value='selected';}$('rig-canvas-tool').value='off';$('skin-show').checked=true;}weightView.stop();refresh();window.atelierCharacterRig?.updateToolbar();host.redraw();};
 $('skin-auto').onclick=()=>mutate('按骨段距离初始化权重',d=>T.auto(d,host.state().layer,mesh(d),[...influences],locked,weightView.selection()));
 $('skin-smooth').onclick=()=>mutate('按网格相邻顶点平滑权重',d=>T.smooth(mesh(d),locked,weightView.selection()));
 $('skin-copy-weights').onclick=()=>{const n=weightView.copy();$('character-advanced-status').textContent=`已复制 ${n} 个顶点权重`;refresh();};$('skin-paste-weights').onclick=()=>mutate('粘贴顶点权重',d=>weightView.paste(mesh(d)));$('skin-prune').onclick=()=>mutate('清理小于 1% 的骨骼权重',d=>T.prune(mesh(d),.01,locked,weightView.selection()));
@@ -129,7 +129,16 @@ $('expression-apply').onclick=()=>mutate('修改表情控制器',d=>Object.assig
 $('expression-remove').onclick=()=>mutate('移除表情控制器',d=>{d.characterRig.expressions=d.characterRig.expressions.filter(e=>e.id!==expressionId);for(const m of d.characterRig.meshes||[])m.morphs=m.morphs.filter(v=>v.expressionId!==expressionId);for(const a of d.actions)if(a.expressionTracks)delete a.expressionTracks[expressionId];expressionId='';});
 $('expression-list').onchange=()=>{expressionId=$('expression-list').value;refresh();};$('expression-animate').onclick=()=>window.atelierAnimation.selectBone(expressionId,'expression');
 $('morph-apply').onclick=()=>mutate('写入表情形变目标',d=>A.morph(mesh(d),expressionId,[number('morph-x'),number('morph-y')],number('morph-radius'),[number('morph-dx'),number('morph-dy')]));
-window.atelierCharacterAdvanced={refresh,draw:weightView.draw,foreground:weightView.foreground,drawLayer:weightView.drawLayer,outline:weightView.outline,previewTest:weightView.previewTest,beginFrame:weightView.prepare,pose:weightView.pose,pointerDown:weightView.pointerDown,hover:weightView.hover,related:weightView.related,selectBone(id){$('skin-bone').value=id;refresh();host.redraw();},stopBrush(){$('skin-tool').value='off';weightView.stop();weightView.stopTest();}};
+window.atelierCharacterAdvanced={refresh,draw:weightView.draw,foreground:weightView.foreground,drawLayer:weightView.drawLayer,outline:weightView.outline,previewTest:weightView.previewTest,beginFrame:weightView.prepare,pose:weightView.pose,pointerDown:weightView.pointerDown,hover:weightView.hover,related:weightView.related,selectBone(id){$('skin-bone').value=id;refresh();host.redraw();},stopTest:weightView.stopTest,stopBrush(){$('skin-tool').value='off';weightView.stop();weightView.stopTest();}};
+for(const id of ['skin-radius','skin-strength','skin-feather'])$('character-brush-options').append($(id).closest('label'));
+for(const id of ['skin-outline-new','skin-fill'])$('character-mesh-actions').append($(id));
+const toolStorage=document.createElement('div');toolStorage.hidden=true;toolStorage.append($('skin-tool').closest('label'));panel.append(toolStorage);
+// Keep binding structure, topology and weights in distinct inspector sections.
+const skinFold=panel.querySelector('details');skinFold.id='skin-panel';skinFold.open=true;
+const weights=document.createElement('div');weights.id='skin-weight-properties';
+let node=$('skin-posed').closest('label');while(node){const next=node.nextSibling;weights.append(node);node=next;}skinFold.append(weights);
+for(const id of ['skin-flip-edge','skin-delete-points'])$('skin-topology-panel').append($(id));
+$('character-rig-panel').open=false;
 let lastCanvasFrame=0,lastCanvasPose='';
 window.addEventListener('atelier-preview-frame',e=>{if(document.body.dataset.inspectorPanel!=='motion'||!$('skin-posed').checked)return;weightView.syncTest();const a=window.atelierAnimation.context(),key=a.action?.id+':'+a.seconds,now=performance.now();if(key!==lastCanvasPose&&(e.detail.paused||now-lastCanvasFrame>=66)){lastCanvasPose=key;lastCanvasFrame=now;host.redraw();}});refresh();
 })();

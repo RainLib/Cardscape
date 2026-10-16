@@ -16,4 +16,4 @@ function occupied(layers){
  const stride=1025,integral=new Uint32Array(stride*1537);for(let y=0;y<1536;y++){let row=0;for(let x=0;x<1024;x++){row+=coverage[y*1024+x];integral[(y+1)*stride+x+1]=integral[y*stride+x+1]+row;}}
  return (x0,y0,x1,y1)=>{x0=Math.max(0,Math.floor(x0));y0=Math.max(0,Math.floor(y0));x1=Math.min(1024,Math.ceil(x1)+1);y1=Math.min(1536,Math.ceil(y1)+1);return integral[y1*stride+x1]-integral[y0*stride+x1]-integral[y1*stride+x0]+integral[y0*stride+x0]>0;};
 }
-module.exports={occupied,imageData};
+module.exports={occupied,imageData,alpha};

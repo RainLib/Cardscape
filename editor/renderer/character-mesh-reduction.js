@@ -27,9 +27,9 @@ function probes(a,b,ma,mb){
  const originals=new Map([...a.active].map(i=>{const p=uv(ma,i);return [Math.round(p.x*1e10)+':'+Math.round(p.y*1e10),i];}));
  return [...result.values()].map(p=>({uv:[p.x,p.y],vertex:originals.get(Math.round(p.x*1e10)+':'+Math.round(p.y*1e10)),a:a.locate(p),b:b.locate(p)}));
 }
-function times(doc,steps){
+function times(doc,steps,allActions=false){
  const result=[{actionId:null,seconds:0,name:'初始姿势'}];
- for(const action of doc.actions||[])if(action.id!=='flip'||['boneTracks','ikTracks','expressionTracks','deformTracks'].some(k=>Object.keys(action[k]||{}).length)||(doc.characterRig.constraints||[]).length||(doc.characterRig.expressions||[]).some(e=>e.value)){
+ for(const action of doc.actions||[])if(allActions||action.id!=='flip'||['boneTracks','ikTracks','expressionTracks','deformTracks'].some(k=>Object.keys(action[k]||{}).length)||(doc.characterRig.constraints||[]).length||(doc.characterRig.expressions||[]).some(e=>e.value)){
   const ts=new Set(Array.from({length:steps+1},(_,i)=>i/steps));
   for(const field of ['boneTracks','ikTracks','expressionTracks','deformTracks','layerTracks'])for(const tracks of Object.values(action[field]||{}))for(const frames of Object.values(tracks)){for(let j=0;j<frames.length;j++){const f=frames[j];ts.add(f.at);if(f.at>0)ts.add(Math.max(0,f.at-1e-6));if(j)ts.add((frames[j-1].at+f.at)/2);}}
   for(const t of [...ts].sort((a,b)=>a-b))result.push({actionId:action.id,seconds:t*action.duration,name:action.name});
@@ -45,34 +45,39 @@ function settings(options={}){const out={maxError:.75,maxBoundaryError:.5,maxWei
 function passes(r,options={}){const s=settings(options);return !r.folds&&r.maxPositionError<=s.maxError+pixelEpsilon&&r.maxMotionError<=s.maxError+pixelEpsilon&&r.maxBoundaryError<=s.maxBoundaryError+pixelEpsilon&&r.maxWeightError<=s.maxWeightError+1e-8;}
 function describe(r){return `位置 ${r.maxPositionError.toFixed(4)} px · 运动 ${r.maxMotionError.toFixed(4)} px · 轮廓 ${r.maxBoundaryError.toFixed(4)} px · 权重 ${(r.maxWeightError*100).toFixed(3)}% · ${r.frames} 个姿势 · ${r.folds} 翻面`+(r.worst?` · 最大误差：${r.worst.layer} / ${r.worst.action} ${r.worst.seconds.toFixed(3)}s`:'');}
 function assert(r,options){if(!passes(r,options))throw Error('拓扑变化超过误差阈值，已取消：'+describe(r));}
-function audit(doc,meshes,{steps=24}={}){
+function audit(doc,meshes,{steps=24,allActions=false}={}){
  if(!Number.isInteger(steps)||steps<1||steps>240)throw Error('动作检查采样数无效');
- const snapshots=meshes.map(m=>structuredClone(m)),poses=times(doc,steps),frames=poses.map(t=>posed(doc,t));
+ const snapshots=meshes.map(m=>structuredClone(m)),poses=times(doc,steps,allActions),frames=poses.map(t=>posed(doc,t));
  const entries=snapshots.map(m=>{const layer=doc.layers.find(l=>l.id===m.layerId),base=R.placement(doc,layer),source={characterRig:{meshes:[m]}};return {mesh:m,layer,base,topology:topology(m),frames:frames.map(p=>C.geometry(source,layer,p,base).positions)};});
  // `survivors` is only used by vertex removal: unchanged samples can reuse the
  // original poses exactly. New vertices/rebuilds use the actual new FFD tracks.
- return function compare(current,nextMeshes,{survivors=null,stopAt=null}={}){
+ return function compare(current,nextMeshes,{survivors=null,stopAt=null,scan=null,onProgress=null}={}){
   const r={maxPositionError:0,maxMotionError:0,maxBoundaryError:0,maxWeightError:0,rmsError:0,frames:poses.length,probes:0,folds:0,beforeVertices:snapshots.reduce((v,m)=>v+m.weights.length,0),afterVertices:nextMeshes.reduce((v,m)=>v+m.weights.length,0),beforeTriangles:snapshots.reduce((v,m)=>v+m.triangles.length/3,0),afterTriangles:nextMeshes.reduce((v,m)=>v+m.triangles.length/3,0),complete:true,worst:null};let squares=0,count=0;
+  const limits=scan&&settings(scan),actions=new Map(),regions=new Map();let completed=0;
+  if(scan){r.actions=[];r.regions=[];for(const t of poses)if(!actions.has(t.actionId))actions.set(t.actionId,{actionId:t.actionId,name:t.name,frames:poses.filter(p=>p.actionId===t.actionId).length,maxPositionError:0,maxMotionError:0,folds:0,worst:null,worstMotion:null});}
+  const mark=(m,p)=>{if(!scan)return;if(!regions.has(m.layerId))regions.set(m.layerId,new Map());regions.get(m.layerId).set(p.map(v=>Math.round(v*1e10)).join(':'),p);};
   const fail=()=>{if(stopAt&&!passes(r,stopAt)){r.complete=false;return true;}return false;};
   for(const entry of entries){const m=nextMeshes.find(m=>m.layerId===entry.mesh.layerId);if(!m)throw Error('动画检查找不到编辑后的网格');const map=survivors?.get(m.layerId),newTopology=topology(m),samples=probes(entry.topology,newTopology,entry.mesh,m),scale=1024*entry.base.scale,arrays=map?entry.frames:poses.map(t=>C.geometry({characterRig:{meshes:[m]}},entry.layer,posed(current,t),entry.base).positions);
    r.probes+=samples.length;
-   for(const s of samples){const aw=weightField(entry.mesh,s.a),bw=weightField(m,s.b);let error=0;for(const id of new Set([...aw.keys(),...bw.keys()]))error+=Math.abs((aw.get(id)||0)-(bw.get(id)||0));r.maxWeightError=Math.max(r.maxWeightError,error/2);const delta=[0,1,2].map(axis=>(interpolate(arrays[0],s.b,axis,map)-interpolate(entry.frames[0],s.a,axis))*scale);s.rest=delta;if(s.a.missing||s.b.missing)r.maxBoundaryError=Math.max(r.maxBoundaryError,Math.hypot(...delta));}
+   for(const s of samples){const aw=weightField(entry.mesh,s.a),bw=weightField(m,s.b);let error=0;for(const id of new Set([...aw.keys(),...bw.keys()]))error+=Math.abs((aw.get(id)||0)-(bw.get(id)||0));r.maxWeightError=Math.max(r.maxWeightError,error/2);const delta=[0,1,2].map(axis=>(interpolate(arrays[0],s.b,axis,map)-interpolate(entry.frames[0],s.a,axis))*scale);s.rest=delta;const boundary=s.a.missing||s.b.missing?Math.hypot(...delta):0;r.maxBoundaryError=Math.max(r.maxBoundaryError,boundary);if(scan&&(error/2>limits.maxWeightError+1e-8||boundary>limits.maxBoundaryError+pixelEpsilon))mark(m,s.uv);}
    if(fail())return r;
    for(let f=0;f<poses.length;f++){
-    for(const s of samples){const delta=[0,1,2].map(axis=>(interpolate(arrays[f],s.b,axis,map)-interpolate(entry.frames[f],s.a,axis))*scale),error=Math.hypot(...delta),motion=Math.hypot(...delta.map((v,k)=>v-s.rest[k]));if(!r.worstMotion||motion>r.maxMotionError){r.maxMotionError=motion;r.worstMotion=site(entry,m,s,poses[f],motion);}if(!r.worst||error>r.maxPositionError){r.maxPositionError=error;r.worst=site(entry,m,s,poses[f],error);}if(s.vertex!==undefined){if(!r.worstVertex||error>r.worstVertex.error)r.worstVertex=site(entry,m,s,poses[f],error);if(!r.worstMotionVertex||motion>r.worstMotionVertex.error)r.worstMotionVertex=site(entry,m,s,poses[f],motion);}squares+=error*error;count++;}
-    for(const face of newTopology.faces){const [a,b,c]=face.ids,idx=i=>map?map[i]:i,p=arrays[f],area=(p[idx(b)*3]-p[idx(a)*3])*(p[idx(c)*3+1]-p[idx(a)*3+1])-(p[idx(c)*3]-p[idx(a)*3])*(p[idx(b)*3+1]-p[idx(a)*3+1]),source=face.ids.map(i=>({x:m.vertices[i*2],y:m.vertices[i*2+1]}));if(cross(...source)*area>=-1e-14)r.folds++;if(cross(...source)*cross(...face.points)<=0)r.folds++;}
+    const row=actions.get(poses[f].actionId),foldsBefore=r.folds;
+    for(const s of samples){const delta=[0,1,2].map(axis=>(interpolate(arrays[f],s.b,axis,map)-interpolate(entry.frames[f],s.a,axis))*scale),error=Math.hypot(...delta),motion=Math.hypot(...delta.map((v,k)=>v-s.rest[k]));if(!r.worstMotion||motion>r.maxMotionError){r.maxMotionError=motion;r.worstMotion=site(entry,m,s,poses[f],motion);}if(!r.worst||error>r.maxPositionError){r.maxPositionError=error;r.worst=site(entry,m,s,poses[f],error);}if(s.vertex!==undefined){if(!r.worstVertex||error>r.worstVertex.error)r.worstVertex=site(entry,m,s,poses[f],error);if(!r.worstMotionVertex||motion>r.worstMotionVertex.error)r.worstMotionVertex=site(entry,m,s,poses[f],motion);}squares+=error*error;count++;if(scan){if(!row.worst||error>row.maxPositionError){row.maxPositionError=error;row.worst=site(entry,m,s,poses[f],error);}if(!row.worstMotion||motion>row.maxMotionError){row.maxMotionError=motion;row.worstMotion=site(entry,m,s,poses[f],motion);}if(error>limits.maxError+pixelEpsilon||motion>limits.maxError+pixelEpsilon)mark(m,s.uv);}}
+    for(const face of newTopology.faces){const [a,b,c]=face.ids,idx=i=>map?map[i]:i,p=arrays[f],area=(p[idx(b)*3]-p[idx(a)*3])*(p[idx(c)*3+1]-p[idx(a)*3+1])-(p[idx(c)*3]-p[idx(a)*3])*(p[idx(b)*3+1]-p[idx(a)*3+1]),source=face.ids.map(i=>({x:m.vertices[i*2],y:m.vertices[i*2+1]}));const folds=Number(cross(...source)*area>=-1e-14)+Number(cross(...source)*cross(...face.points)<=0);r.folds+=folds;if(folds)mark(m,[face.points.reduce((v,p)=>v+p.x,0)/3,face.points.reduce((v,p)=>v+p.y,0)/3]);}
+    if(scan){row.folds+=r.folds-foldsBefore;onProgress?.({completed:++completed,total:entries.length*poses.length,action:poses[f].name});}
     if(fail())return r;
    }
   }
-  r.rmsError=Math.sqrt(squares/Math.max(1,count));return r;
+  r.rmsError=Math.sqrt(squares/Math.max(1,count));if(scan){r.actions=[...actions.values()];r.regions=[...regions].map(([layerId,points])=>({layerId,uvs:[...points.values()]}));}return r;
  };
 }
 function simplify(doc,meshes,options={}){
  const limits=settings(options),ratio=options.ratio??.5,allowBoundary=options.allowBoundary??false;
  if(!Number.isFinite(ratio)||ratio<.05||ratio>1)throw Error('减面保留比例应在 5%–100%');if(!meshes.length)throw Error('请先选择网格');
  const signature=JSON.stringify([meshes[0].vertices,meshes[0].uv,meshes[0].triangles]);if(meshes.some(m=>JSON.stringify([m.vertices,m.uv,m.triangles])!==signature))throw Error('同步减面需要相同拓扑');
- const original=meshes.map(m=>structuredClone(m)),restoreAnimation=meshes.map(m=>U.checkpointAnimation(m,doc)),compare=audit(doc,meshes,options),ids=meshes[0].weights.map((_,i)=>i),target=Math.max(3,Math.ceil(ids.length*ratio));let rejected=0,removed=0;
- const survivors=()=>new Map(meshes.map(m=>[m.layerId,ids]));
+ const original=meshes.map(m=>structuredClone(m)),restoreAnimation=meshes.map(m=>U.checkpointAnimation(m,doc)),reference=options.reference,compare=audit(reference||doc,reference?meshes.map(m=>reference.characterRig.meshes.find(a=>a.layerId===m.layerId)):meshes,options),ids=meshes[0].weights.map((_,i)=>i),target=options.targetVertices??Math.max(3,Math.ceil(ids.length*ratio));if(!Number.isInteger(target)||target<3||target>4096)throw Error('减面目标顶点数无效');let rejected=0,removed=0;
+ const survivors=()=>reference?null:new Map(meshes.map(m=>[m.layerId,ids]));
  try{
   for(let pass=0;pass<3&&ids.length>target;pass++){
    const first=meshes[0],pool=[];
@@ -98,7 +103,7 @@ function review(before,after,ids){
   for(const face of ta.faces){const node=(i,j)=>{const p={x:face.points[0].x+(face.points[1].x-face.points[0].x)*i/n+(face.points[2].x-face.points[0].x)*j/n,y:face.points[0].y+(face.points[1].y-face.points[0].y)*i/n+(face.points[2].y-face.points[0].y)*j/n};return {a:{ids:face.ids,values:[1-(i+j)/n,i/n,j/n]},b:tb.locate(p)};};for(let i=0;i<n;i++)for(let j=0;j<n-i;j++){heat.push([node(i,j),node(i+1,j),node(i,j+1)]);if(i+j<n-1)heat.push([node(i+1,j),node(i+1,j+1),node(i,j+1)]);}}
   entry.locate=p=>{const q={x:p[0],y:p[1]};return {layerId:id,uv:p,before:address(a,ta.locate(q),p),after:address(b,tb.locate(q),p)};};entry.heat=heat;const restA=C.geometry(before,layer,C.rest(before),base).positions,restB=C.geometry(after,layer,C.rest(after),base).positions;for(const s of [...samples,...heat.flat()])s.rest=[0,1,2].map(k=>interpolate(restB,s.b,k)-interpolate(restA,s.a,k));return entry;
  });
- const actions=times(before,1).filter((t,i,a)=>a.findIndex(v=>v.actionId===t.actionId)===i).map(t=>({id:t.actionId,name:t.name,duration:before.actions.find(a=>a.id===t.actionId)?.duration||0}));
+ const actions=times(before,1,true).filter((t,i,a)=>a.findIndex(v=>v.actionId===t.actionId)===i).map(t=>({id:t.actionId,name:t.name,duration:before.actions.find(a=>a.id===t.actionId)?.duration||0}));
  function frame(actionId,seconds,layerId=ids[0]){const action=actions.find(a=>a.id===actionId);if(!action||!Number.isFinite(seconds))throw Error('比较动作或时刻无效');seconds=Math.max(0,Math.min(action.duration,seconds));const t={actionId,seconds,name:action.name},pa=posed(before,t),pb=posed(after,t),e=entries.find(e=>e.layer.id===layerId);if(!e)throw Error('比较图层不存在');const a=C.geometry(before,e.layer,pa,e.base).positions,b=C.geometry(after,e.layer,pb,e.base).positions,scale=1024*e.base.scale;
   const point=(p,l)=>{const x=interpolate(p,l,0)*1024,y=-interpolate(p,l,1)*1024,c=Math.cos(e.base.rotation),s=Math.sin(e.base.rotation);return {x:512+e.base.x+(x*c-y*s)*e.base.scale,y:768+e.base.y+(x*s+y*c)*e.base.scale};};
   const field=s=>{const delta=[0,1,2].map(k=>interpolate(b,s.b,k)-interpolate(a,s.a,k));return {error:Math.hypot(...delta)*scale,motionError:Math.hypot(...delta.map((v,k)=>v-s.rest[k]))*scale,beforePoint:point(a,s.a),afterPoint:point(b,s.b)};};

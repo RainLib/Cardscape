@@ -41,5 +41,23 @@ function plan({source,current,ids,layerId,uvs,kind='protect',spacing=24}){
  C.validate(next);const report=compare(next,meshes);N.assert(report,{maxError:.001,maxBoundaryError:0,maxWeightError:0});
  return {document:next,ids:[...ids],layerId,kind,added,protected:meshes[0].topology.pins.length,regionVertices:selected.vertices.length,regionFaces:selected.faces.length,beforeVertices:current.characterRig.meshes.find(m=>m.layerId===layerId).weights.length,sourceVertices:originalCount,afterVertices:meshes[0].weights.length,report};
 }
-return {choose,region,plan,key};
+function scan({source,current,ids,options={},onProgress}){
+ if(!ids?.length||new Set(ids).size!==ids.length)throw Error('扫描网格组无效');
+ if(source.actions.length!==current.actions.length||source.actions.some(a=>!current.actions.some(b=>b.id===a.id&&b.duration===a.duration)))throw Error('动作列表已变化，请重新检查误差');
+ const meshes=doc=>ids.map(id=>{const m=doc.characterRig.meshes.find(m=>m.layerId===id);if(!m)throw Error('扫描快照缺少网格');return m;});
+ return N.audit(source,meshes(source),{steps:options.steps??24,allActions:true})(current,meshes(current),{scan:N.settings(options),onProgress});
+}
+// A disposable, all-actions transaction. Recovery uses retained source samples;
+// every reduction trial is still measured against the original comparison.
+function auto({source,reference=source,current,ids,options={},onProgress}){
+ const limits=N.settings(options);for(const id of ids||[])if(!current.layers.some(l=>l.id===id&&!l.locked))throw Error('请先解锁参与修正的图层');
+ onProgress?.({stage:'scan'});const before=scan({source:reference,current,ids,options,onProgress:p=>onProgress?.({stage:'scan',...p})});
+ const uvs=[...new Map(before.regions.flatMap(r=>r.uvs).map(p=>[key(p),p])).values()];
+ if(!uvs.length)return {document:N.snapshot(current),before,after:before,added:0,protected:0,removed:0,changed:false,ids,target:null,reachedTarget:true};
+ onProgress?.({stage:'refine',regions:uvs.length});const repaired=plan({source,current,ids,layerId:ids[0],uvs,kind:'refine',spacing:options.spacing??24}),next=repaired.document,meshes=ids.map(id=>next.characterRig.meshes.find(m=>m.layerId===id)),ratio=options.ratio??.5,target=Math.max(3,Math.ceil(current.characterRig.meshes.find(m=>m.layerId===ids[0]).weights.length*ratio));
+ const recovery=N.snapshot(next);onProgress?.({stage:'reduce'});const reduced=N.simplify(next,meshes,{...limits,ratio,allowBoundary:!!options.allowBoundary,steps:options.steps??24,allActions:true,reference,targetVertices:target,onProgress:p=>onProgress?.({stage:'reduce',...p})});
+ C.validate(next);onProgress?.({stage:'verify'});const after=scan({source:reference,current:next,ids,options,onProgress:p=>onProgress?.({stage:'verify',...p})});N.assert(after,limits);
+ return {...repaired,document:next,recovery,before,after,removed:reduced.removed,target,reachedTarget:reduced.reachedTarget,changed:true,regions:uvs.length};
+}
+return {choose,region,plan,key,scan,auto};
 });

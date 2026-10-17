@@ -18,7 +18,7 @@ const APP_VERSION=require('../package.json').version;
 const ROOT = path.resolve(__dirname,'..');
 const ASSETS = path.join(ROOT,'assets');
 const MAX_DOCUMENT = 64 * 1024 * 1024;
-const OPS = new Set(['ping','feather','resize','mask_stats','mesh','selection','mask_combine','clean_alpha','underpaint','repair_split','alpha','image_channel','refine_selection','adjust_image','wand_selection','title_raster']);
+const OPS = new Set(['ping','feather','texture_variant','resize','mask_stats','mesh','selection','mask_combine','clean_alpha','underpaint','repair_split','alpha','image_channel','refine_selection','adjust_image','wand_selection','title_raster']);
 function byteInventory(doc,stripEditorSources=null) {
   const assets=new Map();
   const metadata=JSON.stringify(doc,(_key,value)=>{

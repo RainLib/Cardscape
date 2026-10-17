@@ -1,0 +1,554 @@
+{
+  "schema": "card-character-motion-example/1",
+  "name": "抬枪与提腿 · 大幅关节运动",
+  "source": "量子枪客 / 四秒动作验证副本",
+  "preparation": "editor/scripts/prepare-wide-character.cjs",
+  "bones": [
+    "root",
+    "shoulder",
+    "forearm",
+    "far-arm",
+    "near-leg",
+    "far-leg",
+    "cloth"
+  ],
+  "rigSha256": "74d7dfe43cbe77f9581acdd3c04d19c29be795f3ca6beab95e50c5845bca5903",
+  "supportCandidateSha256": "f928a02363968a3a1cfb59f72a8aaa63f5300d4a36471764d1e20122ce48af80",
+  "supportGenerationId": "imagegen-exec-20b9ba5d-458b-4416-b9b6-03ee9cc38e44",
+  "supportPixels": 24192,
+  "scope": "Independent surfaces; rigid hands/guns, shoulder and hip transitions, real concealed support; 4s clip and nine view angles only.",
+  "action": {
+    "id": "raise-gun-leg-wide",
+    "name": "抬枪与提腿 · 大幅关节运动",
+    "event": "trigger",
+    "duration": 4,
+    "loop": false,
+    "motion": 1,
+    "emission": 1,
+    "bend": 0,
+    "boneTracks": {
+      "shoulder": {
+        "rotation": [
+          {
+            "at": 0,
+            "value": 7.63333123551244e-14,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": 7.305336533986515e-14,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": -3.4476085473437257,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": -9.996478223758425,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": -11.02873593689355,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": -9.059016741422681,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": -5.097113016133852,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": 7.63333123551244e-14,
+            "ease": "smooth"
+          }
+        ]
+      },
+      "forearm": {
+        "rotation": [
+          {
+            "at": 0,
+            "value": -2.2899993706537323e-13,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": -7.305336533986517e-14,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": 2.7802464615206217,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": 24.2338500201327,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": 28.610066658766215,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": 20.10680240569377,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": 13.389052703728737,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": -2.2899993706537323e-13,
+            "ease": "smooth"
+          }
+        ]
+      },
+      "root": {
+        "x": [
+          {
+            "at": 0,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": 0,
+            "ease": "smooth"
+          }
+        ],
+        "y": [
+          {
+            "at": 0,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": 3.75,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": -8.749993971931644,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": -10.00014367151266,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": -5.000048701537878,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": -8.750134434715733,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": -1.2500785700353845,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": 0,
+            "ease": "smooth"
+          }
+        ],
+        "rotation": [
+          {
+            "at": 0,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": 0.2501367991827557,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": -1.250426317764273,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": -1.250103824320388,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": 0.6240030678304491,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": -1.2489385086828177,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": -0.24935455245006766,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": 0,
+            "ease": "smooth"
+          }
+        ]
+      },
+      "near-leg": {
+        "rotation": [
+          {
+            "at": 0,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": -5.2001820608185705,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": 20.798605182859205,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": 25.99867315771584,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": 23.401351732869678,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": 25.99959824510681,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": 7.7980600333302545,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": 0,
+            "ease": "smooth"
+          }
+        ]
+      },
+      "far-leg": {
+        "rotation": [
+          {
+            "at": 0,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": 4.550156566781167,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": -13.649023918598111,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": -15.925355915144852,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": -13.650461207493068,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": -15.925782377018981,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": -4.548557056442902,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": 0,
+            "ease": "smooth"
+          }
+        ]
+      },
+      "far-arm": {
+        "rotation": [
+          {
+            "at": 0,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": 1.9500885248891942,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": -5.851057745079458,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": -7.801456130511291,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": -3.8997603017613085,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": -7.799828643249788,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": -1.9511740438357996,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": 0,
+            "ease": "smooth"
+          }
+        ]
+      },
+      "cloth": {
+        "rotation": [
+          {
+            "at": 0,
+            "value": 0,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": -1.599955958241664,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": 6.400515021817686,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": 7.999397741268659,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": 9.599183371931016,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": 6.400007947636315,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": -1.6000314992180011,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": 0,
+            "ease": "smooth"
+          }
+        ]
+      }
+    },
+    "ikTracks": {
+      "aim": {
+        "mix": [
+          {
+            "at": 0,
+            "value": 1,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": 1,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": 1,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": 1,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": 1,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": 1,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": 1,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": 1,
+            "ease": "smooth"
+          }
+        ],
+        "x": [
+          {
+            "at": 0,
+            "value": 268.64000000000044,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": 278.8800221729499,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": 294.239965473551,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": 299.36014681840845,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": 314.72003931430856,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": 296.7998343539017,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": 278.8800576833738,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": 268.64000000000044,
+            "ease": "smooth"
+          }
+        ],
+        "y": [
+          {
+            "at": 0,
+            "value": 335.36,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.125,
+            "value": 354.55952189578653,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.325,
+            "value": 272.960025090017,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.45,
+            "value": 258.5598440704766,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.5,
+            "value": 272.9596159513544,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.575,
+            "value": 260.9600082956135,
+            "ease": "smooth"
+          },
+          {
+            "at": 0.8,
+            "value": 316.1600231773713,
+            "ease": "smooth"
+          },
+          {
+            "at": 1,
+            "value": 335.36,
+            "ease": "smooth"
+          }
+        ]
+      }
+    }
+  }
+}

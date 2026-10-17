@@ -1,0 +1,1 @@
+body{height:auto;display:block}main{height:720px;flex:none}section{padding:16px;background:#151923;color:#eee}#qa-contact{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:6px}figure{margin:0;min-width:0}figure img{width:100%;display:block;background:#20242e}figcaption{font-size:10px}#qa-result{margin-left:12px}

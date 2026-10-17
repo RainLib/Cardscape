@@ -1,0 +1,20 @@
+// Compare a UI-saved refined mesh to its original animated triangle field.
+// The baseline can separately be verified against the source Spine export.
+const fs=require('node:fs'),assert=require('node:assert/strict'),U=require('../renderer/character-mesh-tools.js'),C=require('../renderer/character-animation-model.js'),R=require('../renderer/runtime-model.js');
+const [beforePath,afterPath,output]=process.argv.slice(2);if(!output)throw Error('Usage: node verify-ffd-retopology.cjs BEFORE_CARD UI_SAVED_CARD REPORT');
+const before=JSON.parse(fs.readFileSync(beforePath)),after=JSON.parse(fs.readFileSync(afterPath));C.validate(before);C.validate(after);assert.deepEqual(before.characterRig.bones,after.characterRig.bones);assert.deepEqual(before.characterRig.bindings,after.characterRig.bindings);
+const at=(m,i)=>({x:m.vertices[i*2],y:m.vertices[i*2+1]}),actionShape=a=>({...a,deformTracks:Object.fromEntries(Object.entries(a.deformTracks||{}).map(([id,tracks])=>[id,Object.fromEntries(Object.entries(tracks).map(([bone,frames])=>[bone,frames.map(f=>({...f,deltas:[]}))]))]))});assert.deepEqual(before.actions.map(actionShape),after.actions.map(actionShape));
+const changed=after.characterRig.meshes.filter(m=>JSON.stringify(m)!==JSON.stringify(before.characterRig.meshes.find(v=>v.layerId===m.layerId)));assert.ok(changed.length,'Expected actual topology edits');
+let comparisons=0,maxPixelError=0,maxUVError=0,folds=0;const meshes=[];
+for(const m of changed){const old=before.characterRig.meshes.find(v=>v.layerId===m.layerId),n=old.weights.length;for(const field of ['vertices','uv','weights'])assert.deepEqual(m[field].slice(0,field==='weights'?n:n*2),old[field],`original ${field} samples`);const locations=m.weights.map((_,i)=>{const location=U.locate(old,at(m,i));assert.ok(location,'New point must remain inside source domain');for(let axis=0;axis<2;axis++)maxUVError=Math.max(maxUVError,Math.abs(m.uv[i*2+axis]-location.ids.reduce((v,j,k)=>v+old.uv[j*2+axis]*location.values[k],0)));return location;});
+ // Every new face stays in one old face; this checks the entire surface, not
+ // just its vertices, and detects a rebuild crossing an animation seam.
+ for(let j=0;j<m.triangles.length;j+=3){const points=m.triangles.slice(j,j+3).map(i=>at(m,i));let contained=false;for(let k=0;k<old.triangles.length;k+=3){const tri=old.triangles.slice(k,k+3).map(i=>at(old,i));if(points.every(p=>U.bary(p,...tri)?.every(v=>v>=-1e-6))){contained=true;break;}}assert.ok(contained,'Rebuilt face crosses a source animation field boundary');}
+ const layer=after.layers.find(l=>l.id===m.layerId),base=R.placement(after,layer);let frames=0;
+ for(let action=0;action<before.actions.length;action++)if(before.actions[action].id!=='flip')for(let frame=0;frame<=120;frame++){const progress=frame/120,a=C.geometry(before,layer,C.sample(before,before.actions[action],progress*before.actions[action].duration,{seek:true}),base).positions,b=C.geometry(after,layer,C.sample(after,after.actions[action],progress*after.actions[action].duration,{seek:true}),base).positions;frames++;
+  for(let i=0;i<m.weights.length;i++)for(let axis=0;axis<3;axis++){const {ids,values}=locations[i],expected=ids.reduce((v,j,k)=>v+a[j*3+axis]*values[k],0);maxPixelError=Math.max(maxPixelError,Math.abs(b[i*3+axis]-expected)*1024);comparisons++;}
+  for(let j=0;j<m.triangles.length;j+=3){const [x,y,z]=m.triangles.slice(j,j+3),p=at(m,x),q=at(m,y),r=at(m,z),source=(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x),area=(b[y*3]-b[x*3])*(b[z*3+1]-b[x*3+1])-(b[z*3]-b[x*3])*(b[y*3+1]-b[x*3+1]);if(source*area>=-1e-12)folds++;}
+ }
+ meshes.push({layerId:m.layerId,name:layer.name,before:n,after:m.weights.length,triangles:m.triangles.length/3,frames});
+}
+assert.ok(maxPixelError<.001,`Animation changed by ${maxPixelError}px`);assert.ok(maxUVError<1e-10,`Atlas UV changed by ${maxUVError}`);assert.equal(folds,0);const report={before:beforePath,after:afterPath,meshes,comparisons,maxPixelError,maxUVError,folds};fs.writeFileSync(output,JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

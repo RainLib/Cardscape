@@ -33,10 +33,11 @@ func run() -> void:
 	scene.add_child(second)
 	await process_frame
 	await process_frame
+	var second_flow_speed: float=float(second._definition.effects.get("flowSpeed",1.0))
 	first._definition.effects["flowSpeed"]=2.5
 	first._update(0)
 	check(is_equal_approx(float(first._surfaces[0].material_override.get_shader_parameter("flow_speed")),2.5),"flow speed reaches instance shader")
-	check(not second._definition.effects.has("flowSpeed"),"flow speed override does not affect another instance")
+	check(is_equal_approx(float(second._definition.effects.get("flowSpeed",1.0)),second_flow_speed),"flow speed override does not affect another instance")
 	var anchor_layer := {"id":"qa-segment", "attachment":{"anchor":{"edge":"segment","root":[0,0],"tip":[1023,1535]}}}
 	var anchor_image := first._attachment_mask(anchor_layer).get_image()
 	check(anchor_image.get_pixel(0,0).r==0,"segment anchor pins its root")

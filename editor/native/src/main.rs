@@ -7,6 +7,7 @@ use std::io::{self, BufRead, Cursor, Read, Write};
 use std::time::Instant;
 mod selection;
 mod processing;
+mod export_texture;
 
 const MAX_PIXELS: u64 = 16_777_216;
 const MAX_LINE: usize = 96 * 1024 * 1024;
@@ -103,7 +104,7 @@ fn bake(args: &Value) -> Result<Value, String> {
 }
 fn run(op: &str, args: &Value) -> Result<Value, String> {
     match op {
-        "ping" => Ok(json!({"engine":"rust","version":env!("CARGO_PKG_VERSION"),"operations":["selection","mask_combine","feather","resize","mask_stats","bake_mask","clean_alpha","underpaint","repair_split","alpha","image_channel","mesh","agent_image","refine_selection","adjust_image","wand_selection","title_raster"],"parallel_threads":rayon::current_num_threads()})),
+        "ping" => Ok(json!({"engine":"rust","version":env!("CARGO_PKG_VERSION"),"operations":["texture_variant","selection","mask_combine","feather","resize","mask_stats","bake_mask","clean_alpha","underpaint","repair_split","alpha","image_channel","mesh","agent_image","refine_selection","adjust_image","wand_selection","title_raster"],"parallel_threads":rayon::current_num_threads()})),
         "agent_image" => {
             let source=decode(args,"source")?.to_rgba8();let mut candidate=decode(args,"candidate")?.to_rgba8();
             let mode=args["mode"].as_str().ok_or("missing image operation")?;
@@ -148,6 +149,7 @@ fn run(op: &str, args: &Value) -> Result<Value, String> {
             }
             Ok(json!({"image":encode(&DynamicImage::ImageLuma8(GrayImage::from_raw(w,h,data).ok_or("invalid mask")?))?,"width":w,"height":h}))
         },
+        "texture_variant" => export_texture::variant(args),
         "resize" => {
             let img=decode(args,"image")?; let (w,h)=(dim(args,"width")?,dim(args,"height")?);valid_size(w,h)?;
             let result=image::imageops::resize(&img,w,h,FilterType::Lanczos3);

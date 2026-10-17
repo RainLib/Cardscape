@@ -1,6 +1,7 @@
 @tool
 class_name CardscapeCard
 extends Node3D
+const CharacterAnimation = preload("res://addons/cardscape/character_animation.gd")
 ## Game owns placement/state; each instance owns its materials and overrides.
 signal action_finished(id: String)
 @export var library: CardscapeLibrary:
@@ -31,10 +32,18 @@ signal action_finished(id: String)
 @export var material_settings: Dictionary = {}
 @export var particle_settings: Dictionary = {}
 @export_range(8, 256, 1) var particle_budget: int = 128
+## Positive width overrides camera projection for UI render textures.
+@export var detail_pixel_width: float = 0.0
+var _detail_level: String = "large"
+var _detail_pixels: float = 0.0
+var _detail_parent: Dictionary = {}
+var _detail_effects: Dictionary = {"particles":true,"materials":true,"decorations":true}
 var _queued: bool = false
 var _visual: Node3D
 var _surfaces: Array[MeshInstance3D] = []
 var _definition: Dictionary = {}
+var _character_compiled: Dictionary = {}
+var _native_meshes: Dictionary = {}
 var _attachment_masks: Dictionary = {}
 var _clock: float = 0.0
 var _particle_reveal_started: float = 0.0
@@ -86,6 +95,8 @@ func set_layer_transform(id: String, offset: Vector2, layer_scale: float = 1.0, 
 	for surface in _surfaces:
 		if surface.get_meta("layer_id", "") != id:
 			continue
+		if surface.has_meta("character_base"):
+			surface.transform=surface.get_meta("character_base")
 		if is_finite(z):
 			surface.position.z = z
 			surface.set_meta("depth_override",true)
@@ -94,11 +105,14 @@ func set_layer_transform(id: String, offset: Vector2, layer_scale: float = 1.0, 
 		surface.position.x = offset.x / 1024.0 * registration
 		surface.position.y = -offset.y / 1024.0 * registration
 		surface.scale = Vector3(layer_scale*registration, layer_scale*registration, 1.0)
+		surface.set_meta("character_base",surface.transform)
 		found = true
+	_update(0.0)
 	return found
 
 func set_effect_parameter(name: String, value: Variant) -> void:
 	for surface in _surfaces:
+		if name=="opacity":surface.set_meta("character_opacity",float(value))
 		(surface.material_override as ShaderMaterial).set_shader_parameter(name, value)
 
 func set_custom_shader(shader: Shader, layer_id: String = "") -> void:
@@ -134,7 +148,10 @@ func seek_action(seconds: float, paused: bool = true) -> void:
 	_update(0.0)
 
 func pause_action(paused: bool = true) -> void:
+	if paused and not _paused and _action.get("loop",false):
+		_action_time=fmod(_action_time,float(_action.duration))
 	_paused = paused
+	_update(0.0)
 
 func seek_effects(seconds: float) -> void:
 	_clock = maxf(0.0, seconds)
@@ -149,8 +166,56 @@ func seek_particle_reveal(seconds: float) -> void:
 	_particle_reveal_started = _clock-maxf(0.0,seconds)
 	_update(0.0)
 
+func _exit_tree() -> void:
+	if library:library.release_prepared([],get_instance_id(),true)
+
 func _texture(key: String) -> Texture2D:
-	return library.texture(key) if library else null
+	var variant: Dictionary=_definition.get("exportProfile",{}).get("textures",{}).get(key,{})
+	return library.texture(str(variant.get(_detail_level,{}).get("asset",key))) if library else null
+
+func _export_settings() -> Dictionary:
+	return _definition.get("exportProfile",{}).get("settings",{})
+
+func _projected_detail_width() -> float:
+	if detail_pixel_width>0:return detail_pixel_width
+	var camera := get_viewport().get_camera_3d()
+	if not camera or not _visual:return 0.0
+	var center := _visual.global_position
+	if camera.is_position_behind(center):return 0.0
+	var half_width := camera.global_basis.x*global_basis.get_scale().x*_visual.scale.x*.5
+	return camera.unproject_position(center-half_width).distance_to(camera.unproject_position(center+half_width))
+
+func _detail_visible(id: String) -> bool:
+	var rule: String=_export_settings().get("layers",{}).get(id,"always")
+	return rule!="omit" and (rule!="detail" or _detail_level=="large" or _detail_effects.decorations)
+
+func _update_detail() -> void:
+	var settings := _export_settings()
+	if not _detail_parent.is_empty():
+		_detail_level=_detail_parent.level
+		_detail_effects=_detail_parent.effects
+		return
+	if settings.is_empty():return
+	_detail_pixels=_projected_detail_width()
+	var threshold := float(settings.get("threshold",420))*(.85 if _detail_level=="large" else 1.0)
+	var desired := "large" if _detail_pixels>=threshold else "small"
+	if not settings.get("adaptive",false):desired="small" if settings.get("preset","")=="mobile-list" else "large"
+	var keys: Array=[]
+	for surface in _surfaces:
+		var key: String=surface.get_meta("texture_asset","")
+		var variant: Dictionary=_definition.get("exportProfile",{}).get("textures",{}).get(key,{})
+		if not variant.is_empty():keys.append(str(variant.get(desired,variant.large).asset))
+	if desired==_detail_level and library:library.release_prepared([],get_instance_id())
+	if desired!=_detail_level and library and not library.prepare_textures(keys,get_instance_id()):return
+	if desired!=_detail_level:
+		_detail_level=desired
+		for surface in _surfaces:
+			if surface.has_meta("texture_asset"):(surface.material_override as ShaderMaterial).set_shader_parameter("art",_texture(surface.get_meta("texture_asset")))
+		if library:library.release_prepared(keys,get_instance_id())
+	_detail_effects={"particles":_detail_level=="large" or settings.get("smallParticles",false),"materials":_detail_level=="large" or settings.get("smallMaterials",false),"decorations":_detail_level=="large" or settings.get("smallDecorations",false)}
+
+func export_detail_state() -> Dictionary:
+	return {"level":_detail_level,"pixels":_detail_pixels,"effects":_detail_effects.duplicate(),"action_seconds":_action_time}
 
 func _resolve_definition() -> Dictionary:
 	if not _embedded_definition.is_empty():
@@ -223,7 +288,11 @@ func rebuild() -> void:
 	if not library:
 		return
 	_attachment_masks.clear()
+	_native_meshes.clear()
 	_definition = _resolve_definition()
+	_detail_level="large"
+	_detail_effects={"particles":true,"materials":true,"decorations":true}
+	_character_compiled = CharacterAnimation.compile(_definition.get("characterRig",{}))
 	if _definition.is_empty():
 		push_warning("Cardscape: unknown card " + card_id)
 		return
@@ -233,6 +302,12 @@ func rebuild() -> void:
 	_visual.name = "CardVisual"
 	add_child(_visual)
 	_visual.rotation = _base_pose
+	var initial_settings := _export_settings()
+	if not initial_settings.is_empty():
+		var initial_small: bool = _projected_detail_width()<float(initial_settings.get("threshold",420)) if initial_settings.get("adaptive",false) else initial_settings.get("preset","")=="mobile-list"
+		if library and not library.initial_detail_level.is_empty():initial_small=library.initial_detail_level=="small"
+		_detail_level="small" if initial_small else "large"
+		_detail_effects={"particles":not initial_small or initial_settings.get("smallParticles",false),"materials":not initial_small or initial_settings.get("smallMaterials",false),"decorations":not initial_small or initial_settings.get("smallDecorations",false)}
 	var style: Dictionary = _definition.frameStyle
 	var frame: Dictionary = _definition.frameGeometry
 	var order := 0
@@ -271,6 +346,12 @@ func rebuild() -> void:
 					var limit := float(layer.get("attachment",{}).get("maxOffset",.025))
 					z=parent_z+clampf(z-parent_z,-limit,limit)
 		var shared_mesh: Mesh = rigid_character_mesh if fg and _rigid_part(layer) else _mesh(geometry,true,layer) if fg and not _rigid_part(layer) and layer.get("attachment",{}).has("motion") else character_mesh if fg else _mesh(geometry, false)
+		for skin in (_character_compiled.meshes if _definition.get("cosmeticPreview",{}).get("motion",true) else []):
+			if skin.layerId!=layer.id:continue
+			var points: Array=[]
+			for i in range(skin.vertices.size()/2):points.append_array([float(skin.vertices[i*2])/1024.0-.5,.75-float(skin.vertices[i*2+1])/1024.0,float(skin.get("depths",[])[i]) if skin.has("depths") else 0.0])
+			shared_mesh=_mesh({"positions":points,"uv":skin.uv,"indices":skin.triangles},false,{},true)
+			_native_meshes[layer.id]={"mesh":shared_mesh,"spec":skin,"rest":shared_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]}
 		if fg:
 			_surface(layer, shared_mesh, z, -60+order*2, 1.0, bg)
 			_surface(layer, shared_mesh, z, -60+order*2, 2.0, bg)
@@ -355,7 +436,7 @@ func _embed_component(kind: String, document: Dictionary, offset: Vector3) -> vo
 func _quad() -> Dictionary:
 	return {"positions":[-.5,.75,0,.5,.75,0,-.5,-.75,0,.5,-.75,0],"uv":[0,0,1,0,0,1,1,1],"indices":[0,2,1,1,2,3]}
 
-func _mesh(data: Dictionary, foreground: bool = false, cloth: Dictionary = {}) -> ArrayMesh:
+func _mesh(data: Dictionary, foreground: bool = false, cloth: Dictionary = {}, dynamic: bool=false) -> ArrayMesh:
 	var positions := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var colors := PackedColorArray()
@@ -423,7 +504,7 @@ func _mesh(data: Dictionary, foreground: bool = false, cloth: Dictionary = {}) -
 	arrays[Mesh.ARRAY_COLOR] = colors
 	arrays[Mesh.ARRAY_INDEX] = PackedInt32Array(data.indices)
 	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays,[],{},Mesh.ARRAY_FLAG_USE_DYNAMIC_UPDATE if dynamic else 0)
 	return mesh
 
 func _attachment_mask(layer: Dictionary) -> Texture2D:
@@ -545,6 +626,7 @@ func _surface(layer: Dictionary, mesh: Mesh, z: float, priority: int, pass_id: f
 	node.position.y*=registration
 	node.set_meta("registered",registered)
 	node.set_meta("registration",registration)
+	node.set_meta("character_base",node.transform)
 	node.set_meta("depth_override",registered)
 	_visual.add_child(node)
 	var mat := ShaderMaterial.new()
@@ -563,26 +645,31 @@ func _surface(layer: Dictionary, mesh: Mesh, z: float, priority: int, pass_id: f
 		mat.set_shader_parameter("title_sweep",_sweep(sweep) if _definition.get("cosmeticPreview",{}).get("title",true) else Vector4.ZERO)
 		mat.set_shader_parameter("title_color",Color(sweep.color))
 		mat.set_shader_parameter("title_bounds",Vector2(float(variant.get("bounds",[0,1])[0]),float(variant.get("bounds",[0,1])[1])))
+	node.set_meta("texture_asset",asset)
 	mat.set_shader_parameter("art",_texture(asset))
+	node.set_meta("title_sweep_default",mat.get_shader_parameter("title_sweep") if mat.get_shader_parameter("title_sweep") is Vector4 else Vector4.ZERO)
 	mat.set_shader_parameter("surfaceChannel",float(clampi(int(layer.get("shaderChannel",0)),0,255)))
 	mat.set_shader_parameter("surfaceTransparent",bool(layer.get("shaderTransparent",false)))
-	if layer.has("splitSourceId") and registered and not _rigid_part(layer):
+	if layer.has("splitSourceId") and registered and not _rigid_part(layer) and not _native_meshes.has(layer.id):
 		var join_texture := _attachment_mask(layer)
 		if join_texture:
 			node.set_meta("attachment_parent",str(layer.splitSourceId))
 			mat.set_shader_parameter("attached",true)
 			mat.set_shader_parameter("attachment_tex",join_texture)
 	mat.set_shader_parameter("foreground_pass",pass_id)
-	mat.set_shader_parameter("rigid_part",_rigid_part(layer))
+	mat.set_shader_parameter("rigid_part",_rigid_part(layer) or _native_meshes.has(layer.id))
 	mat.set_shader_parameter("background",bg)
 	mat.set_shader_parameter("clipped",bool(layer.get("spatial",{}).get("clip",false)))
 	for slot in _definition.get("slots",[]):
 		if slot.id==layer.get("slotId",""):
 			mat.set_shader_parameter("clipped",slot.clip)
 			mat.set_shader_parameter("slot_effect",Vector3(1 if slot.effect=="pulse" else 2 if slot.effect=="flow" else 0,float(slot.strength),float(slot.speed)))
+	node.set_meta("character_opacity",float(layer.get("opacity",1)))
 	mat.set_shader_parameter("opacity",float(layer.get("opacity",1)))
 	var shader: Dictionary = _definition.shader
-	mat.set_shader_parameter("custom_effect",not layer.get("reverse",false) and shader.fragmentTarget in ["all",layer.id,layer.kind])
+	node.set_meta("custom_effect_default",not layer.get("reverse",false) and shader.fragmentTarget in ["all",layer.id,layer.kind])
+	mat.set_shader_parameter("custom_effect",node.get_meta("custom_effect_default"))
+	node.set_meta("slot_effect_default",mat.get_shader_parameter("slot_effect") if mat.get_shader_parameter("slot_effect") is Vector3 else Vector3.ZERO)
 	mat.set_shader_parameter("custom_masked",shader.fragmentMask!="none")
 	mat.set_shader_parameter("custom_strength",float(shader.fragmentStrength))
 	mat.set_shader_parameter("custom_mask_tex",_texture(_definition.get("maskAssets",{}).get(shader.fragmentMask,"")))
@@ -590,7 +677,8 @@ func _surface(layer: Dictionary, mesh: Mesh, z: float, priority: int, pass_id: f
 		mat.set_shader_parameter(name+"_tex",_texture(_definition.get("maskAssets",{}).get(name,"")))
 	if layer.has("sourceWindow") and _texture(asset):
 		var r: Dictionary = layer.sourceWindow
-		var size := _texture(asset).get_size()
+		var original_size: Variant=_definition.get("exportProfile",{}).get("textures",{}).get(asset,{}).get("sourceSize",[])
+		var size: Vector2=Vector2(float(original_size[0]),float(original_size[1])) if original_size is Array and original_size.size()==2 else _texture(asset).get_size()
 		if bg and registered:
 			mat.set_shader_parameter("background_extent",size/Vector2(float(r.width),float(r.height)))
 		mat.set_shader_parameter("source_rect",Vector4(float(r.x)/size.x,float(r.y)/size.y,float(r.width)/size.x,float(r.height)/size.y))
@@ -639,7 +727,7 @@ func _update(_delta: float) -> void:
 	var extra_bend := 0.0
 	if not _action.is_empty():
 		var duration := float(_action.duration)
-		progress = fmod(_action_time,duration)/duration if _action.loop else minf(1.0,_action_time/duration)
+		progress = fmod(_action_time,duration)/duration if _action.loop and not _paused else minf(1.0,_action_time/duration)
 		var tracks: Dictionary = _action.get("tracks",{})
 		var envelope := 1.0 if _action.loop else sin(progress*PI)
 		_visual.position = Vector3(_sample(tracks.get("x",[]),progress,0)/1024.0,-_sample(tracks.get("y",[]),progress,0)/1024.0,_sample(tracks.get("z",[]),progress,0))
@@ -652,6 +740,36 @@ func _update(_delta: float) -> void:
 		if not _action.loop and progress >= 1 and not _paused:
 			_paused = true
 			action_finished.emit(str(_action.id))
+	_update_detail()
+	var character_action := _action
+	var character_progress := progress
+	if character_action.is_empty():
+		var candidates: Array=_definition.get("actions",[])
+		var idle: Array=candidates.filter(func(a):return a.id=="idle")
+		if idle.is_empty():idle=candidates.filter(func(a):return a.event=="idle")
+		if not idle.is_empty():
+			character_action=idle[0]
+			character_progress=fmod(_clock,float(character_action.duration))/float(character_action.duration) if character_action.loop else minf(1.0,_clock/float(character_action.duration))
+	var pose: Dictionary = CharacterAnimation.pose(_character_compiled,character_action,character_progress,_definition.layers) if effects_playing else CharacterAnimation.rest(_character_compiled,_definition.layers)
+	var character_pose: Dictionary = pose.layers if effects_playing and _definition.get("cosmeticPreview",{}).get("motion",true) else {}
+	var skin_pose_key := [effects_playing,character_action.hash(),character_progress,_camera_distance()]
+	var updated: Dictionary={}
+	for surface in _surfaces:
+		if surface.has_meta("character_base"):
+			if not _detail_visible(surface.get_meta("layer_id","")):continue
+			var id: String=surface.get_meta("layer_id","")
+			if _native_meshes.has(id):
+				surface.transform=surface.get_meta("character_base")
+				if not updated.has(id):
+					var skin: Dictionary=_native_meshes[id]
+					if skin.get("pose_key",[])!=skin_pose_key:
+						var points: PackedVector3Array=CharacterAnimation.Deformation.geometry(skin.spec,pose,surface.transform,float(surface.get_meta("registration",1.0)),_camera_distance())
+						(skin.mesh as ArrayMesh).surface_update_vertex_region(0,0,points.to_byte_array())
+						skin["last_positions"]=points
+						skin["pose_key"]=skin_pose_key.duplicate()
+						(skin.mesh as ArrayMesh).custom_aabb=AABB(Vector3(-8,-8,-1),Vector3(16,16,2))
+					updated[id]=true
+			else:surface.transform=CharacterAnimation.apply(surface.get_meta("character_base"),float(surface.get_meta("registration",1.0)),character_pose.get(id,{}))
 	var camera := get_viewport().get_camera_3d()
 	var eye := _visual.global_transform.affine_inverse() * camera.global_position if camera else Vector3(0,0,2.7)
 	var front := eye.z > .03
@@ -668,16 +786,28 @@ func _update(_delta: float) -> void:
 	var effects: Dictionary = _definition.get("effects",{})
 	var material: Dictionary = _definition.get("material",{}).duplicate()
 	material.merge(material_settings,true)
+	if not _detail_effects.materials:
+		material.enabled=false
+		material.backgroundMode="overlay"
 	var replacement_owner := _replacement_background(material)
 	for surface in _surfaces:
+		surface.visible=true
 		if surface.get_meta("background_art",false):surface.visible=replacement_owner.is_empty() or surface.get_meta("layer_id","")==replacement_owner
 		if surface.get_meta("layer_id","")=="frame-aura":
-			surface.visible=front and style.finish in ["glow","cosmic","ice","fire","fire-iridescent","glyphs","refraction","overloaded","neonnights","pax","candy-halloween","halloween-stickers"]
+			surface.visible=front and _detail_effects.materials and style.finish in ["glow","cosmic","ice","fire","fire-iridescent","glyphs","refraction","overloaded","neonnights","pax","candy-halloween","halloween-stickers"]
 		if surface.get_meta("reverse_only",false):
 			surface.visible = not front
+		surface.visible=surface.visible and _detail_visible(surface.get_meta("layer_id",""))
 		var mat := surface.material_override as ShaderMaterial
+		mat.set_shader_parameter("custom_effect",_detail_effects.materials and surface.get_meta("custom_effect_default",false))
+		mat.set_shader_parameter("title_sweep",surface.get_meta("title_sweep_default",Vector4.ZERO) if _detail_effects.materials else Vector4.ZERO)
+		var slot_effect: Vector3=surface.get_meta("slot_effect_default",Vector3.ZERO)
+		mat.set_shader_parameter("slot_effect",slot_effect if _detail_effects.materials else Vector3.ZERO)
 		if float(mat.get_shader_parameter("foreground_pass")) > 0 and not surface.get_meta("depth_override",false):
 			surface.position.z = .045 + .045 * depth_strength
+		if character_pose.has(surface.get_meta("layer_id","")) or surface.get_meta("character_animated_opacity",false):
+			mat.set_shader_parameter("opacity",float(surface.get_meta("character_opacity"))*float(character_pose.get(surface.get_meta("layer_id",""),{}).get("opacity",1)))
+			surface.set_meta("character_animated_opacity",character_pose.has(surface.get_meta("layer_id","")))
 		mat.set_shader_parameter("layer_transform",surface.transform)
 		if surface.has_meta("attachment_parent"):
 			for parent in _surfaces:
@@ -693,28 +823,29 @@ func _update(_delta: float) -> void:
 		mat.set_shader_parameter("geometry_bend",float(_definition.get("deformation",{}).get("bend",0))+(extra_bend if _definition.get("cosmeticPreview",{}).get("motion",true) else 0.0))
 		mat.set_shader_parameter("motion_gain",motion*float(_definition.get("deformation",{}).get("wind",1)) if effects_playing and effects.get("cape",false) else 0.0)
 		mat.set_shader_parameter("flow_speed",float(effects.get("flowSpeed",1)))
-		mat.set_shader_parameter("flow_gain",flow if effects_playing and effects.get("flow",false) else 0.0)
+		mat.set_shader_parameter("flow_gain",flow if effects_playing and _detail_effects.materials and effects.get("flow",false) else 0.0)
 		mat.set_shader_parameter("wind_speed",float(_definition.get("deformation",{}).get("speed",1)))
 		mat.set_shader_parameter("metrics",Vector4(float(style.width)/1024.0,float(style.corner)/1024.0,float(style.depth)/1024.0,minf(float(style.bevel),float(style.width)*.4)/1024.0))
 		mat.set_shader_parameter("pop_sides",Vector4(float(composition.get("top",true)),float(composition.get("right",true)),float(composition.get("bottom",false)),float(composition.get("left",true))))
 		mat.set_shader_parameter("frame_color",Color(style.color))
 		mat.set_shader_parameter("frame_accent",Color(style.accent))
-		mat.set_shader_parameter("frame_finish",["flat","metal","glow","cosmic","distressed","web","candy","ice","snow","wrapping","fire","fire-iridescent","chains","glyphs","refraction","overloaded","neonnights","distressed-copper","distressed-rainbow","orbit-silver","twin-aurora","pax","brains","candy-halloween","halloween-stickers"].find(style.finish))
-		mat.set_shader_parameter("frame_animation",Vector2(["none","pulse","flow","infinity"].find(style.get("animation","none")) if effects_playing else 0,float(style.get("animationSpeed",.6))))
-		mat.set_shader_parameter("armor_sweep",_sweep(armor))
+		mat.set_shader_parameter("frame_finish",["flat","metal","glow","cosmic","distressed","web","candy","ice","snow","wrapping","fire","fire-iridescent","chains","glyphs","refraction","overloaded","neonnights","distressed-copper","distressed-rainbow","orbit-silver","twin-aurora","pax","brains","candy-halloween","halloween-stickers"].find(style.finish if _detail_effects.materials else "flat" if style.finish=="flat" else "metal"))
+		mat.set_shader_parameter("frame_animation",Vector2(["none","pulse","flow","infinity"].find(style.get("animation","none")) if effects_playing and _detail_effects.materials else 0,float(style.get("animationSpeed",.6))))
+		mat.set_shader_parameter("armor_sweep",_sweep(armor) if _detail_effects.materials else Vector4.ZERO)
 		mat.set_shader_parameter("armor_color",Color(armor.get("color","#badfff")))
 		var surface_material: Dictionary = _definition.get("backScene",{}).get("material",material) if surface.get_meta("reverse",false) else material
-		mat.set_shader_parameter("component_material",Vector4(float(surface_material.get("strength",.3)) if effects_playing and surface_material.get("enabled",false) else 0,float(surface_material.get("speed",.25)),float(surface_material.get("frequency",4)),5 if surface.get_meta("reverse",false) else 1 if surface_material.get("target","both")=="background" else 2 if surface_material.get("target","both")=="back" else 3 if surface_material.get("target","")=="front" else 4 if surface_material.get("target","")=="artwork" else 0))
+		mat.set_shader_parameter("component_material",Vector4(float(surface_material.get("strength",.3)) if effects_playing and _detail_effects.materials and surface_material.get("enabled",false) else 0,float(surface_material.get("speed",.25)),float(surface_material.get("frequency",4)),5 if surface.get_meta("reverse",false) else 1 if surface_material.get("target","both")=="background" else 2 if surface_material.get("target","both")=="back" else 3 if surface_material.get("target","")=="front" else 4 if surface_material.get("target","")=="artwork" else 0))
 		mat.set_shader_parameter("material_color",Color(surface_material.get("color","#78cfff")))
 		mat.set_shader_parameter("material_accent",Color(surface_material.get("accent","#fa8dde")))
 		mat.set_shader_parameter("holographic",surface_material.get("style","")=="holographic")
-		mat.set_shader_parameter("material_replace",1.0 if surface_material.get("backgroundMode","overlay")=="replace" and not surface.get_meta("material_overlay",false) else 0.0)
+		mat.set_shader_parameter("material_replace",1.0 if _detail_effects.materials and surface_material.get("backgroundMode","overlay")=="replace" and not surface.get_meta("material_overlay",false) else 0.0)
 		mat.set_shader_parameter("material_style",["iridescent","holographic","foil","prism","gold","ink","copper","steel","goldprism","blackprism","cosmic","glass","fire","water","rays","refraction","psychedelic","foilmetallic","goldmetallic","gildedprism","glasscircuits","wakandanglass","galacticstorm","bananas","symbiote","circuits","frosted","raysrainbow","caustics","rayspurple"].find(surface_material.get("style","iridescent")))
 	_update_particles(root_alpha,front)
 	var available_particles := maxi(0,particle_budget-_particle_count)
 	for kind in _component_nodes:
 		var child: CardscapeCard = _component_nodes[kind]
-		child.visible = not front if kind == "back" else front
+		child._detail_parent={"level":_detail_level,"effects":_detail_effects}
+		child.visible = (not front if kind == "back" else front) and (kind!="particles" or _detail_effects.particles) and (not kind in ["material","effect"] or _detail_effects.materials)
 		child.effects_playing = effects_playing and child.visible
 		child.effects_paused = effects_paused
 		child._clock = _clock
@@ -725,7 +856,7 @@ func _update(_delta: float) -> void:
 		child.particle_budget = available_particles
 		if not child._paused:
 			child._action_time += _delta
-		child._update(_delta)
+		if child.visible:child._update(_delta)
 		available_particles = maxi(0,available_particles-child._particle_count)
 
 func _particle_config() -> Dictionary:
@@ -811,6 +942,11 @@ func _field_point(e: Dictionary, p: Dictionary, i: int, seed: int) -> Vector3:
 	return Vector3(pos.x,pos.y,alpha)
 
 func _update_particles(root_alpha: float, front: bool) -> void:
+	if not _detail_effects.particles:
+		_particle_count=0
+		if _particle_node:_particle_node.multimesh.visible_instance_count=0
+		if _particle_front_node:_particle_front_node.visible=false
+		return
 	if not _particle_node:
 		return
 	var p := _particle_config()
@@ -872,7 +1008,7 @@ func _update_particles(root_alpha: float, front: bool) -> void:
 	mat.set_shader_parameter("particle_time",_clock)
 	mat.set_shader_parameter("particle_speed",float(p.get("speed",.25)))
 	if p.get("visual","dust")=="sprite":
-		var sprite=library.textures.get(p.get("sprite",""))
+		var sprite=_texture(str(p.get("sprite","")))
 		if sprite:mat.set_shader_parameter("sprite_tex",sprite)
 		else:_particle_count=0
 	var split_cosmic: bool = p.get("visual","")=="cosmic" and not foreground

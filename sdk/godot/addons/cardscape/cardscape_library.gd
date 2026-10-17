@@ -5,6 +5,12 @@ extends Resource
 @export_multiline var data_json: String = "{}"
 @export var textures: Dictionary = {}
 @export var shaders: Dictionary = {}
+@export var texture_paths: Dictionary = {}
+var remote_source
+var initial_detail_level: String = ""
+var _texture_requests: Dictionary = {}
+var _prepared_textures: Dictionary = {}
+var _texture_consumers: Dictionary = {}
 var _cache: Dictionary = {}
 var _source: String = ""
 var _surface_shader_cache: Dictionary = {}
@@ -52,4 +58,52 @@ func component(kind: String, id: String, version: int = 0) -> Dictionary:
 	return {}
 
 func texture(key: String) -> Texture2D:
-	return textures.get(key) as Texture2D
+	if textures.has(key):return textures[key] as Texture2D
+	if _prepared_textures.has(key):return _prepared_textures[key] as Texture2D
+	if is_instance_valid(remote_source):return remote_source.texture(key)
+	var file: String=texture_paths.get(key,"")
+	return load(file) as Texture2D if not file.is_empty() else null
+
+## Keep the old detail tier until a complete batch is decoded. Texture paths
+## stay lazy; switching one card never rebuilds another instance or its clock.
+func prepare_textures(keys: Array, owner: int = 0) -> bool:
+	if is_instance_valid(remote_source):
+		return remote_source.prepare_textures(keys.filter(func(key):return not textures.has(key)),owner)
+	_texture_consumers[owner]=keys.duplicate()
+	_collect_texture_requests()
+	var ready := true
+	for key in keys:
+		if textures.has(key) or _prepared_textures.has(key):continue
+		var file: String=texture_paths.get(key,"")
+		if file.is_empty():continue
+		if not _texture_requests.has(key) and ResourceLoader.has_cached(file):
+			_prepared_textures[key]=load(file)
+			continue
+		if not _texture_requests.has(key):
+			ResourceLoader.load_threaded_request(file,"Texture2D")
+			_texture_requests[key]=file
+		ready=false
+	return ready
+
+func _collect_texture_requests(wait: bool = false) -> void:
+	var wanted: Dictionary={}
+	for keys in _texture_consumers.values():
+		for key in keys:wanted[key]=true
+	for key in _texture_requests.keys():
+		var file: String=_texture_requests[key]
+		var state := ResourceLoader.load_threaded_get_status(file)
+		if state==ResourceLoader.THREAD_LOAD_LOADED or (wait and state==ResourceLoader.THREAD_LOAD_IN_PROGRESS):
+			var result := ResourceLoader.load_threaded_get(file)
+			if wanted.has(key):_prepared_textures[key]=result
+			_texture_requests.erase(key)
+		elif state in [ResourceLoader.THREAD_LOAD_FAILED,ResourceLoader.THREAD_LOAD_INVALID_RESOURCE]:
+			_texture_requests.erase(key)
+	for key in _prepared_textures.keys():
+		if not wanted.has(key):_prepared_textures.erase(key)
+
+func release_prepared(_keys: Array, owner: int = 0, wait: bool = false) -> void:
+	if is_instance_valid(remote_source):
+		remote_source.release_prepared(owner)
+		return
+	_texture_consumers.erase(owner)
+	_collect_texture_requests(wait and _texture_consumers.is_empty())

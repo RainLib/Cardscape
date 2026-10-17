@@ -40,4 +40,8 @@ test('the independent editor uses the same masked images and respects frame asse
  const context={doc,images,window:{CardRuntime:{placement:()=>({x:0,y:0,scale:1,rotation:0})},CardFrame:{resolve:()=>F.defaults,draw:()=>calls.push('frame')},CardFrameArtwork:{imageForLayer(l,s){assert.equal(s,raw);calls.push(l.id);return masked;},draw:()=>false},CardStats:{paintOrder:layers=>layers.slice().reverse()},CardSpatial:{background:()=>false}},registeredImage:(l,s)=>s,adjustedImage:(l,s)=>s};
  vm.createContext(context);vm.runInContext(app.slice(start,end)+app.slice(compositionStart,compositionEnd),context);const target=factory.make();context.drawComposition(target.getContext('2d'),doc,images);
  assert.deepEqual(calls,['rear','frame','metal','front']);assert.ok(target.draws.every(s=>s===masked));
+ // A posed authoring viewport must never leak into static composition/export.
+ let posed=0;context.window.atelierCharacterAdvanced={drawLayer(){posed++;return true;}};
+ context.drawComposition(target.getContext('2d'),doc,images);assert.equal(posed,0);
+ const viewport=target.getContext('2d');viewport.canvas={id:'editor-canvas'};context.drawLayer(viewport,front,doc,images);assert.equal(posed,1);
 });

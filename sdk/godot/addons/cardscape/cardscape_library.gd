@@ -6,6 +6,8 @@ extends Resource
 @export var textures: Dictionary = {}
 @export var shaders: Dictionary = {}
 @export var texture_paths: Dictionary = {}
+var remote_source
+var initial_detail_level: String = ""
 var _texture_requests: Dictionary = {}
 var _prepared_textures: Dictionary = {}
 var _texture_consumers: Dictionary = {}
@@ -58,12 +60,15 @@ func component(kind: String, id: String, version: int = 0) -> Dictionary:
 func texture(key: String) -> Texture2D:
 	if textures.has(key):return textures[key] as Texture2D
 	if _prepared_textures.has(key):return _prepared_textures[key] as Texture2D
+	if is_instance_valid(remote_source):return remote_source.texture(key)
 	var file: String=texture_paths.get(key,"")
 	return load(file) as Texture2D if not file.is_empty() else null
 
 ## Keep the old detail tier until a complete batch is decoded. Texture paths
 ## stay lazy; switching one card never rebuilds another instance or its clock.
 func prepare_textures(keys: Array, owner: int = 0) -> bool:
+	if is_instance_valid(remote_source):
+		return remote_source.prepare_textures(keys.filter(func(key):return not textures.has(key)),owner)
 	_texture_consumers[owner]=keys.duplicate()
 	_collect_texture_requests()
 	var ready := true
@@ -97,5 +102,8 @@ func _collect_texture_requests(wait: bool = false) -> void:
 		if not wanted.has(key):_prepared_textures.erase(key)
 
 func release_prepared(_keys: Array, owner: int = 0, wait: bool = false) -> void:
+	if is_instance_valid(remote_source):
+		remote_source.release_prepared(owner)
+		return
 	_texture_consumers.erase(owner)
 	_collect_texture_requests(wait and _texture_consumers.is_empty())

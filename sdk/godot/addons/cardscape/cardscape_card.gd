@@ -305,6 +305,7 @@ func rebuild() -> void:
 	var initial_settings := _export_settings()
 	if not initial_settings.is_empty():
 		var initial_small: bool = _projected_detail_width()<float(initial_settings.get("threshold",420)) if initial_settings.get("adaptive",false) else initial_settings.get("preset","")=="mobile-list"
+		if library and not library.initial_detail_level.is_empty():initial_small=library.initial_detail_level=="small"
 		_detail_level="small" if initial_small else "large"
 		_detail_effects={"particles":not initial_small or initial_settings.get("smallParticles",false),"materials":not initial_small or initial_settings.get("smallMaterials",false),"decorations":not initial_small or initial_settings.get("smallDecorations",false)}
 	var style: Dictionary = _definition.frameStyle

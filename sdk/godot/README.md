@@ -157,3 +157,5 @@ node editor/scripts/test-godot.cjs --project EXPORTED_GODOT_DIR --script tests/t
 编辑器的四种导出预设同时适用于 Godot。`CardscapeCard` 按相机投影自动切换小图／高清及粒子、复杂材质、附加片元 Shader 和可选图层；切档复用蒙皮网格并保持动作时间。UI RenderTexture 可通过 `detail_pixel_width` 提供投影宽度，0 恢复自动计算，`export_detail_state()` 返回当前档位。示例界面提供缩放。
 
 彩色变体通过 `library.tres.texture_paths` 按需加载，整档完成后同步替换；Mask 继续保真。导出 PCK 时选择 **Export all resources**，或显式包含 `assets/` 下全部变体。`tests/test_export_detail.gd` 使用真实 Spine 卡牌检查全部动作、纹理尺寸、图层恢复、粒子、网格和时钟。完整预设与资源范围见 [导出预设](../../editor/docs/export-presets.md)。
+
+远端内容接入使用 `CardscapeRemote`：从 OSS / CDN 读取 `catalog.json`，下载并校验所选卡片依赖，再返回标准 `CardscapeLibrary`；图片直接从原始字节创建 Texture2D，无需远端 `.import`。共享组件跨卡复用，高清按缩放下载，保持动画时钟和蒙皮网格。`demo/remote.tscn` 是不需要本地素材库的示例，导出中的 `godot-remote/` 可直接运行；APK 需启用 Internet 权限。缓存、签名 URL、组件换装、发布顺序与验证边界见 [远端内容](../../editor/docs/remote-delivery.md)。

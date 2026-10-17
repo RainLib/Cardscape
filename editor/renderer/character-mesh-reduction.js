@@ -24,7 +24,8 @@ function probes(a,b,ma,mb){
  // The intersection vertices of the old/new triangle overlay expose thin FFD
  // creases that a vertex-only comparison would miss.
  for(const e of b.edges.values())for(const f of a.nearbyEdges(e.p,e.q)){const den=(e.q.x-e.p.x)*(f.q.y-f.p.y)-(e.q.y-e.p.y)*(f.q.x-f.p.x);if(Math.abs(den)<1e-16)continue;const dx=f.p.x-e.p.x,dy=f.p.y-e.p.y,t=(dx*(f.q.y-f.p.y)-dy*(f.q.x-f.p.x))/den,u=(dx*(e.q.y-e.p.y)-dy*(e.q.x-e.p.x))/den;if(t>EPS&&t<1-EPS&&u>EPS&&u<1-EPS)add({x:e.p.x+(e.q.x-e.p.x)*t,y:e.p.y+(e.q.y-e.p.y)*t});}
- return [...result.values()].map(p=>({a:a.locate(p),b:b.locate(p)}));
+ const originals=new Map([...a.active].map(i=>{const p=uv(ma,i);return [Math.round(p.x*1e10)+':'+Math.round(p.y*1e10),i];}));
+ return [...result.values()].map(p=>({uv:[p.x,p.y],vertex:originals.get(Math.round(p.x*1e10)+':'+Math.round(p.y*1e10)),a:a.locate(p),b:b.locate(p)}));
 }
 function times(doc,steps){
  const result=[{actionId:null,seconds:0,name:'初始姿势'}];
@@ -37,6 +38,8 @@ function times(doc,steps){
 }
 const posed=(doc,t)=>t.actionId?C.sample(doc,doc.actions.find(a=>a.id===t.actionId),t.seconds,{seek:true}):C.rest(doc);
 const interpolate=(array,location,axis,map)=>location.ids.reduce((v,i,k)=>v+array[(map?map[i]:i)*3+axis]*location.values[k],0);
+function address(m,location,p){let vertex=null,distance=Infinity;for(const i of new Set(m.triangles)){const q=uv(m,i),d=(q.x-p[0])**2+(q.y-p[1])**2;if(d<distance){distance=d;vertex=i;}}return {vertex,exact:distance<1e-16,face:[...location.ids],barycentric:[...location.values],outside:location.missing};}
+function site(entry,m,s,t,error){return {layer:entry.layer.name,layerId:m.layerId,action:t.name,actionId:t.actionId,seconds:t.seconds,error,uv:s.uv,before:address(entry.mesh,s.a,s.uv),after:address(m,s.b,s.uv)};}
 function weightField(m,location){const out=new Map();location.ids.forEach((i,k)=>{for(const w of m.weights[i])out.set(w.boneId,(out.get(w.boneId)||0)+w.weight*location.values[k]);});return out;}
 function settings(options={}){const out={maxError:.75,maxBoundaryError:.5,maxWeightError:.05,...options};for(const [key,max]of [['maxError',1024],['maxBoundaryError',1024],['maxWeightError',1]])if(!Number.isFinite(out[key])||out[key]<0||out[key]>max)throw Error('请输入有效的动画、轮廓和权重误差阈值');return out;}
 function passes(r,options={}){const s=settings(options);return !r.folds&&r.maxPositionError<=s.maxError+pixelEpsilon&&r.maxMotionError<=s.maxError+pixelEpsilon&&r.maxBoundaryError<=s.maxBoundaryError+pixelEpsilon&&r.maxWeightError<=s.maxWeightError+1e-8;}
@@ -56,7 +59,7 @@ function audit(doc,meshes,{steps=24}={}){
    for(const s of samples){const aw=weightField(entry.mesh,s.a),bw=weightField(m,s.b);let error=0;for(const id of new Set([...aw.keys(),...bw.keys()]))error+=Math.abs((aw.get(id)||0)-(bw.get(id)||0));r.maxWeightError=Math.max(r.maxWeightError,error/2);const delta=[0,1,2].map(axis=>(interpolate(arrays[0],s.b,axis,map)-interpolate(entry.frames[0],s.a,axis))*scale);s.rest=delta;if(s.a.missing||s.b.missing)r.maxBoundaryError=Math.max(r.maxBoundaryError,Math.hypot(...delta));}
    if(fail())return r;
    for(let f=0;f<poses.length;f++){
-    for(const s of samples){const delta=[0,1,2].map(axis=>(interpolate(arrays[f],s.b,axis,map)-interpolate(entry.frames[f],s.a,axis))*scale),error=Math.hypot(...delta);r.maxMotionError=Math.max(r.maxMotionError,Math.hypot(...delta.map((v,k)=>v-s.rest[k])));if(error>r.maxPositionError){r.maxPositionError=error;r.worst={layer:entry.layer.name,layerId:m.layerId,action:poses[f].name,seconds:poses[f].seconds};}squares+=error*error;count++;}
+    for(const s of samples){const delta=[0,1,2].map(axis=>(interpolate(arrays[f],s.b,axis,map)-interpolate(entry.frames[f],s.a,axis))*scale),error=Math.hypot(...delta),motion=Math.hypot(...delta.map((v,k)=>v-s.rest[k]));if(!r.worstMotion||motion>r.maxMotionError){r.maxMotionError=motion;r.worstMotion=site(entry,m,s,poses[f],motion);}if(!r.worst||error>r.maxPositionError){r.maxPositionError=error;r.worst=site(entry,m,s,poses[f],error);}if(s.vertex!==undefined){if(!r.worstVertex||error>r.worstVertex.error)r.worstVertex=site(entry,m,s,poses[f],error);if(!r.worstMotionVertex||motion>r.worstMotionVertex.error)r.worstMotionVertex=site(entry,m,s,poses[f],motion);}squares+=error*error;count++;}
     for(const face of newTopology.faces){const [a,b,c]=face.ids,idx=i=>map?map[i]:i,p=arrays[f],area=(p[idx(b)*3]-p[idx(a)*3])*(p[idx(c)*3+1]-p[idx(a)*3+1])-(p[idx(c)*3]-p[idx(a)*3])*(p[idx(b)*3+1]-p[idx(a)*3+1]),source=face.ids.map(i=>({x:m.vertices[i*2],y:m.vertices[i*2+1]}));if(cross(...source)*area>=-1e-14)r.folds++;if(cross(...source)*cross(...face.points)<=0)r.folds++;}
     if(fail())return r;
    }
@@ -84,5 +87,26 @@ function simplify(doc,meshes,options={}){
   const report=compare(doc,meshes,{survivors:survivors()});assert(report,limits);return {...report,removed,rejected,target,reachedTarget:ids.length<=target,limits:{maxError:limits.maxError,maxBoundaryError:limits.maxBoundaryError,maxWeightError:limits.maxWeightError}};
  }catch(error){meshes.forEach((m,i)=>{for(const key of Object.keys(m))delete m[key];Object.assign(m,original[i]);});restoreAnimation.forEach(restore=>restore());throw error;}
 }
-return {audit,simplify,settings,passes,assert,describe};
+// Review snapshots are editor-only and deliberately omit image payloads. The UI
+// keeps registered textures for the captured revision; no review state is saved.
+function snapshot(doc){return structuredClone({characterRig:doc.characterRig,actions:doc.actions,slots:doc.slots,layers:doc.layers.map(({src,...l})=>l)});}
+function review(before,after,ids){
+ const entries=ids.map(id=>{const a=before.characterRig.meshes.find(m=>m.layerId===id),b=after.characterRig.meshes.find(m=>m.layerId===id),layer=before.layers.find(l=>l.id===id);if(!a||!b||!layer)throw Error('比较快照缺少网格或图层');const ta=topology(a),tb=topology(b),samples=probes(ta,tb,a,b),base=R.placement(before,layer),entry={mesh:a,next:b,layer,base,samples};
+  // Tessellate only the display heatmap. Audit extrema still use the full old /
+  // new triangle overlay, including removed vertices and edge intersections.
+  const heat=[],n=a.triangles.length>6000?1:3;
+  for(const face of ta.faces){const node=(i,j)=>{const p={x:face.points[0].x+(face.points[1].x-face.points[0].x)*i/n+(face.points[2].x-face.points[0].x)*j/n,y:face.points[0].y+(face.points[1].y-face.points[0].y)*i/n+(face.points[2].y-face.points[0].y)*j/n};return {a:{ids:face.ids,values:[1-(i+j)/n,i/n,j/n]},b:tb.locate(p)};};for(let i=0;i<n;i++)for(let j=0;j<n-i;j++){heat.push([node(i,j),node(i+1,j),node(i,j+1)]);if(i+j<n-1)heat.push([node(i+1,j),node(i+1,j+1),node(i,j+1)]);}}
+  entry.locate=p=>{const q={x:p[0],y:p[1]};return {layerId:id,uv:p,before:address(a,ta.locate(q),p),after:address(b,tb.locate(q),p)};};entry.heat=heat;const restA=C.geometry(before,layer,C.rest(before),base).positions,restB=C.geometry(after,layer,C.rest(after),base).positions;for(const s of [...samples,...heat.flat()])s.rest=[0,1,2].map(k=>interpolate(restB,s.b,k)-interpolate(restA,s.a,k));return entry;
+ });
+ const actions=times(before,1).filter((t,i,a)=>a.findIndex(v=>v.actionId===t.actionId)===i).map(t=>({id:t.actionId,name:t.name,duration:before.actions.find(a=>a.id===t.actionId)?.duration||0}));
+ function frame(actionId,seconds,layerId=ids[0]){const action=actions.find(a=>a.id===actionId);if(!action||!Number.isFinite(seconds))throw Error('比较动作或时刻无效');seconds=Math.max(0,Math.min(action.duration,seconds));const t={actionId,seconds,name:action.name},pa=posed(before,t),pb=posed(after,t),e=entries.find(e=>e.layer.id===layerId);if(!e)throw Error('比较图层不存在');const a=C.geometry(before,e.layer,pa,e.base).positions,b=C.geometry(after,e.layer,pb,e.base).positions,scale=1024*e.base.scale;
+  const point=(p,l)=>{const x=interpolate(p,l,0)*1024,y=-interpolate(p,l,1)*1024,c=Math.cos(e.base.rotation),s=Math.sin(e.base.rotation);return {x:512+e.base.x+(x*c-y*s)*e.base.scale,y:768+e.base.y+(x*s+y*c)*e.base.scale};};
+  const field=s=>{const delta=[0,1,2].map(k=>interpolate(b,s.b,k)-interpolate(a,s.a,k));return {error:Math.hypot(...delta)*scale,motionError:Math.hypot(...delta.map((v,k)=>v-s.rest[k]))*scale,beforePoint:point(a,s.a),afterPoint:point(b,s.b)};};
+  const samples=e.samples.map(s=>({...field(s),uv:s.uv})),heat=e.heat.map(tri=>tri.map(field));let worst=0,worstMotion=0;for(let i=1;i<samples.length;i++){if(samples[i].error>samples[worst].error)worst=i;if(samples[i].motionError>samples[worstMotion].motionError)worstMotion=i;}
+  return {actionId,seconds,layerId,samples,heat,worst:site(e,e.next,e.samples[worst],t,samples[worst].error),worstMotion:site(e,e.next,e.samples[worstMotion],t,samples[worstMotion].motionError),poses:[pa,pb]};
+ }
+ return {entries,actions,frame,before,after,locate(layerId,p){const entry=entries.find(e=>e.layer.id===layerId);if(!entry)throw Error('比较图层不存在');return entry.locate(p);}};
+}
+function heatColor(error,limit){const ratio=Math.min(1,Math.max(0,(error<=pixelEpsilon?0:error)/Math.max(pixelEpsilon,limit)));return `hsl(${(1-ratio)*220} 90% 55%)`;}
+return {audit,simplify,settings,passes,assert,describe,snapshot,review,heatColor};
 });

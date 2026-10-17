@@ -188,7 +188,16 @@ $('expression-apply').onclick=()=>mutate('修改表情控制器',d=>Object.assig
 $('expression-remove').onclick=()=>mutate('移除表情控制器',d=>{d.characterRig.expressions=d.characterRig.expressions.filter(e=>e.id!==expressionId);for(const m of d.characterRig.meshes||[])m.morphs=m.morphs.filter(v=>v.expressionId!==expressionId);for(const a of d.actions)if(a.expressionTracks)delete a.expressionTracks[expressionId];expressionId='';});
 $('expression-list').onchange=()=>{expressionId=$('expression-list').value;refresh();};$('expression-animate').onclick=()=>window.atelierAnimation.selectBone(expressionId,'expression');
 $('morph-apply').onclick=()=>mutate('写入表情形变目标',d=>A.morph(mesh(d),expressionId,[number('morph-x'),number('morph-y')],number('morph-radius'),[number('morph-dx'),number('morph-dy')]));
-window.atelierCharacterAdvanced={refresh,draw:weightView.draw,foreground:weightView.foreground,drawLayer:weightView.drawLayer,outline:weightView.outline,previewTest:weightView.previewTest,beginFrame:weightView.prepare,pose:weightView.pose,pointerDown:weightView.pointerDown,hover:weightView.hover,related:weightView.related,selectBone(id){$('skin-bone').value=id;refresh();host.redraw();},stopTest:weightView.stopTest,selectVertex:weightView.selectPrimary,stopBrush(){$('skin-tool').value='off';weightView.stop();weightView.stopTest();}};
+function applyWeightRepair(captured,result,locks){
+ const now=host.state();if(now.documentToken!==captured.documentToken||now.revision!==captured.revision||now.document!==captured.document||now.layer?.id!==captured.layer?.id||now.busy)throw Error('工程已变化，请重新检查');
+ if(JSON.stringify([...locked].sort())!==JSON.stringify([...locks].sort()))throw Error('权重锁定已变化，请重新修正');
+ const before=N.snapshot(now.document),id=now.layer.id;window.atelierAnimation.pauseContext();weightView.stopTest();
+ if(!mutate('局部平滑修正权重 · 全部动作复查',d=>{const m=d.characterRig.meshes.find(m=>m.layerId===id);for(const i of result.vertices)m.weights[i]=structuredClone(result.weights[i]);}))throw Error('修正未应用，请检查当前图层是否锁定');
+ const issue=result.before.find(r=>r.issues?.length),site=issue?.issues.reduce((a,b)=>b.ratio<a.ratio?b:a);
+ meshReview.capture(before,N.snapshot(host.state().document),[id],result.comparison,{label:'局部平滑修正权重',weightRepair:result,reviewState:site?{layerId:id,actionId:issue.actionId,seconds:site.seconds,metric:'error'}:undefined});
+ queueMicrotask(()=>meshReview.open());return true;
+}
+window.atelierCharacterAdvanced={refresh,applyWeightRepair,weightLocks:()=>[...locked],openWeightComparison:()=>meshReview.open(),draw:weightView.draw,foreground:weightView.foreground,drawLayer:weightView.drawLayer,outline:weightView.outline,previewTest:weightView.previewTest,beginFrame:weightView.prepare,pose:weightView.pose,pointerDown:weightView.pointerDown,hover:weightView.hover,related:weightView.related,selectBone(id){$('skin-bone').value=id;refresh();host.redraw();},stopTest:weightView.stopTest,selectVertex:weightView.selectPrimary,stopBrush(){$('skin-tool').value='off';weightView.stop();weightView.stopTest();}};
 for(const id of ['skin-radius','skin-strength','skin-feather'])$('character-brush-options').append($(id).closest('label'));
 for(const id of ['skin-outline-new','skin-fill'])$('character-mesh-actions').append($(id));
 const toolStorage=document.createElement('div');toolStorage.hidden=true;toolStorage.append($('skin-tool').closest('label'));panel.append(toolStorage);

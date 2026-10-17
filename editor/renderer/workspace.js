@@ -115,7 +115,7 @@ $('layer-blend').onchange=()=>change('图层混合模式',(d,l)=>l.blend=$('laye
 for(const key of ['bend','wind','speed'])$('deform-'+key).onchange=()=>{const value=Number($('deform-'+key).value);host.activateRuntime();change('卡片形变 / '+key,d=>d.deformation[key]=value);};
 $('action-list').onchange=()=>{actionId=$('action-list').value;refresh(host.state());};
 for(const key of ['name','event','duration','loop','motion','emission','bend'])$('action-'+key).onchange=()=>change('动作属性 / '+key,d=>{const a=d.actions.find(a=>a.id===actionId),el=$('action-'+key);a[key]=key==='loop'?el.checked:['name','event'].includes(key)?el.value:Number(el.value);});
-$('action-add').onclick=()=>change('新增动作',d=>{actionId='action-'+crypto.randomUUID();d.actions.push({...runtime.defaults.actions[2],id:actionId,name:'新动作'});});
+$('action-add').onclick=()=>change('新增动作',d=>{actionId='action-'+crypto.randomUUID();d.actions.push(document.body.dataset.characterFocus==='true'?{id:actionId,name:'新人物动作',event:'trigger',duration:1.2,loop:false,motion:1,emission:1,bend:0}:{...runtime.defaults.actions[2],id:actionId,name:'新动作'});});
 $('action-delete').onclick=()=>{if(state.busy||state.document.actions.length<=1)return;window.cardPreview.stopAction();change('删除动作（可撤销）',d=>{d.actions=d.actions.filter(a=>a.id!==actionId);});};
 $('action-play').onclick=()=>{ensurePreview();window.atelierAnimation?.play();$('action-status').textContent='播放：'+state.document.actions.find(a=>a.id===actionId)?.name;};
 $('slot-list').onchange=()=>{slotId=$('slot-list').value;refresh(host.state());};

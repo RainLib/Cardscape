@@ -32,3 +32,5 @@ body[data-character-focus=true] #skin-topology-panel{padding:0}body[data-charact
 @media(max-width:1080px){body[data-character-focus=true]:not(.dock-collapsed):not(.panels-hidden){--inspector-width:275px}.character-context-toolbar{padding:4px 6px}.character-tool-header{gap:5px}.character-phases{padding-right:5px}.character-phases button{padding:4px 8px}.character-context-toolbar select{max-width:150px}#character-toolbar-object{display:none}.character-popover>div{width:210px}}
 
 #character-advanced-status:empty{display:none}
+#character-action-add{padding:3px 6px;flex-shrink:0}body[data-character-focus=true] :is(#action-add,#action-play){display:none}
+#character-weight-audit{padding:5px 0;border-bottom:1px solid #45494f}#weight-audit-status{font-size:10px;line-height:1.6;color:#b2c9dd}#weight-audit-status:empty{display:none}#character-weight-audit[data-ok=false] #weight-audit-status{color:#ffc58c}#character-weight-audit button{padding:5px 7px;font-size:10px}

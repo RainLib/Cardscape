@@ -91,6 +91,18 @@ test('closing the animation timeline keeps the preview playing and discards only
  draft={};vm.runInContext('close()',h.context);assert.equal(draft,null);assert.equal(h.preview.getView().paused,true);assert.equal(h.preview.getView().time,1);h.preview.dispose();
 });
 
+test('opening the timeline preserves an unrecorded character pose and a running preview clock',()=>{
+ const h=harness(),doc=require('./fixtures/character-animation.cjs').fixture(),C=require('../renderer/character-animation-model.js');h.preview.setDocument(doc);
+ let draft=C.keyframe(doc.actions[0],'elbow','rotation',.6,35);
+ h.context.window.atelierCharacterRig={draftAction:()=>draft,resetPose(){draft=null;}};
+ h.context.document.body.classList={remove(){}};h.node('animation-open').classList={add(){}};h.node('animation-open').setAttribute=()=>{};
+ Object.assign(h.context,{$:h.node,opened:false,playing:false,seconds:.6,actionId:'idle',draftAction:null,valueDraft:false,state:{busy:false},selectedAction:()=>doc.actions[0],refresh(){},updateTime(){},status(){},host:{state:()=>({document:doc}),fit(){},previewAction(id,time,paused,pose){h.preview.playAction(id,time,paused,pose);return true;}},workspace:{ensurePreview(){},enableEffectsPreview(){},syncLayout(){},panel(){vm.runInContext('open(false)',h.context);}}});
+ const source=fs.readFileSync(require.resolve('../renderer/animation-panel.js'),'utf8');vm.runInContext(source.match(/^function open\(showPanel=true\).*$/m)[0]+'\n'+source.match(/^function seek\(value\).*$/m)[0],h.context);
+ h.preview.playAction('idle',.6,true,draft);const pose=h.canvas.dataset.characterPose;vm.runInContext('open()',h.context);
+ assert.ok(draft);assert.equal(h.canvas.dataset.characterPose,pose);assert.equal(h.preview.getView().actionSeconds,.6);assert.equal(h.node('animation-timeline').hidden,false);
+ draft=null;h.context.playing=true;h.preview.playAction('idle',.6,false);vm.runInContext('open()',h.context);assert.equal(h.preview.getView().paused,false);h.advance(40);assert.ok(h.preview.getView().actionSeconds>.6);h.preview.dispose();
+});
+
 test('enabling preview effects cannot replace a requested seek or restart with feedback from the previous frame',()=>{
  const h=harness(),source=fs.readFileSync(require.resolve('../renderer/animation-panel.js'),'utf8');let rendered;
  Object.assign(h.context,{seconds:4,playing:false,valueDraft:false,draftAction:null,actionId:'idle',state:{busy:false},selectedAction:()=>({id:'idle',name:'Idle',duration:4,loop:false}),status(){},updateTime(){},host:{previewAction(id,time,paused){rendered={id,time,paused};return true;}},workspace:{enableEffectsPreview(){h.context.seconds=4;}},window:h.context.window});

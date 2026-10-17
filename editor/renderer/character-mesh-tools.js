@@ -6,6 +6,10 @@
 const cross=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),at=(mesh,i)=>({x:mesh.vertices[i*2],y:mesh.vertices[i*2+1]});
 const oriented=(points,a,b,c)=>cross(points[a],points[b],points[c])<0?[a,b,c]:[a,c,b];
 function bary(p,a,b,c){const den=cross(a,b,c);if(Math.abs(den)<1e-9)return null;const u=cross(p,b,c)/den,v=cross(a,p,c)/den;return [u,v,1-u-v];}
+// Atlas UV cells may be much smaller than source-pixel triangles. Evaluate in
+// registered image pixels so valid dense UV cells do not look degenerate.
+const uvPixel=p=>({x:p.x*1024,y:p.y*1536});
+function baryUV(p,a,b,c){return bary(uvPixel(p),uvPixel(a),uvPixel(b),uvPixel(c));}
 const inside=values=>values&&values.every(v=>v>=-1e-7);
 function triangulate(points,polygon,{preserveVertices=false}={}){
  let ids=[...polygon],area=0;for(let i=0;i<ids.length;i++){const p=points[ids[i]],q=points[ids[(i+1)%ids.length]];area+=p.x*q.y-q.x*p.y;}if(area<0)ids.reverse();
@@ -25,6 +29,7 @@ function outlines(alpha,width,height,cell=8){
  }return result;
 }
 function locate(mesh,p){for(let j=0;j<mesh.triangles.length;j+=3){const ids=mesh.triangles.slice(j,j+3),values=bary(p,...ids.map(i=>at(mesh,i)));if(inside(values))return {ids,values,j};}return null;}
+function locateUV(mesh,p){for(let j=0;j<mesh.triangles.length;j+=3){const ids=mesh.triangles.slice(j,j+3),values=baryUV(p,...ids.map(i=>({x:mesh.uv[i*2],y:mesh.uv[i*2+1]})));if(inside(values))return {ids,values,j};}return null;}
 function appendPoint(mesh,p){
  const n=mesh.vertices.length/2,old=locate(mesh,p);if(!old)return -1;const near=old.ids.find(i=>Math.hypot(at(mesh,i).x-p.x,at(mesh,i).y-p.y)<1e-5);if(near!==undefined)return near;
  const points=Array.from({length:n},(_,i)=>at(mesh,i));points.push(p);const on=old.values.findIndex(v=>Math.abs(v)<1e-7),triangles=[];if(on<0){triangles.push(...mesh.triangles.slice(0,old.j),...oriented(points,old.ids[0],old.ids[1],n),...oriented(points,old.ids[1],old.ids[2],n),...oriented(points,old.ids[2],old.ids[0],n),...mesh.triangles.slice(old.j+3));}
@@ -128,5 +133,5 @@ function inheritMorphs(meshes){
  if(meshes.length<2)return;const targets=new Map(),signature=JSON.stringify([meshes[0].vertices,meshes[0].uv,meshes[0].triangles]);for(const mesh of meshes){if(JSON.stringify([mesh.vertices,mesh.uv,mesh.triangles])!==signature)throw Error('共享表情要求完全相同的网格拓扑');for(const morph of mesh.morphs){const deltas=[];for(let j=0;j<morph.deltas.length;j+=3)deltas.push(morph.deltas.slice(j,j+3));deltas.sort((a,b)=>a[0]-b[0]);const values=deltas.flat(),previous=targets.get(morph.expressionId);if(previous&&(previous.length!==values.length||previous.some((v,i)=>Math.abs(v-values[i])>1e-8)))throw Error('共享组存在不同的同名表情目标，请关闭表情同步后分别编辑');targets.set(morph.expressionId,values);}}
  const all=[...targets].map(([expressionId,deltas])=>({expressionId,deltas}));for(const mesh of meshes)mesh.morphs=all.map(m=>({expressionId:m.expressionId,deltas:[...m.deltas]}));
 }
-return {bary,triangulate,legalize,locate,outlines,generate,transfer,insert,snapBoundary,move,erase,deletion,flip,shared,inheritMorphs,checkpointAnimation};
+return {bary,baryUV,triangulate,legalize,locate,locateUV,outlines,generate,transfer,insert,snapBoundary,move,erase,deletion,flip,shared,inheritMorphs,checkpointAnimation};
 });

@@ -74,7 +74,7 @@ panel.innerHTML=`
 </details><p id="character-advanced-status" role="status" class="panel-note"></p>`;
 $('character-rig-panel').after(panel);
 const mesh=d=>d?.characterRig?.meshes?.find(m=>m.layerId===host.state().layer?.id),weightView=window.CardCharacterWeightView.create({host,C,T,$,refresh,mutate,checkTopology}),vertex=()=>weightView.primary();
-const meshReview=window.CardCharacterMeshReview.create({host,button:$('skin-review'),selectVertex:i=>weightView.selectPrimary(i)});
+const meshReview=window.CardCharacterMeshReview.create({host,button:$('skin-review'),selectVertex:i=>weightView.selectPrimary(i),repairRegion,reduceAgain});
 function number(id){const e=$(id);if(e.value===''||!e.validity.valid)throw Error('请输入有效数值');return Number(e.value);}
 function set(id,value){if(document.activeElement!==$(id))$(id).value=value;}
 function select(id,options,value){const e=$(id);e.replaceChildren();for(const [id,name] of options)e.add(new Option(name,id));e.value=value||options[0]?.[0]||'';}
@@ -84,19 +84,35 @@ function reportTopology(report,prefix='上次拓扑检查'){const e=$('skin-erro
 function checkTopology(d,group,edit){const limits=reductionSettings(),before=N.snapshot(d),compare=N.audit(d,group),ids=group.map(m=>m.layerId);edit();const next=ids.map(id=>d.characterRig.meshes.find(m=>m.layerId===id)),report=compare(d,next),rejected=$('skin-motion-quality').checked&&!N.passes(report,limits);reportTopology(report,rejected?'已取消，超出阈值':'上次操作前后误差');meshReview.capture(before,N.snapshot(d),ids,report,{limits,rejected});if($('skin-motion-quality').checked)N.assert(report,limits);return report;}
 function cancelReduction(){if(!reductionRun)return;reductionRun.worker.terminate();reductionRun=null;$('skin-error-status').textContent='已取消减面，工程未修改';refresh();}
 $('skin-reduce-cancel').onclick=cancelReduction;
-$('skin-reduce').onclick=()=>{try{
- const captured=host.state();if(captured.busy||reductionRun)throw Error('请先结束当前处理');const group=topologyGroup(captured.document);if(!group.length||group.some(m=>captured.document.layers.find(l=>l.id===m.layerId).locked))throw Error('请选择并解锁参与减面的图层');
- window.atelierAnimation.pauseContext();const options={...reductionSettings(),ratio:number('skin-reduce-ratio')/100,allowBoundary:$('skin-reduce-boundary').checked},ids=group.map(m=>m.layerId),before=N.snapshot(captured.document),worker=new Worker('character-mesh-reduction-worker.js');reductionRun={worker,token:captured.documentToken};$('skin-error-status').textContent='正在计算减面与动画误差… 可取消';refresh();
+function runReduction({ids:requestedIds=null,options:requestedOptions=null,reopen=false,reviewState=null}={}){try{
+ const captured=host.state();if(captured.busy||reductionRun)throw Error('请先结束当前处理');const group=requestedIds?requestedIds.map(id=>captured.document.characterRig.meshes.find(m=>m.layerId===id)):topologyGroup(captured.document);if(!group.length||group.some(m=>!m||captured.document.layers.find(l=>l.id===m.layerId)?.locked))throw Error('请选择并解锁参与减面的图层');
+ window.atelierAnimation.pauseContext();const options=requestedOptions||{...reductionSettings(),ratio:number('skin-reduce-ratio')/100,allowBoundary:$('skin-reduce-boundary').checked},ids=group.map(m=>m.layerId),before=N.snapshot(captured.document),worker=new Worker('character-mesh-reduction-worker.js');reductionRun={worker,token:captured.documentToken};$('skin-error-status').textContent='正在计算减面与动画误差… 可取消';refresh();
  const finish=()=>{worker.terminate();if(reductionRun?.worker===worker)reductionRun=null;refresh();};
  worker.onerror=e=>{$('skin-error-status').textContent='减面失败：'+e.message;finish();};
  worker.onmessage=({data})=>{if(reductionRun?.worker!==worker)return;if(data.progress){$('skin-error-status').textContent=`正在减面：已移除 ${data.progress.removed} 点，剩余 ${data.progress.remaining} / 目标 ${data.progress.target} · 可取消`;return;}try{
   if(data.error)throw Error(data.error);const now=host.state();if(now.documentToken!==captured.documentToken||now.revision!==captured.revision||now.document!==captured.document)throw Error('计算期间工程已变化，减面结果未应用，请重试');
   const applied=mutate('按累计动画误差减面',d=>{for(const next of data.meshes){const i=d.characterRig.meshes.findIndex(m=>m.layerId===next.layerId);d.characterRig.meshes[i]=next;}for(let i=0;i<d.actions.length;i++)for(const id of ids)if(data.deforms[i]?.[id]){d.actions[i].deformTracks||={};d.actions[i].deformTracks[id]=data.deforms[i][id];}});
   if(!applied&&data.report.removed)throw Error($('character-advanced-status').textContent||'减面结果未应用，请重试');
-  meshReview.capture(before,N.snapshot(host.state().document),ids,data.report,{limits:options,label:'减面 '+data.report.beforeVertices+' → '+data.report.afterVertices+' 点'});weightView.clearSelection();reportTopology(data.report,applied?`上次减面 ${data.report.beforeVertices} → ${data.report.afterVertices} 点${data.report.reachedTarget?'':' · 已到误差或约束限制'}`:'未删除顶点 · 已到误差或约束限制');
+  meshReview.capture(before,N.snapshot(host.state().document),ids,data.report,{limits:options,reduction:options,reviewState,label:'减面 '+data.report.beforeVertices+' → '+data.report.afterVertices+' 点'});weightView.clearSelection();reportTopology(data.report,applied?`上次减面 ${data.report.beforeVertices} → ${data.report.afterVertices} 点${data.report.reachedTarget?'':' · 已到误差或约束限制'}`:'未删除顶点 · 已到误差或约束限制');
+  if(reopen)queueMicrotask(()=>meshReview.open());
  }catch(e){$('skin-error-status').textContent=e.message;}finally{finish();}};
- worker.postMessage({document:before,ids,options});
-}catch(e){$('skin-error-status').textContent=e.message;}};
+ worker.postMessage({document:before,ids,options});return true;
+}catch(e){$('skin-error-status').textContent=e.message;throw e;}}
+
+$('skin-reduce').onclick=()=>{try{runReduction();}catch(e){host.say(e.message);}};
+function reduceAgain({ids,options,reviewState}){return runReduction({ids,options,reviewState,reopen:true});}
+function repairRegion(request){
+ const captured=host.state();if(captured.busy||reductionRun)throw Error('请先结束当前处理');
+ if(captured.documentToken!==request.token||captured.revision!==request.revision||captured.document!==request.document)throw Error('工程已变化，请重新检查误差');
+ const result=window.CardCharacterMeshRepair.plan({...request,current:captured.document});
+ const changed=host.mutate(request.kind==='refine'?'从误差选区恢复 FFD 并局部加密保护':'从误差选区恢复 FFD 并保护关键顶点',d=>{
+  for(const id of request.ids)d.characterRig.meshes[d.characterRig.meshes.findIndex(m=>m.layerId===id)]=result.document.characterRig.meshes.find(m=>m.layerId===id);
+  for(const action of d.actions){const next=result.document.actions.find(a=>a.id===action.id);for(const id of request.ids){if(next.deformTracks?.[id]){action.deformTracks||={};action.deformTracks[id]=next.deformTracks[id];}else if(action.deformTracks)delete action.deformTracks[id];}}C.validate(d);
+ });
+ host.refreshPreview();weightView.clearSelection();host.setAnimationFeedback(null);refresh();
+ return {...result,changed,document:window.CardCharacterMeshReduction.snapshot(host.state().document)};
+}
+
 function refresh(){
  const s=host.state(),d=s.document;if(!d)return;if(documentId!==d.id){documentId=d.id;constraintId='';expressionId='';$('skin-error-status').textContent='尚未检查拓扑误差';delete $('skin-error-status').dataset.report;}
  if(reductionRun&&reductionRun.token!==s.documentToken){reductionRun.worker.terminate();reductionRun=null;}$('skin-reduce').disabled=s.busy||!!reductionRun||!mesh(d)||!!s.layer?.locked;$('skin-reduce-cancel').disabled=!reductionRun;

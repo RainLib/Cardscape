@@ -1,8 +1,8 @@
 /* Weight viewport: the same sampled geometry drives artwork, pies and picking. */
 (()=>{
 'use strict';
-window.CardCharacterWeightView={create({host,C,T,$,refresh,mutate}){
- const authoring=window.CardCharacterMeshView.create({host,C,T,$,refresh,mutate,invalidate,selection:()=>active?.selection||new Set(),visibleIndices:()=>visibleIndices(current())});
+window.CardCharacterWeightView={create({host,C,T,$,refresh,mutate,checkTopology}){
+ const authoring=window.CardCharacterMeshView.create({host,C,T,$,refresh,mutate,checkTopology,invalidate,selection:()=>active?.selection||new Set(),visibleIndices:()=>visibleIndices(current())});
  const states=new Map(),rasters=new Map(),coverageCache=new WeakMap();let active=null,frame=null,boxDrag=null,cursor=null,clipboard=[],documentToken=null,heatCache=null,outlineCache=null,wireCache=null,lastTestKey='';
  const U=window.CardCharacterMeshTools,brushMode=()=>['add','remove','replace','smooth'].includes($('skin-tool').value);
  const meshFor=(d,id)=>d?.characterRig?.meshes?.find(m=>m.layerId===id);
@@ -63,7 +63,7 @@ window.CardCharacterWeightView={create({host,C,T,$,refresh,mutate}){
    const group=U.shared(s.document,s.layer,$('skin-shared').checked),ids=group.map(m=>m.layerId),previous=new Set(selected),beforePrimary=active.primary;let best=-1,distance=12/zoom;for(const i of allowed){const d=Math.hypot(coords[i].x-p.x,coords[i].y-p.y);if(d<distance){best=i;distance=d;}}if(group.some(m=>s.document.layers.find(l=>l.id===m.layerId).locked)){host.say('请先解锁参与同步的图层');return {};}
    const dirty=()=>{for(const id of ids)rasters.delete(id);active.generation++;frame=null;},source=q=>T.sourcePoint(s.document,s.layer,q),finish=({cancelled}={})=>{if(cancelled){active.selection=previous;active.primary=beforePrimary;}frame=null;refresh();host.redraw();};
    if(mode==='mesh-move'){if(best<0)return {};if(e.shiftKey||e.metaKey||e.ctrlKey){selected.has(best)?selected.delete(best):selected.add(best);active.primary=best;refresh();host.redraw();return {};}if(!selected.has(best)){selected.clear();selected.add(best);}active.primary=best;refresh();host.redraw();const start={x:m.vertices[best*2],y:m.vertices[best*2+1]},origin=source(p);return {onPress:false,label:m.binds?'移动蒙皮拓扑点 · 保留 UV':'移动蒙皮拓扑点 · 同步 UV',update(d,q){const now=source(q),point={x:start.x+now.x-origin.x,y:start.y+now.y-origin.y};for(const id of ids){U.move(meshFor(d,id),best,point);window.CardCharacterMeshAuthoring.pin(meshFor(d,id),[best]);}dirty();},finish};}
-   if(mode==='mesh-delete'&&best<0)return {};let changed=false;return {label:mode==='mesh-add'?'加点并分割蒙皮三角形':'删除蒙皮内部点',update(d){if(changed)return;changed=true;let index=-1;for(const id of ids)if(mode==='mesh-add')index=U.insert(meshFor(d,id),source(p),{pin:true,document:d});else U.erase(meshFor(d,id),best,{document:d});active.selection.clear();if(index>=0){active.primary=index;active.selection.add(index);}dirty();},finish};
+   if(mode==='mesh-delete'&&best<0)return {};let changed=false;return {label:mode==='mesh-add'?'加点并分割蒙皮三角形':'删除蒙皮顶点 · 含边界',update(d){if(changed)return;changed=true;let index=-1;if(mode==='mesh-add'){for(const id of ids)index=U.insert(meshFor(d,id),U.snapBoundary(meshFor(d,id),source(p),4/(zoom*window.CardRuntime.placement(d,s.layer).scale)),{pin:true,document:d});}else checkTopology(d,ids.map(id=>meshFor(d,id)),()=>{for(const id of ids)U.erase(meshFor(d,id),best,{document:d});});active.selection.clear();if(index>=0){active.primary=index;active.selection.add(index);}dirty();},finish};
   }
   if(mode==='vertex'||mode==='mesh-select'){
    const center=coords[active.primary];if(mode==='vertex'&&selected.has(active.primary)&&center){const dx=(p.x-center.x)*zoom,dy=(p.y-center.y)*zoom,d=Math.hypot(dx,dy);if(d>4&&d<13&&!e.shiftKey&&!e.metaKey&&!e.ctrlKey){const boneId=T.sector(m.weights[active.primary],dx,dy);if(boneId){window.atelierCharacterRig.selectBone(boneId);return {};}}}

@@ -22,7 +22,7 @@ test('moving topology keeps original UV registration and refuses folded triangle
  const m=field();U.move(m,4,{x:530,y:790});near(m.uv[8],530/1024);near(m.uv[9],790/1536);const snapshot=structuredClone(m);assert.throws(()=>U.move(m,4,{x:1024,y:0}),/翻转|压平/);assert.deepEqual(m,snapshot);
 });
 test('deleting an internal point closes the hole and remaps morph indices and depths',()=>{
- const m=field(),index=U.insert(m,{x:200,y:250});U.erase(m,index);assert.equal(m.weights.length,9);assert.equal(m.depths.length,9);assert.ok(m.triangles.every(i=>i>=0&&i<9));assert.ok(m.morphs[0].deltas.every((v,j)=>j%3||v<9));assert.ok(covers(m,{x:200,y:250}));const snapshot=structuredClone(m);assert.throws(()=>U.erase(m,0),/轮廓/);assert.deepEqual(m,snapshot);
+ const m=field(),index=U.insert(m,{x:200,y:250});U.erase(m,index);assert.equal(m.weights.length,9);assert.equal(m.depths.length,9);assert.ok(m.triangles.every(i=>i>=0&&i<9));assert.ok(m.morphs[0].deltas.every((v,j)=>j%3||v<9));assert.ok(covers(m,{x:200,y:250}));U.erase(m,0);assert.equal(m.weights.length,8);assert.ok(m.triangles.every(i=>i>=0&&i<8));
 });
 test('edge flipping changes connectivity only and shared groups require matching registered placement',()=>{
  const m=field(),before=structuredClone(m);U.flip(m,1,3);assert.notDeepEqual(m.triangles,before.triangles);assert.deepEqual(m.weights,before.weights);assert.deepEqual(m.uv,before.uv);assert.deepEqual(m.morphs,before.morphs);assert.throws(()=>U.flip(m,0,1),/内部边/);

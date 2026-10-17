@@ -76,16 +76,51 @@ function transfer(old,topology,{document}={}){const field=sampler(old,document),
  const next={layerId:old.layerId,vertices:[...topology.vertices],uv:[...topology.uv],triangles:[...topology.triangles],weights:[],morphs:old.morphs.map(m=>({expressionId:m.expressionId,deltas:[]})),...(topology.topology?{topology:structuredClone(topology.topology)}:{}),...(old.depths?{depths:[]}: {})};if(field.exact)next.binds={};
  for(let i=0;i<next.vertices.length/2;i++){const a=field.point(at(next,i),locateFast(at(next,i)));next.uv.splice(i*2,2,...a.uv);next.weights.push(a.weights);for(const [id,delta]of a.bindValues)triple(next.binds[id]||=([]),i,delta);a.deformValues.forEach((v,j)=>triple(deforms[j],i,v));if(next.depths)next.depths.push(a.depth);a.morphs.forEach((delta,j)=>{if(Math.hypot(...delta)>1e-8)next.morphs[j].deltas.push(i,...delta);});}field.frames.forEach(({frame},j)=>frame.deltas=deforms[j]);return next;
 }
+function snapBoundary(mesh,p,radius){
+ const edges=new Map();for(let j=0;j<mesh.triangles.length;j+=3)for(let k=0;k<3;k++){const a=mesh.triangles[j+k],b=mesh.triangles[j+(k+1)%3],key=Math.min(a,b)+':'+Math.max(a,b);if(!edges.has(key))edges.set(key,{a,b,count:0});edges.get(key).count++;}
+ let best=radius*radius,result=p;for(const {a,b,count}of edges.values()){if(count!==1)continue;const A=at(mesh,a),B=at(mesh,b),dx=B.x-A.x,dy=B.y-A.y,t=Math.max(0,Math.min(1,((p.x-A.x)*dx+(p.y-A.y)*dy)/(dx*dx+dy*dy))),q={x:A.x+dx*t,y:A.y+dy*t},distance=(p.x-q.x)**2+(p.y-q.y)**2;if(distance<=best){best=distance;result=q;}}return result;
+}
 function insert(mesh,p,{pin=false,document}={}){
  if(mesh.weights.length>=4096)throw Error('网格已达到 4096 顶点上限');const location=locate(mesh,p);if(!location)throw Error('请在网格轮廓内部加点');const oldCount=mesh.weights.length,near=location.ids.find(i=>Math.hypot(at(mesh,i).x-p.x,at(mesh,i).y-p.y)<1e-5),field=near===undefined?sampler(mesh,document):null,a=field?.point(p,location),index=appendPoint(mesh,p);
  if(index===oldCount){mesh.uv.push(...a.uv);mesh.weights.push(a.weights);if(mesh.depths)mesh.depths.push(a.depth);a.morphs.forEach((delta,j)=>{if(Math.hypot(...delta)>1e-8)mesh.morphs[j].deltas.push(index,...delta);});if(field.exact){mesh.binds=Object.fromEntries(Object.entries(mesh.binds||{}).map(([id,v])=>[id,[...v]]));for(const [id,delta]of a.bindValues)triple(mesh.binds[id]||=([]),index,delta);}field.frames.forEach(({frame},j)=>{frame.deltas=[...frame.deltas];triple(frame.deltas,index,a.deformValues[j]);});}
  if(pin){mesh.topology||={pins:[],edges:[]};if(!mesh.topology.pins.includes(index))mesh.topology.pins.push(index);}return index;
 }
 function move(mesh,index,p){if(!Number.isInteger(index)||index<0||index>=mesh.weights.length||![p.x,p.y].every(Number.isFinite)||p.x<0||p.x>1024||p.y<0||p.y>1536)throw Error('拓扑顶点必须位于源图范围');for(let j=0;j<mesh.triangles.length;j+=3){const ids=mesh.triangles.slice(j,j+3);if(!ids.includes(index))continue;const old=ids.map(i=>at(mesh,i)),next=ids.map(i=>i===index?p:at(mesh,i));if(cross(...old)*cross(...next)<=1e-8)throw Error('移动会翻转或压平三角形，请调整相邻点或连边');}const u=mesh.uv[index*2]+(mesh.binds?0:(p.x-mesh.vertices[index*2])/1024),v=mesh.uv[index*2+1]+(mesh.binds?0:(p.y-mesh.vertices[index*2+1])/1536);if(u<0||u>1||v<0||v>1)throw Error('移动会使 UV 超出源图范围');mesh.vertices[index*2]=p.x;mesh.vertices[index*2+1]=p.y;mesh.uv[index*2]=u;mesh.uv[index*2+1]=v;}
-function erase(mesh,index,{document}={}){if(!Number.isInteger(index)||index<0||index>=mesh.weights.length)throw Error('顶点索引无效');if(mesh.binds&&!document)throw Error('拓扑编辑需要完整工程，以同时保留绑定与 FFD 动画');
- if(mesh.topology?.pins.includes(index))throw Error('请先取消该关键点，再删除顶点');if(mesh.topology?.edges.some(e=>e.includes(index)))throw Error('请先移除该点关联的约束边');
- const touching=[],links=new Map();for(let j=0;j<mesh.triangles.length;j+=3){const tri=mesh.triangles.slice(j,j+3);if(!tri.includes(index))continue;touching.push(j);const [a,b]=tri.filter(i=>i!==index);for(const [u,v] of [[a,b],[b,a]]){if(!links.has(u))links.set(u,[]);links.get(u).push(v);}}
- if(!touching.length||[...links.values()].some(v=>v.length!==2))throw Error('当前仅能删除内部点；轮廓点请使用移动工具调整');const first=[...links.keys()][0],polygon=[first];let previous=-1,current=first;while(polygon.length<=links.size){const next=links.get(current).find(i=>i!==previous);if(next===first)break;polygon.push(next);previous=current;current=next;}if(polygon.length!==links.size)throw Error('顶点邻域不是简单闭环');const points=Array.from({length:mesh.weights.length},(_,i)=>at(mesh,i)),triangles=triangulate(points,polygon,{preserveVertices:true}),remove=new Set(touching);for(let j=0;j<mesh.triangles.length;j+=3)if(!remove.has(j))triangles.push(...mesh.triangles.slice(j,j+3));mesh.triangles=triangles.map(i=>i>index?i-1:i);mesh.vertices.splice(index*2,2);mesh.uv.splice(index*2,2);mesh.weights.splice(index,1);mesh.depths?.splice(index,1);if(mesh.topology){mesh.topology.pins=mesh.topology.pins.map(i=>i>index?i-1:i);mesh.topology.edges=mesh.topology.edges.map(e=>e.map(i=>i>index?i-1:i));}for(const morph of mesh.morphs){const deltas=[];for(let j=0;j<morph.deltas.length;j+=3){const i=morph.deltas[j];if(i!==index)deltas.push(i>index?i-1:i,morph.deltas[j+1],morph.deltas[j+2]);}morph.deltas=deltas;}if(mesh.binds)mesh.binds=Object.fromEntries(Object.entries(mesh.binds).map(([id,v])=>[id,reindex(v,index)]));for(const {frame}of tracks(mesh,document))frame.deltas=reindex(frame.deltas,index);
+// Plan a one-ring retriangulation without modifying attributes. An interior
+// vertex has a closed link; a boundary vertex has one connected open link.
+function deletion(mesh,index){
+ if(!Number.isInteger(index)||index<0||index>=mesh.weights.length)throw Error('顶点索引无效');
+ if(mesh.weights.length<=3)throw Error('网格至少保留 3 个顶点');
+ if(mesh.topology?.pins.includes(index))throw Error('请先取消该关键点，再删除顶点');
+ if(mesh.topology?.edges.some(e=>e.includes(index)))throw Error('请先移除该点关联的约束边');
+ const touching=[],links=new Map();
+ for(let j=0;j<mesh.triangles.length;j+=3){const tri=mesh.triangles.slice(j,j+3);if(!tri.includes(index))continue;touching.push(j);const [a,b]=tri.filter(i=>i!==index);for(const [u,v]of [[a,b],[b,a]]){if(!links.has(u))links.set(u,[]);links.get(u).push(v);}}
+ if(!touching.length)return {triangles:[...mesh.triangles],boundary:false,polygon:[],unused:true};
+ const ends=[...links].filter(([,v])=>v.length===1).map(([i])=>i),boundary=ends.length===2;
+ if(!touching.length||!([0,2].includes(ends.length))||[...links.values()].some(v=>v.length<1||v.length>2))throw Error('顶点邻域不是单一流形');
+ const first=boundary?ends[0]:[...links.keys()][0],polygon=[first];let previous=-1,current=first;
+ while(polygon.length<=links.size){const next=links.get(current).find(i=>i!==previous);if(next===undefined||next===first)break;polygon.push(next);previous=current;current=next;}
+ if(polygon.length!==links.size)throw Error('顶点邻域包含多个不连通区域');
+ const points=mesh.weights.map((_,i)=>at(mesh,i)),replacement=polygon.length>=3?triangulate(points,polygon,{preserveVertices:true}):[],remove=new Set(touching),triangles=[...replacement];
+ for(let j=0;j<mesh.triangles.length;j+=3)if(!remove.has(j))triangles.push(...mesh.triangles.slice(j,j+3));
+ if(!triangles.length)throw Error('删除会清空整个网格');const used=new Set(triangles);if(polygon.some(i=>!used.has(i)))throw Error('删除会清空独立网格区域或留下孤立顶点');
+ // New diagonals must not cross existing geometry, overlap another face or
+ // turn an edge into a nonmanifold seam (including concave boundary corners).
+ const counts=new Map(),segments=new Map();
+ for(let j=0;j<triangles.length;j+=3)for(let k=0;k<3;k++){const a=triangles[j+k],b=triangles[j+(k+1)%3],key=Math.min(a,b)+':'+Math.max(a,b);counts.set(key,(counts.get(key)||0)+1);segments.set(key,[a,b]);}
+ if([...counts.values()].some(n=>n>2))throw Error('删除会产生非流形连边');
+ const strictInside=(p,ids)=>bary(p,...ids.map(i=>points[i]))?.every(v=>v>1e-7);
+ for(let j=0;j<replacement.length;j+=3){const ids=replacement.slice(j,j+3);
+  for(let k=0;k<3;k++){const a=ids[k],b=ids[(k+1)%3],A=points[a],B=points[b];for(const [c,d]of segments.values()){if([a,b].includes(c)||[a,b].includes(d))continue;const P=points[c],Q=points[d];const on=p=>Math.abs(cross(A,B,p))<1e-8&&(p.x-A.x)*(p.x-B.x)+(p.y-A.y)*(p.y-B.y)<-1e-8;if(cross(A,B,P)*cross(A,B,Q)<-1e-8&&cross(P,Q,A)*cross(P,Q,B)<-1e-8||on(P)||on(Q))throw Error('删除会使轮廓或连边交叉');}}
+  const center={x:ids.reduce((n,i)=>n+points[i].x,0)/3,y:ids.reduce((n,i)=>n+points[i].y,0)/3};
+  for(let k=replacement.length;k<triangles.length;k+=3){const other=triangles.slice(k,k+3);if(strictInside(center,other)||other.some(i=>!ids.includes(i)&&strictInside(points[i],ids)))throw Error('删除会使网格区域重叠');}
+ }
+ return {triangles,boundary,polygon};
+}
+function erase(mesh,index,{document}={}){
+ if(mesh.binds&&!document)throw Error('拓扑编辑需要完整工程，以同时保留绑定与 FFD 动画');
+ const {triangles}=deletion(mesh,index);
+ mesh.triangles=triangles.map(i=>i>index?i-1:i);mesh.vertices.splice(index*2,2);mesh.uv.splice(index*2,2);mesh.weights.splice(index,1);mesh.depths?.splice(index,1);if(mesh.topology){mesh.topology.pins=mesh.topology.pins.map(i=>i>index?i-1:i);mesh.topology.edges=mesh.topology.edges.map(e=>e.map(i=>i>index?i-1:i));}for(const morph of mesh.morphs){const deltas=[];for(let j=0;j<morph.deltas.length;j+=3){const i=morph.deltas[j];if(i!==index)deltas.push(i>index?i-1:i,morph.deltas[j+1],morph.deltas[j+2]);}morph.deltas=deltas;}if(mesh.binds)mesh.binds=Object.fromEntries(Object.entries(mesh.binds).map(([id,v])=>[id,reindex(v,index)]));for(const {frame}of tracks(mesh,document))frame.deltas=reindex(frame.deltas,index);
 }
 function flip(mesh,a,b){if(mesh.topology?.edges.some(e=>e.includes(a)&&e.includes(b)))throw Error('请先移除该约束边，再翻转连边');const pair=[];for(let j=0;j<mesh.triangles.length;j+=3){const ids=mesh.triangles.slice(j,j+3);if(ids.includes(a)&&ids.includes(b))pair.push({j,c:ids.find(i=>i!==a&&i!==b)});}if(pair.length!==2)throw Error('请选择一条内部边的两个端点');const [{j,c},{j:k,c:d}]=pair,points=Array.from({length:mesh.weights.length},(_,i)=>at(mesh,i));if(cross(points[c],points[d],points[a])*cross(points[c],points[d],points[b])>=-1e-8)throw Error('这条边无法安全翻转');mesh.triangles.splice(j,3,...oriented(points,c,d,a));mesh.triangles.splice(k,3,...oriented(points,d,c,b));}
 function shared(doc,layer,enabled=true){const mesh=doc.characterRig.meshes.find(m=>m.layerId===layer.id);if(!mesh)return [];if(!enabled)return [mesh];const key=JSON.stringify([mesh.vertices,mesh.uv,mesh.triangles]),base=T.vertexPoints(doc,layer,{vertices:[512,768,600,768],weights:[[],[]]});return doc.characterRig.meshes.filter(m=>{const l=doc.layers.find(l=>l.id===m.layerId),p=T.vertexPoints(doc,l,{vertices:[512,768,600,768],weights:[[],[]]});return JSON.stringify([m.vertices,m.uv,m.triangles])===key&&p.every((q,i)=>Math.hypot(q.x-base[i].x,q.y-base[i].y)<1e-6);});}
@@ -93,5 +128,5 @@ function inheritMorphs(meshes){
  if(meshes.length<2)return;const targets=new Map(),signature=JSON.stringify([meshes[0].vertices,meshes[0].uv,meshes[0].triangles]);for(const mesh of meshes){if(JSON.stringify([mesh.vertices,mesh.uv,mesh.triangles])!==signature)throw Error('共享表情要求完全相同的网格拓扑');for(const morph of mesh.morphs){const deltas=[];for(let j=0;j<morph.deltas.length;j+=3)deltas.push(morph.deltas.slice(j,j+3));deltas.sort((a,b)=>a[0]-b[0]);const values=deltas.flat(),previous=targets.get(morph.expressionId);if(previous&&(previous.length!==values.length||previous.some((v,i)=>Math.abs(v-values[i])>1e-8)))throw Error('共享组存在不同的同名表情目标，请关闭表情同步后分别编辑');targets.set(morph.expressionId,values);}}
  const all=[...targets].map(([expressionId,deltas])=>({expressionId,deltas}));for(const mesh of meshes)mesh.morphs=all.map(m=>({expressionId:m.expressionId,deltas:[...m.deltas]}));
 }
-return {bary,triangulate,legalize,locate,outlines,generate,transfer,insert,move,erase,flip,shared,inheritMorphs,checkpointAnimation};
+return {bary,triangulate,legalize,locate,outlines,generate,transfer,insert,snapBoundary,move,erase,deletion,flip,shared,inheritMorphs,checkpointAnimation};
 });

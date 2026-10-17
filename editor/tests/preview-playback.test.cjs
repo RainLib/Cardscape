@@ -3,14 +3,14 @@ const R=require('../renderer/runtime-model.js');
 
 // Run the real renderer and RAF clock; only GPU/DOM facilities are replaced.
 function harness(){
- const frames=new Map(),events=[],componentTimes=[],componentZooms=[],viewports=[];let sequence=0,now=0;
+ const listeners=new Map();const frames=new Map(),events=[],componentTimes=[],componentZooms=[],viewports=[];let sequence=0,now=0;
  const gl=new Proxy({viewport:(...args)=>viewports.push(args),createTexture:()=>({}),createProgram:()=>({}),createShader:()=>({}),createBuffer:()=>({}),getShaderParameter:()=>true,getProgramParameter:()=>true,getParameter:()=>8,getAttribLocation:()=>0,getUniformLocation:(_,name)=>name,getError:()=>0},{get:(o,k)=>k in o?o[k]:()=>{}});
  const makeCanvas=()=>({dataset:{},width:400,height:600,clientWidth:400,clientHeight:600,setAttribute(){},setPointerCapture(){},getContext:type=>type==='webgl'?null:{fillRect(){}}});
  const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{id,after(){},add(){},value:'idle',textContent:''});return nodes.get(id);};
  const document={body:{dataset:{appMode:'editor'}},hidden:false,createElement:makeCanvas,getElementById:node,querySelectorAll:()=>[],addEventListener(){}};
- const window={CardRuntime:R,CardBackRenderer:{create:()=>({draw(value,options){componentTimes.push(options.time);componentZooms.push(options.viewportZoom);return {triangles:0,loaded:true};},dispose(){},reset(){}})},dispatchEvent:event=>events.push(event)};
- for(const [name,file] of Object.entries({MeshRigidity:'mesh-rigidity',CardFrame:'frame-model',CardParticleBatch:'particle-batch',CardMaskEdit:'mask-edit-model',CardSpatial:'spatial-model',CardCosmetics:'cosmetics-model',CardComponents:'component-model',CardStats:'card-stats',CardTitle:'title-model',CardPreviewUpdate:'preview-update-model',CardInspection:'inspection-model'}))window[name]=require('../renderer/'+file+'.js');
- const context={window,document,devicePixelRatio:1,performance:{now:()=>now},ResizeObserver:class{observe(){}},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},requestAnimationFrame:callback=>{frames.set(++sequence,callback);return sequence;},cancelAnimationFrame:id=>frames.delete(id)};
+ const window={CardRuntime:R,CardBackRenderer:{create:()=>({draw(value,options){componentTimes.push(options.time);componentZooms.push(options.viewportZoom);return {triangles:0,loaded:true};},dispose(){},reset(){}})},addEventListener:(name,fn)=>{if(!listeners.has(name))listeners.set(name,[]);listeners.get(name).push(fn);},dispatchEvent:event=>{events.push(event);for(const fn of listeners.get(event.type)||[])fn(event);}};
+ for(const [name,file] of Object.entries({MeshRigidity:'mesh-rigidity',CardFrame:'frame-model',CardParticleBatch:'particle-batch',CardMaskEdit:'mask-edit-model',CardSpatial:'spatial-model',CardCosmetics:'cosmetics-model',CardComponents:'component-model',CardStats:'card-stats',CardTitle:'title-model',CardPreviewUpdate:'preview-update-model',CardInspection:'inspection-model',CardExportProfile:'export-profile',CardAdaptiveTextures:'adaptive-textures'}))window[name]=require('../renderer/'+file+'.js');
+ const context={window,document,CardExportProfile:window.CardExportProfile,CardAdaptiveTextures:window.CardAdaptiveTextures,innerWidth:400,innerHeight:700,devicePixelRatio:1,performance:{now:()=>now},ResizeObserver:class{observe(){}},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},requestAnimationFrame:callback=>{frames.set(++sequence,callback);return sequence;},cancelAnimationFrame:id=>frames.delete(id)};
  vm.createContext(context);vm.runInContext(fs.readFileSync(require.resolve('../renderer/author-preview.js'),'utf8'),context);
  const canvas=makeCanvas(),preview=window.CardSurfaceRenderer.create({canvas,gl});window.cardPreview=preview;
  const component=R.ensure({id:'frame-asset',previewMode:'authored',layers:[],masks:{},shader:{fragmentBody:'return color * (0.9 + 0.1 * sin(time));',fragmentStrength:1}});
@@ -135,4 +135,9 @@ test('exported one-shot waits for slow image loading and can replay after becomi
  for(let i=0;i<50;i++)h.advance(40);assert.equal(h.canvas.dataset.particleCount,'0');
  h.node('player-pause').onclick();h.node('player-reveal').onclick();assert.equal(h.canvas.dataset.particleCount,String(doc.particles.reveal.count));assert.equal(h.preview.getView().paused,false);assert.equal(h.node('player-pause').textContent,'暂停');
  h.node('player-pause').onclick();const time=h.preview.getView().time;h.advance(5000);assert.equal(h.preview.getView().time,time);h.preview.dispose();
+});
+
+
+test('zoom detail waits for a complete texture batch without rebuilding skin meshes or changing the animation clock',()=>{
+ const h=harness(),d=require('./fixtures/character-animation.cjs').fixture(),P=require('../renderer/export-profile.js');d.exportProfile={settings:P.config({preset:'mobile-list'}),textures:{}};h.preview.setDocument(d);h.preview.playAction('idle',.6,true);h.preview.setTextureDetail('small');h.preview.setZoom(.25);const pose=h.canvas.dataset.characterPose,meshes=h.canvas.dataset.resourceMeshes,seconds=h.preview.getView().actionSeconds;h.preview.setZoom(3);assert.equal(h.canvas.dataset.detailRequested,'large');assert.equal(h.canvas.dataset.detailLevel,'small');h.preview.setTextureDetail('large');assert.equal(h.canvas.dataset.detailLevel,'large');assert.equal(h.canvas.dataset.detailMaterials,'true');assert.equal(h.canvas.dataset.characterPose,pose);assert.equal(h.preview.getView().actionSeconds,seconds);assert.equal(h.canvas.dataset.resourceMeshes,meshes);h.preview.dispose();
 });

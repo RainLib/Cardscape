@@ -151,3 +151,9 @@ node editor/scripts/test-godot.cjs --project EXPORTED_GODOT_DIR --script tests/t
 导出工程后执行 `node editor/scripts/test-godot.cjs --project EXPORTED_GODOT_DIR --script tests/test_particle_reveal.gd --output GPU_LOG_FILE --captures CAPTURE_DIRECTORY`，检查跨渲染采样、错峰边界、暂停与翻面。路径必须替换成实际位置。此项验证不代表与游戏相同场景的逐帧视觉验收。
 
 自有人物动画：`characterRig` 与 `actions[].boneTracks` 随卡片导出。自有采样器 `character_animation.gd` 支持父子关节、初始姿势补偿、部件位移／旋转／统一缩放／透明度；沿用 `play_action`、`seek_action` 和 `pause_action`。运行时图层覆盖保留为动画前的基础变换。骨骼可选 `tip:[x,y]` 是编辑器骨段元数据，不改变骨骼矩阵；不规则拓扑仍使用普通顶点／UV／三角形数组。同时支持原生 `meshes / constraints / expressions`：自有 4 权重 LBS、保持骨长的两节 IK、蒙皮前叠加形变，以及 `ikTracks / expressionTracks`。内外绘制共享动态网格，暂停复用位置缓冲，UV 与 Mask 保持注册；高级网格跳过旧衣料风动，使用骨骼与形变控制。`tests/test_character_animation.gd` 验证刚性兼容，`tests/test_advanced_character.gd` 使用编辑器生成的参考逐顶点对照并采集真实 GPU 画面。非均匀缩放、复杂多链约束和 Spine 文件加载尚未实现。完整契约见 [人物动画文档](../../editor/docs/native-character-animation.md)。
+
+### 导出预设与自动细节
+
+编辑器的四种导出预设同时适用于 Godot。`CardscapeCard` 按相机投影自动切换小图／高清及粒子、复杂材质、附加片元 Shader 和可选图层；切档复用蒙皮网格并保持动作时间。UI RenderTexture 可通过 `detail_pixel_width` 提供投影宽度，0 恢复自动计算，`export_detail_state()` 返回当前档位。示例界面提供缩放。
+
+彩色变体通过 `library.tres.texture_paths` 按需加载，整档完成后同步替换；Mask 继续保真。导出 PCK 时选择 **Export all resources**，或显式包含 `assets/` 下全部变体。`tests/test_export_detail.gd` 使用真实 Spine 卡牌检查全部动作、纹理尺寸、图层恢复、粒子、网格和时钟。完整预设与资源范围见 [导出预设](../../editor/docs/export-presets.md)。

@@ -38,6 +38,14 @@ func _ready() -> void:
 		button.text = spec[0]
 		button.pressed.connect(spec[1])
 		panel.add_child(button)
+	var zoom := HSlider.new()
+	zoom.min_value=.25
+	zoom.max_value=3.0
+	zoom.step=.05
+	zoom.value=1.0
+	zoom.custom_minimum_size=Vector2(170,20)
+	zoom.value_changed.connect(func(value):card.scale=Vector3.ONE*value)
+	panel.add_child(zoom)
 	var text := Label.new()
 	text.text = "Drag to inspect | component overrides in Godot Inspector"
 	panel.add_child(text)

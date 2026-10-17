@@ -16,6 +16,7 @@ const armorDefaults={enabled:false,strength:.7,duration:2,period:6,width:.09,col
 function ensure(doc){doc.locale=doc.locale||'zh-CN';doc.composition={...compositionDefaults,...doc.composition};doc.armor={...armorDefaults,...doc.armor};doc.deformation={...defaults.deformation,...doc.deformation};doc.actions=doc.actions||structuredClone(defaults.actions);doc.slots=doc.slots||[];doc.shader={...defaults.shader,...doc.shader};if(doc.previewMode==='authored'&&!doc.foregroundMesh)doc.foregroundMesh=grid();return doc;}
 const range=(v,a,b)=>Number.isFinite(v)&&v>=a&&v<=b;
 function validate(doc){
+ if(doc.exportSettings)(typeof module==='object'&&module.exports?require('./export-profile.js'):window.CardExportProfile).validate(doc.exportSettings);
  character.validate(doc);
  if(doc.backScene)(typeof module==='object'&&module.exports?require('./back-asset-model.js'):window.CardBack).validate(doc.backScene);
  if(doc.cosmetics)(typeof module==='object'&&module.exports?require('./cosmetics-model.js'):window.CardCosmetics).validate(doc.cosmetics);spatial.validate(doc);frameModel.validate(doc);statsModel.validate(doc);titleModel.validate(doc);(typeof module==='object'&&module.exports?require('./component-model.js'):window.CardComponents).validate(doc);

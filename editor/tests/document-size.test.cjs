@@ -1,19 +1,19 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const {documentBytes,ownDocumentBytes,ownDocumentBudget,validateProject}=require('../electron/services.cjs');
-const R=require('../renderer/runtime-model.js');
+const {documentBytes,ownDocumentBytes,ownDocumentBudget,validateProject}=require('../dist/electron/services.cjs');
+const R=require('../dist/renderer/runtime-model.js');
 const image='data:image/png;base64,';
 function document(src){return R.ensure({schema:'card-atelier/1',name:'分层卡背',width:1024,height:1536,layers:[{id:'figure',name:'人物',kind:'foreground',x:0,y:0,scale:1,opacity:1,visible:true,locked:false,src,master:src}],masks:{motion:src},back:src,effects:{}});}
 test('independent linked reverse preserves the full front layer budget and both assets',()=>{
- const B=require('../renderer/back-asset-model.js'),front=image+'A'.repeat(40*1024*1024),back=image+'B'.repeat(28*1024*1024),doc=document(front);doc.backScene=B.create(back);doc.back=back;const originalFront=doc.layers[0].src;
+ const B=require('../dist/renderer/back-asset-model.js'),front=image+'A'.repeat(40*1024*1024),back=image+'B'.repeat(28*1024*1024),doc=document(front);doc.backScene=B.create(back);doc.back=back;const originalFront=doc.layers[0].src;
  assert.ok(documentBytes(doc)>64*1024*1024);assert.ok(ownDocumentBytes(doc)<64*1024*1024);assert.equal(validateProject(doc),doc);assert.equal(doc.layers[0].src,originalFront);assert.equal(doc.backScene.src,back);assert.equal(doc.back,back);
 });
 test('separate scene budgets still reject oversized front or component and hidden nesting',()=>{
- const B=require('../renderer/back-asset-model.js'),C=require('../renderer/component-model.js'),small=image+'AAAA';const doc=document(small);doc.backScene=B.create(image+'B'.repeat(65*1024*1024));doc.back=doc.backScene.src;assert.throws(()=>validateProject(doc),/组件.*64 MB/);
+ const B=require('../dist/renderer/back-asset-model.js'),C=require('../dist/renderer/component-model.js'),small=image+'AAAA';const doc=document(small);doc.backScene=B.create(image+'B'.repeat(65*1024*1024));doc.back=doc.backScene.src;assert.throws(()=>validateProject(doc),/组件.*64 MB/);
  doc.backScene=B.create(small);doc.back=small;doc.layers[0].src=image+'A'.repeat(65*1024*1024);assert.throws(()=>validateProject(doc),/工程去重后超过 64 MB/);
  const source=document(small);source.material=C.material({document:document(small)});const nested=document(small);nested.material=C.material({document:source});assert.throws(()=>validateProject(nested),/不能嵌套/);
 });
 test('legacy reverse preview is counted with its independent scene even when their images differ',()=>{
- const B=require('../renderer/back-asset-model.js'),small=image+'AAAA',doc=document(small);doc.backScene=B.create(small);doc.back=image+'B'.repeat(65*1024*1024);
+ const B=require('../dist/renderer/back-asset-model.js'),small=image+'AAAA',doc=document(small);doc.backScene=B.create(small);doc.back=image+'B'.repeat(65*1024*1024);
  assert.ok(ownDocumentBytes(doc)<64*1024*1024);assert.throws(()=>validateProject(doc),/组件.*64 MB/);
  doc.back=image+'C'.repeat(28*1024*1024);assert.equal(validateProject(doc),doc);assert.equal(doc.backScene.src,small);
 });

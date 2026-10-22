@@ -1,6 +1,6 @@
 /* QA only: public reference pixels never enter the editor or exported assets. */
 const fs=require('node:fs'),path=require('node:path');
-const R=require('../renderer/runtime-model.js'),K=require('../renderer/finish-catalog.js');
+const R=require('../dist/renderer/runtime-model.js'),K=require('../dist/renderer/finish-catalog.js');
 const directory=path.resolve(__dirname,'../outputs/refraction-v60');
 const baseline=JSON.parse(fs.readFileSync(path.join(directory,'baseline.json')));
 const shared=s=>s.slice(s.indexOf('// Shared procedural finish'),s.indexOf('\nvoid ',s.indexOf('// Shared procedural finish')));

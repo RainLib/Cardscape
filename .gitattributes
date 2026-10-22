@@ -1,0 +1,11 @@
+* text=auto
+*.ts text eol=lf
+*.mts text eol=lf
+*.js text eol=lf
+*.cjs text eol=lf
+*.mjs text eol=lf
+*.gd text eol=lf
+*.gdshader text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.command text eol=lf

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const C=require('../renderer/character-animation-model.js'),A=C.advanced;
+const C=require('../dist/renderer/character-animation-model.js'),A=C.advanced;
 const near=(a,b,eps=.0001)=>assert.ok(Math.abs(a-b)<eps,`${a} != ${b}`);
 const action=()=>({id:'move',name:'动作',event:'trigger',duration:2,loop:false,motion:1,emission:1,bend:0});
 function chain(){return {layers:[{id:'arm',kind:'image',visible:true}],actions:[action()],characterRig:{schema:C.schema,bones:[{id:'root',name:'肩',parentId:null,x:200,y:300,rotation:0,scale:1},{id:'tip',name:'肘',parentId:'root',x:100,y:0,rotation:0,scale:1}],bindings:[{layerId:'arm',boneId:'tip'}],constraints:[{id:'aim',name:'瞄准',rootId:'root',tipId:'tip',end:[80,0],target:[330,340],bend:1,mix:1}],meshes:[],expressions:[]}};}
@@ -34,5 +34,5 @@ test('IK accepts independent branches but rejects nested chains that invalidate 
  doc.characterRig.bones.find(b=>b.id==='other').parentId='tip';assert.throws(()=>C.validate(doc),/独立分支/);
 });
 test('native adapters round-trip advanced controls and clear replaced advanced tracks',()=>{
- const I=require('../renderer/character-animation-import.js'),doc=require('./fixtures/character-animation.cjs').fixture();doc.characterRig.expressions=[{id:'smile',name:'微笑',value:0}];doc.actions[0].expressionTracks={smile:{value:[{at:0,value:0},{at:1,value:1}]}};C.validate(doc);const packed=I.pack(doc);assert.ok(packed.actions.some(a=>a.expressionTracks));const old=structuredClone(doc);old.actions.push({...action(),id:'retained',expressionTracks:{smile:{value:[{at:0,value:1}]}}});const next=I.createRegistry().convert('cardscape',packed,old);assert.equal(next.actions.find(a=>a.id==='retained').expressionTracks,undefined);assert.deepEqual(next.characterRig,doc.characterRig);
+ const I=require('../dist/renderer/character-animation-import.js'),doc=require('./fixtures/character-animation.cjs').fixture();doc.characterRig.expressions=[{id:'smile',name:'微笑',value:0}];doc.actions[0].expressionTracks={smile:{value:[{at:0,value:0},{at:1,value:1}]}};C.validate(doc);const packed=I.pack(doc);assert.ok(packed.actions.some(a=>a.expressionTracks));const old=structuredClone(doc);old.actions.push({...action(),id:'retained',expressionTracks:{smile:{value:[{at:0,value:1}]}}});const next=I.createRegistry().convert('cardscape',packed,old);assert.equal(next.actions.find(a=>a.id==='retained').expressionTracks,undefined);assert.deepEqual(next.characterRig,doc.characterRig);
 });

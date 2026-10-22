@@ -7,5 +7,6 @@ if [[ ! -x "$atelier_electron" || ! -x "$atelier_root/native/target/release/card
   exit 1
 fi
 cd "$atelier_root"
+npm run build
 node scripts/prepare-app-icon.cjs
 exec "$atelier_electron" "$atelier_root"

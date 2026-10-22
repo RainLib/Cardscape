@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
-const {createServices,ROOT,validateProject}=require('../electron/services.cjs');
-const {NativeWorker}=require('../electron/native-client.cjs');
+const {createServices,ROOT,validateProject}=require('../dist/electron/services.cjs');
+const {NativeWorker}=require('../dist/electron/native-client.cjs');
 test('canceling a buffered image request consumes pipe errors and permits restarting the worker',async()=>{
  const fixture="require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const r=JSON.parse(line);process.stdout.write(JSON.stringify({id:r.id,ok:true,result:{engine:'fixture'},elapsed_ms:0})+'\\n');});";
  const worker=new NativeWorker(process.execPath,{args:['-e',fixture],label:'协议测试'});

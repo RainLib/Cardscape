@@ -8,9 +8,10 @@ async function preflight(document){
   say(){},registerFont:async()=>{},canvasFor:()=>({getContext:()=>({fillRect(){}}),toDataURL:()=>fallback}),
   imageFrom:async src=>{assert.equal(typeof src,'string');decoded.push(src);return {naturalWidth:1024,naturalHeight:1536};},
   maskNames:Object.fromEntries(Object.keys(document.masks).map(k=>[k,k])),
-  window:{atelierHome:{progress(){},paint:async()=>{}},CardStats:{loadThemes:async()=>{}},CardFrameArtwork:{loadDocument:async()=>{}},CardRuntime:{defaults:{shader:{}}},cardPreview:{compileShader(){throw boundary;}}}
+  window:{CardDocumentAssets:require('../dist/renderer/core/document-assets.js'),atelierHome:{progress(){},paint:async()=>{}},CardStats:{loadThemes:async()=>{}},CardFrameArtwork:{loadDocument:async()=>{}},CardRuntime:{defaults:{shader:{}}},cardPreview:{compileShader(){throw boundary;}}}
  };
- vm.createContext(context);const source=fs.readFileSync(require.resolve('../renderer/app.js'),'utf8');
+ context.window.CardMaskAssets={maskNames:context.maskNames};context.window.CardImageAssets={canvasFor:context.canvasFor};
+ vm.createContext(context);const source=fs.readFileSync(require.resolve('../dist/renderer/app.js'),'utf8');
  vm.runInContext(source.slice(source.indexOf('async function loadDocument('),source.indexOf('async function updateDocument(')),context);
  await assert.rejects(context.loadDocument(document),error=>error===boundary);assert.equal(context.doc,null);return {decoded,fallback};
 }

@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const Raster=require('../renderer/frame-raster.js'),F=require('../renderer/frame-model.js'),R=require('../renderer/runtime-model.js'),Space=require('../renderer/space-model.js');
-const {framePreviewBytes}=require('../electron/card-export.cjs');
+const Raster=require('../dist/renderer/frame-raster.js'),F=require('../dist/renderer/frame-model.js'),R=require('../dist/renderer/runtime-model.js'),Space=require('../dist/renderer/space-model.js');
+const {framePreviewBytes}=require('../dist/electron/card-export.cjs');
 test('static raster preserves the master aperture and includes the entire outside band',()=>{
  assert.deepEqual(Raster.bounds({...F.defaults,finish:'neonnights'}),{x:-88,y:-88,width:1200,height:1712});
  assert.deepEqual(Raster.bounds({...F.defaults,finish:'distressed-copper'}),{x:0,y:0,width:1024,height:1536});

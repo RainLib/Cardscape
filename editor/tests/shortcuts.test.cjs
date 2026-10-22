@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const keys=require('../renderer/shortcuts.js');
+const keys=require('../dist/renderer/shortcuts.js');
 
 test('basic document shortcuts agree between Electron and browser keyboard events',()=>{
  const cases=[['g',false,false,'group-layers'],['g',true,false,'ungroup-layers'],['z',false,false,'undo'],['z',true,false,'redo'],['y',false,false,'redo'],['s',false,false,'save'],['s',true,false,'save-as'],['i',true,false,'invert-selection'],['i',false,true,'import'],['a',false,false,'select-all'],['d',false,false,'deselect'],['j',false,false,'duplicate'],['t',false,false,'transform'],['0',false,false,'fit'],['1',false,false,'actual'],['+',true,false,'zoom-in'],['-',false,false,'zoom-out']];

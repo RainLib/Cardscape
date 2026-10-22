@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const questions=require('../electron/agent-questions.cjs');
+const questions=require('../dist/electron/agent-questions.cjs');
 const block=q=>'<atelier-question>'+JSON.stringify({questions:q})+'</atelier-question>';
 test('questions accept choices and free text without creating edits',()=>{
  const value=questions.parseReply('先确定风格。'+block([{id:'style',title:'风格？',options:['铜金','冰蓝']},{id:'name',title:'卡片名字？'}]));

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js'),B=require('../renderer/particle-batch.js'),K=require('../renderer/finish-catalog.js'),W=require('../renderer/workshop-model.js'),R=require('../renderer/runtime-model.js'),F=require('../renderer/frame-model.js');
+const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js'),B=require('../dist/renderer/particle-batch.js'),K=require('../dist/renderer/finish-catalog.js'),W=require('../dist/renderer/workshop-model.js'),R=require('../dist/renderer/runtime-model.js'),F=require('../dist/renderer/frame-model.js');
 function samples(p,time,doc={layers:[]},budget=256,facing=0){const data=new Float64Array(256*7);return {data,count:C.sampleInto(p,time,doc,facing,data,budget)};}
 // Locate observable size resets without duplicating the sampler's lifetime seeds.
 function births(p){

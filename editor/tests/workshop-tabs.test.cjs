@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const T=require('../renderer/workshop-tabs.js');
+const T=require('../dist/renderer/workshop-tabs.js');
 const cards=['a','b','c','d','e'].map(id=>({id,name:id,document:{layers:[{id:'art',x:47}]}}));
 test('pinned tabs move to the front and survive closing tabs on either side',()=>{
  let s=T.normalize(null,cards);s=T.pin(s,'c');assert.deepEqual(s.open,['c','a','b','d','e']);

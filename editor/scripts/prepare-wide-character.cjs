@@ -1,6 +1,6 @@
 // Prepare a new offline card with real generated hidden support. Never edits
 // the input project or an active editor document. Import/open the output in UI.
-const fs=require('node:fs/promises'),path=require('node:path'),{createHash}=require('node:crypto'),{NativeWorker}=require('../electron/native-client.cjs'),Fixture=require('./wide-character-fixture.cjs'),Audit=require('../renderer/character-motion-audit.js');
+const fs=require('node:fs/promises'),path=require('node:path'),{createHash}=require('node:crypto'),{NativeWorker}=require('../dist/electron/native-client.cjs'),Fixture=require('./wide-character-fixture.cjs'),Audit=require('../dist/renderer/character-motion-audit.js');
 async function main(){
  const [sourceFile,candidateFile,outputDirectory,generationId]=process.argv.slice(2);if(!outputDirectory)throw Error('Usage: node scripts/prepare-wide-character.cjs SOURCE_CARD GENERATED_TORSO_PNG OUTPUT_DIRECTORY [GENERATION_ID]');
  const dir=path.resolve(outputDirectory),project=path.join(dir,'大幅抬枪与提腿.cardproj');if(project===path.resolve(sourceFile))throw Error('Output must differ from the source project');

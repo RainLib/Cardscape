@@ -1,6 +1,6 @@
 // Reference-only QA: captured game pixels do not become exported assets.
 const fs=require('node:fs'),path=require('node:path');
-const R=require('../renderer/runtime-model.js'),K=require('../renderer/finish-catalog.js');
+const R=require('../dist/renderer/runtime-model.js'),K=require('../dist/renderer/finish-catalog.js');
 const dir=path.resolve('outputs/surface-v53'),baseline=JSON.parse(fs.readFileSync(path.join(dir,'baseline.json')));
 const extract=s=>s.slice(s.indexOf('// Shared procedural finish'),s.indexOf('\nvoid ',s.indexOf('// Shared procedural finish')));
 const data={baseline:{shader:extract(baseline.fragment),recipe:baseline.recipe},current:{shader:extract(R.fragment),recipe:K.value('material-symbiote-black')}};

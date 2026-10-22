@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const F=require('../renderer/frame-model.js'),R=require('../renderer/runtime-model.js'),W=require('../renderer/workshop-model.js');
+const F=require('../dist/renderer/frame-model.js'),R=require('../dist/renderer/runtime-model.js'),W=require('../dist/renderer/workshop-model.js');
 const image='data:image/png;base64,AA==';
 function document(artwork=true){
  const style={...F.defaults,width:36,corner:64,depth:16,bevel:4};
@@ -14,8 +14,8 @@ function harness(doc,workshop=W.create(doc,'workshop','card-a')){
  let state={document:doc,workshop,layer:doc.layers.find(l=>l.kind==='frame'),busy:false,revision:0,documentToken:doc.id};const history=[],opened=[],messages=[],playbacks=[],events=new Map();let view={time:1.25,paused:doc.effects?.paused??false};let enabled=0;
  const host={state:()=>state,say:message=>messages.push(message),mutate(label,fn){const next=structuredClone(state.document);fn(next);R.validate(next);history.push(structuredClone(state.document));state={...state,document:next,layer:next.layers.find(l=>l.id===state.layer?.id),revision:state.revision+1};return true;},chooseFrame(){state.layer=state.document.layers.find(l=>l.kind==='frame');},unlockFrame(){state.layer.locked=false;}};
  host.previewEffects=(seconds,paused)=>{playbacks.push({seconds,paused});view={...view,time:seconds,paused};state.document.effects={...state.document.effects,paused};return true;};
- const window={addEventListener:(name,fn)=>events.set(name,fn),cardPreview:{getView:()=>view},cardEditorHost:host,CardFrame:F,CardWorkshop:W,CardStats:require('../renderer/card-stats.js'),CardCosmetics:require('../renderer/cosmetics-model.js'),atelierComponentEditor:{open(...args){opened.push(args);}},atelierWorkspace:{panel(){},syncLayout(){},enableEffectsPreview(){enabled++;get('preview-effects').checked=true;}}};
- vm.runInNewContext(fs.readFileSync(require.resolve('../renderer/frame-panel.js'),'utf8'),{window,document:{getElementById:get,createElement:node,activeElement:null,body:{classList:{remove(){}}}},Option:function(text,value){return {text,value};}});
+ const window={addEventListener:(name,fn)=>events.set(name,fn),cardPreview:{getView:()=>view},cardEditorHost:host,CardFrame:F,CardWorkshop:W,CardStats:require('../dist/renderer/card-stats.js'),CardCosmetics:require('../dist/renderer/cosmetics-model.js'),atelierComponentEditor:{open(...args){opened.push(args);}},atelierWorkspace:{panel(){},syncLayout(){},enableEffectsPreview(){enabled++;get('preview-effects').checked=true;}}};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../dist/renderer/frame-panel.js'),'utf8'),{window,document:{getElementById:get,createElement:node,activeElement:null,body:{classList:{remove(){}}}},Option:function(text,value){return {text,value};}});
  const refresh=()=>window.atelierFrame.refresh(state);
  return {get,opened,messages,history,window,playbacks,enabled:()=>enabled,state:()=>state,refresh,event(name){events.get(name)?.();},change(key,value){get('frame-'+key).value=String(value);get('frame-'+key).onchange();},undo(){const d=history.pop();state={...state,document:d,layer:d.layers.find(l=>l.kind==='frame')};refresh();},set(next){state={...state,...next};refresh();}};
 }
@@ -72,11 +72,11 @@ test('independent artwork workspaces keep thickness editing and do not open a ne
 });
 
 test('normal property refresh preserves workshop and busy state through the workspace dispatcher',()=>{
- const h=harness({...document(),effects:{depth:1,background:0,cape:false,flow:false}}),window=h.window,received=[];window.CardTitle=require('../renderer/title-model.js');
+ const h=harness({...document(),effects:{depth:1,background:0,cape:false,flow:false}}),window=h.window,received=[];window.CardDOM={element:h.get};window.CardMaskAssets={maskNames:{}};window.CardTitle=require('../dist/renderer/title-model.js');
  window.atelierWorkspace.refresh=next=>{received.push(next);window.atelierFrame.refresh(next);};
- const source=fs.readFileSync(require.resolve('../renderer/app.js'),'utf8'),start=source.indexOf('function syncProperties()'),end=source.indexOf('\nfunction setTool(',start);
+ const source=fs.readFileSync(require.resolve('../dist/renderer/app.js'),'utf8'),start=source.indexOf('function syncProperties()'),end=source.indexOf('\nfunction setTool(',start);
  const context={window,$:h.get,doc:h.state().document,workshop:h.state().workshop,active:()=>h.state().layer,loading:false,busy:false,applying:false,gesture:null,freeTransform:false,undo:[],redo:[],textStyle:()=>({}),target:'image',showMask:false,maskNames:{},selection:null,selectionMask:null,selectionLayer:null,lassoPoints:[],images:new Map(),tool:'move',brushValue:255,revision:0,documentToken:'card-a',white:true,maskDisplayMode:'overlay',document:{body:{dataset:{}},querySelector:h.get}};
- vm.createContext(context);vm.runInContext(source.slice(start,end),context);
+ vm.createContext(context);vm.runInContext(require('./fixtures/source-node.cjs').extractFunction(source,'syncProperties'),context);
  context.syncProperties();assert.equal(h.get('frame-component-edit').disabled,false);assert.equal(received.at(-1).workshop,h.state().workshop);assert.match(h.get('frame-component-edit').title,/主编辑区/);
  h.set({busy:true});context.syncProperties();assert.equal(h.get('frame-component-edit').disabled,true);assert.equal(received.at(-1).busy,true);
  h.set({busy:false});context.syncProperties();assert.equal(h.get('frame-component-edit').disabled,false);h.get('frame-component-edit').onclick();assert.deepEqual(h.opened,[['frame','',0]]);

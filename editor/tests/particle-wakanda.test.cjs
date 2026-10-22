@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js'),K=require('../renderer/finish-catalog.js'),B=require('../renderer/particle-batch.js'),F=require('../renderer/frame-model.js');
+const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js'),K=require('../dist/renderer/finish-catalog.js'),B=require('../dist/renderer/particle-batch.js'),F=require('../dist/renderer/frame-model.js');
 const p=M.particlePreset('wakanda'),doc={layers:[],frameStyle:F.defaults};
 function samples(time,value=p,context=doc,limit=256,facing=0){const data=new Float64Array(256*7);return {data,count:C.sampleInto(value,time,context,facing,data,limit)};}
 test('Tech halo has outline, shaft and node sizes without turning into ordinary hexagons or Cosmic comets',()=>{

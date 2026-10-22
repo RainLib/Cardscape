@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const C=require('../renderer/component-model.js'),K=require('../renderer/finish-catalog.js'),F=require('../renderer/frame-model.js'),M=require('../renderer/cosmetics-model.js'),B=require('../renderer/particle-batch.js'),R=require('../renderer/runtime-model.js');
+const C=require('../dist/renderer/component-model.js'),K=require('../dist/renderer/finish-catalog.js'),F=require('../dist/renderer/frame-model.js'),M=require('../dist/renderer/cosmetics-model.js'),B=require('../dist/renderer/particle-batch.js'),R=require('../dist/renderer/runtime-model.js');
 const original=K.entries.filter(e=>e.referenceStatus==='original'),frame=K.value('original-frame-f01').style,p=K.value('original-particles-p01');
 const doc={layers:[{id:'backdrop',kind:'background',src:'original.png'},{id:'hero',kind:'foreground',src:'hero.png'}],masks:{motion:'keep'},frameStyle:frame};
 function distance(path,x,y){return Math.min(...path.segments.map(s=>{const t=Math.max(0,Math.min(1,((x-s.x)*s.dx+(y-s.y)*s.dy)/(s.size*s.size)));return Math.hypot(x-s.x-s.dx*t,y-s.y-s.dy*t);}));}
@@ -15,7 +15,7 @@ test('original frame remains flat, uses the existing rigid mesh and drives its o
  }
 });
 test('authored originals detach edited frame bindings while independent back previews leave them intact',async()=>{
- const W=require('../renderer/workshop-model.js'),storage=require('../electron/workshop-storage.cjs');
+ const W=require('../dist/renderer/workshop-model.js'),storage=require('../dist/electron/workshop-storage.cjs');
  let w=W.create(R.ensure({...structuredClone(doc),name:'Original test',back:'data:image/png;base64,AAAA'}),'original-workshop','original-card');
  const published=W.publish(w,{id:'shared-frame',kind:'frame',value:{schema:'card-frame/1',style:F.resolve({})}});
  w=W.bind(published.workshop,'frame',published.resourceId,published.version,['original-card']);

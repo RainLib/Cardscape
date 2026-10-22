@@ -1,6 +1,6 @@
 // Public reference pixels are QA only; candidate uses continuous math, no textures.
 const fs=require('node:fs/promises'),path=require('node:path'),{createHash}=require('node:crypto');
-const R=require('../renderer/runtime-model.js');
+const R=require('../dist/renderer/runtime-model.js');
 const root=path.resolve('outputs/rays-v87');
 const shared=fragment=>{const start=fragment.indexOf('// Shared procedural finish'),end=fragment.indexOf('\nfloat rimPath',start);if(start<0||end<0)throw Error('Shared finish boundary missing');return fragment.slice(start,end);};
 async function main(){

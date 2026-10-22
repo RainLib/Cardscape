@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const F=require('../renderer/frame-model.js'),K=require('../renderer/finish-catalog.js'),R=require('../renderer/runtime-model.js'),M=require('../renderer/cosmetics-model.js'),W=require('../renderer/workshop-model.js');
+const F=require('../dist/renderer/frame-model.js'),K=require('../dist/renderer/finish-catalog.js'),R=require('../dist/renderer/runtime-model.js'),M=require('../dist/renderer/cosmetics-model.js'),W=require('../dist/renderer/workshop-model.js');
 
 test('fire palettes publish and reload as independent rigid frames with original component layers and regions',()=>{
  for(const id of ['fire','fire-blue','fire-gold','fire-green','fire-pink','fire-purple','fire-rainbow','fire-red','fire-white']){

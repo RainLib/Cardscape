@@ -1,5 +1,5 @@
 const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('node:crypto'),assert=require('node:assert/strict');
-const {prepare}=require('./advanced-character-fixture.cjs'),C=require('../renderer/character-animation-model.js'),R=require('../renderer/runtime-model.js'),S=require('../renderer/spatial-model.js'),{createServices}=require('../electron/services.cjs');
+const {prepare}=require('./advanced-character-fixture.cjs'),C=require('../dist/renderer/character-animation-model.js'),R=require('../dist/renderer/runtime-model.js'),S=require('../dist/renderer/spatial-model.js'),{createServices}=require('../dist/electron/services.cjs');
 async function main(){
  const root=path.resolve(__dirname,'../..'),directory=path.resolve(process.argv[2]||path.join(root,'outputs/native-character-advanced'));
  const sourceFile=path.resolve(process.argv[3]||path.join(root,'outputs/heroes-30-2026-10-13/players/27-quantumslinger-v2/card.cardproj')),sourceBytes=await fs.readFile(sourceFile),source=JSON.parse(sourceBytes),doc=prepare(source);

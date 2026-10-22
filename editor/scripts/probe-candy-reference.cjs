@@ -1,5 +1,5 @@
 /* Public reference pixels are inspection data, never runtime assets. */
-const fs=require('node:fs'),path=require('node:path'),R=require('../renderer/runtime-model.js'),F=require('../renderer/frame-model.js'),K=require('../renderer/finish-catalog.js');
+const fs=require('node:fs'),path=require('node:path'),R=require('../dist/renderer/runtime-model.js'),F=require('../dist/renderer/frame-model.js'),K=require('../dist/renderer/finish-catalog.js');
 const directory=path.resolve(__dirname,'../outputs/candy-v63'),a=R.fragment.indexOf('// Shared procedural finish'),shader=R.fragment.slice(a,R.fragment.indexOf('\nvoid ',a));
 const data={shader,recipe:K.value('frame-candy-halloween').style,finish:F.finishes.indexOf('candy-halloween')};
 fs.writeFileSync(path.join(directory,'candy-reference.html'),`<!doctype html><meta charset="utf-8"><title>Halloween · 紫橙糖果斜纹</title>

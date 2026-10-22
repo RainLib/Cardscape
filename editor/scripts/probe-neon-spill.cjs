@@ -1,7 +1,7 @@
 // Explicit independent QA; never reads/writes the active workshop or recovery.
 const fs=require('node:fs/promises'),path=require('node:path');
-const R=require('../renderer/runtime-model.js'),F=require('../renderer/frame-model.js'),K=require('../renderer/finish-catalog.js'),W=require('../renderer/workshop-model.js'),M=require('../renderer/cosmetics-model.js');
-const {exportGodot}=require('../electron/godot-export.cjs');
+const R=require('../dist/renderer/runtime-model.js'),F=require('../dist/renderer/frame-model.js'),K=require('../dist/renderer/finish-catalog.js'),W=require('../dist/renderer/workshop-model.js'),M=require('../dist/renderer/cosmetics-model.js');
+const {exportGodot}=require('../dist/electron/godot-export.cjs');
 async function main(){
  const dir=path.resolve(__dirname,'../outputs/neon-spill-v82'),recipe=K.find('frame-neon-blue').recipe;
  const baseline=JSON.parse(await fs.readFile(path.join(dir,'baseline.json'),'utf8'));
@@ -11,7 +11,7 @@ async function main(){
  const exported=await exportGodot(dir,w,new Map([['neon-spill-qa',manifest]]));
  const shared=s=>s.slice(s.indexOf('// Shared procedural finish'),s.indexOf('\nvoid ',s.indexOf('// Shared procedural finish')));
  const shaders={baseline:shared(baseline.fragment),current:shared(R.fragment)};
- const imports=['frame-model','card-stats','title-model','component-model','cosmetics-model','particle-batch','back-asset-model','preview-update-model','back-asset-renderer','spatial-model','mask-edit-model','shader-graph-model','runtime-model','frame-raster','animation-authoring-model','mesh-rigidity','inspection-model','preview-region','author-preview'].map(s=>'<script src="../../renderer/'+s+'.js"></script>').join('\n');
+ const imports=['frame-model','card-stats','title-model','component-model','cosmetics-model','particle-batch','back-asset-model','preview-update-model','back-asset-renderer','spatial-model','mask-edit-model','shader-graph-model','runtime-model','frame-raster','animation-authoring-model','mesh-rigidity','inspection-model','preview-region','author-preview'].map(s=>'<script src="../../dist/renderer/'+s+'.js"></script>').join('\n');
  await fs.writeFile(path.join(dir,'index.html'),`<!doctype html><meta charset="utf-8"><title>霓虹边框 · 内晕验证</title>
 <style>body{margin:20px;background:#161c22;color:#d7e1ed;font:14px system-ui}h1{font-size:22px}small{color:#91a8bb}main{display:flex;gap:20px;align-items:flex-start}section{width:270px}canvas{width:270px;height:405px;background:#14181c}#reference{height:330px;object-fit:contain;width:270px}h2{font-size:16px}button{background:#28333f;color:inherit;border:1px solid #4d6070;border-radius:4px;padding:7px 13px}pre{white-space:pre-wrap;max-width:1140px;font-size:12px}</style>
 <h1>冰蓝霓虹 · 内晕与遮挡</h1><small>独立 QA 场景。未替换当前卡片。参考图片只用于比较，内晕半径仍为估计，尚未通过完整游戏 1:1 验收。</small>

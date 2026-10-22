@@ -6,7 +6,7 @@ async function main(){
  if(!project||!Number.isFinite(timeout)||timeout<1000||timeout>300000)throw Error('Usage: npm run test:sdk -- --project EXPORTED_GODOT_DIR [--script tests/test_sdk.gd] [--output LOG_FILE] [--timeout 45000 (max 300000)]');
  if(captureDir)await fs.mkdir(path.resolve(captureDir),{recursive:true});
  if(script.replace(/^res:\/\//,'')==='tests/test_shader_emission.gd'){
-  const C=require('../renderer/component-model.js');
+  const C=require('../dist/renderer/component-model.js');
   if(captureDir)await fs.mkdir(path.resolve(captureDir),{recursive:true});
   const resource=await fs.readFile(path.join(path.resolve(project),'library.tres'),'utf8'),encoded=/^data_json = (.+)$/m.exec(resource),catalog=JSON.parse(JSON.parse(encoded[1])),doc=catalog.cards.find(c=>c.id===catalog.activeCardId);
   const config=C.particles({enabled:true,count:12,visual:'orb',speed:0,spread:0,lifetime:3,size:.08,z:.25,placement:'surface',blend:'normal',emitter:{target:'back',shape:'point',u:.35,v:.4,side:'both'}});
@@ -18,14 +18,14 @@ async function main(){
   await fs.writeFile(path.join(path.resolve(project),'tests/shader-emission-reference.json'),JSON.stringify({config,scenes,...(captureDir?{captureDirectory:path.resolve(captureDir)}:{})}));
  }
  if(script.replace(/^res:\/\//,'')==='tests/test_frame_neon.gd'){
-  const K=require('../renderer/finish-catalog.js'),F=require('../renderer/frame-model.js');
+  const K=require('../dist/renderer/finish-catalog.js'),F=require('../dist/renderer/frame-model.js');
   if(captureDir)await fs.mkdir(path.resolve(captureDir),{recursive:true});
   const recipes=['blue','red','white','yellow','green','purple'].map(color=>{const e=K.find('frame-neon-'+color);return {id:e.id,style:e.recipe,geometry:F.geometry(e.recipe)};});
   await fs.mkdir(path.join(path.resolve(project),'tests'),{recursive:true});
   await fs.writeFile(path.join(path.resolve(project),'tests/neon-reference.json'),JSON.stringify({recipes}));
  }
  if(script.replace(/^res:\/\//,'')==='tests/test_surface_reference.gd'){
-  const K=require('../renderer/finish-catalog.js'),C=require('../renderer/component-model.js'),captureDir=read('--captures');
+  const K=require('../dist/renderer/finish-catalog.js'),C=require('../dist/renderer/component-model.js'),captureDir=read('--captures');
   if(captureDir)await fs.mkdir(path.resolve(captureDir),{recursive:true});
   const ids=['material-circuits','material-frosted','material-wakandanglass','material-rainbow-rays',...K.entries.filter(e=>e.id.endsWith('-rays')&&!['material-rays','material-rainbow-rays'].includes(e.id)).map(e=>e.id),'material-prism-replacement'];
   const requested=read('--recipe');if(requested&&!ids.includes(requested))throw Error('Unknown surface reference recipe: '+requested);
@@ -34,35 +34,35 @@ async function main(){
   await fs.writeFile(path.join(path.resolve(project),'tests/surface-reference.json'),JSON.stringify({recipes,...(captureDir?{captureDirectory:path.resolve(captureDir)}:{})}));
  }
  if(script.replace(/^res:\/\//,'')==='tests/test_connective_finish.gd'){
-  const K=require('../renderer/finish-catalog.js'),captureDir=read('--captures');
+  const K=require('../dist/renderer/finish-catalog.js'),captureDir=read('--captures');
   if(captureDir)await fs.mkdir(path.resolve(captureDir),{recursive:true});
   const recipes=K.entries.filter(e=>e.id.startsWith('material-symbiote-')).map(e=>({id:e.id,recipe:e.recipe}));
   await fs.mkdir(path.join(path.resolve(project),'tests'),{recursive:true});
   await fs.writeFile(path.join(path.resolve(project),'tests/finish-reference.json'),JSON.stringify({recipes,...(captureDir?{captureDirectory:path.resolve(captureDir)}:{})}));
  }
  if(script.replace(/^res:\/\//,'')==='tests/test_frame_detail.gd'){
-  const K=require('../renderer/finish-catalog.js'),F=require('../renderer/frame-model.js'),captureDir=read('--captures');
+  const K=require('../dist/renderer/finish-catalog.js'),F=require('../dist/renderer/frame-model.js'),captureDir=read('--captures');
   if(captureDir)await fs.mkdir(path.resolve(captureDir),{recursive:true});
   const recipes=['frame-chains-silver','frame-glyphs-green','frame-refraction-rainbow','frame-overloaded','frame-distressed-grey','frame-distressed-purple','frame-distressed-pink','frame-distressed-orange','frame-distressed-gold','frame-distressed-green','frame-distressed-blue','frame-distressed-red','frame-distressed-copper','frame-distressed-rainbow','frame-neon-nights','frame-pax-2025','frame-brains','frame-candy-halloween','frame-halloween-stickers'].map(id=>{const e=K.find(id);return {id,style:e.recipe,geometry:F.geometry(e.recipe),styleIndex:F.finishes.indexOf(e.recipe.finish),aura:F.hasAura(e.recipe),dynamic:['glyphs','refraction','neonnights','pax','brains','halloween-stickers'].includes(e.recipe.finish)};});
   await fs.mkdir(path.join(path.resolve(project),'tests'),{recursive:true});
   await fs.writeFile(path.join(path.resolve(project),'tests/frame-detail-reference.json'),JSON.stringify({recipes,...(captureDir?{captureDirectory:path.resolve(captureDir)}:{})}));
  }
  if(script.replace(/^res:\/\//,'')==='tests/test_frame_web.gd'){
-  const K=require('../renderer/finish-catalog.js'),captureDir=read('--captures');
+  const K=require('../dist/renderer/finish-catalog.js'),captureDir=read('--captures');
   if(captureDir)await fs.mkdir(path.resolve(captureDir),{recursive:true});
   const recipes=K.entries.filter(e=>e.kind==='frame'&&e.id.startsWith('frame-web-')).map(e=>({id:e.id,style:e.recipe}));
   await fs.mkdir(path.join(path.resolve(project),'tests'),{recursive:true});
   await fs.writeFile(path.join(path.resolve(project),'tests/web-reference.json'),JSON.stringify({recipes,...(captureDir?{captureDirectory:path.resolve(captureDir)}:{})}));
  }
  if(script.replace(/^res:\/\//,'')==='tests/test_frame_fire.gd'){
-  const K=require('../renderer/finish-catalog.js'),captureDir=read('--captures');
+  const K=require('../dist/renderer/finish-catalog.js'),captureDir=read('--captures');
   if(captureDir)await fs.mkdir(path.resolve(captureDir),{recursive:true});
   const recipes=K.entries.filter(e=>e.kind==='frame'&&e.id.startsWith('frame-fire')).map(e=>({id:e.id,style:e.recipe}));
   await fs.mkdir(path.join(path.resolve(project),'tests'),{recursive:true});
   await fs.writeFile(path.join(path.resolve(project),'tests/fire-reference.json'),JSON.stringify({recipes,...(captureDir?{captureDirectory:path.resolve(captureDir)}:{})}));
  }
  if(script.replace(/^res:\/\//,'')==='tests/test_particle_reveal.gd'){
-  const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js'),config=M.particlePreset('glimmer'),captureDir=read('--captures');
+  const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js'),config=M.particlePreset('glimmer'),captureDir=read('--captures');
   if(captureDir)await fs.mkdir(path.resolve(captureDir),{recursive:true});
   const frames=[0,.09,.3,100].map(time=>{const samples=new Float64Array(256*7),visuals=new Float32Array(256),count=C.sampleCompositionInto(config,time,{layers:[]},0,samples,visuals,128,time);return {time,age:time,count,samples:Array.from(samples.slice(0,count*7)),visuals:Array.from(visuals.slice(0,count)),...(captureDir&&[0,.3].includes(time)?{capture:path.resolve(captureDir,time===0?'reveal.png':'idle.png')}:{})};});
   for(const shape of ['rect','ellipse','point'])for(const radius of [0,.065,.2]){

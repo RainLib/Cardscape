@@ -1,6 +1,6 @@
 /* Independent source-space oracle for normal-inheritance, uniform-scale Spine JSON.
  * No native rest compensation or converted FFD is used to compute the reference. */
-const fs=require('node:fs'),assert=require('node:assert/strict'),C=require('../renderer/character-animation-model.js'),R=require('../renderer/runtime-model.js'),S=require('../renderer/spine-import-model.js');
+const fs=require('node:fs'),assert=require('node:assert/strict'),C=require('../dist/renderer/character-animation-model.js'),R=require('../dist/renderer/runtime-model.js'),S=require('../dist/renderer/spine-import-model.js');
 const [sourceFile,projectFile,outputFile]=process.argv.slice(2);if(!sourceFile||!projectFile)throw Error('Usage: node verify-spine-source.cjs SPINE_JSON SAVED_CARD [REPORT]');
 const source=JSON.parse(fs.readFileSync(sourceFile)),doc=JSON.parse(fs.readFileSync(projectFile)),bones=source.bones,skin=process.env.SPINE_REVIEW_SKIN||'goblin',entries=S.entries(source,skin),origin=[doc.characterRig.bones[0].x,doc.characterRig.bones[0].y],scale=(()=>{for(let i=1;i<bones.length;i++)for(const key of ['x','y'])if(Math.abs(bones[i][key]||0)>.1)return doc.characterRig.bones[i][key]/bones[i][key]*(key==='y'?-1:1);throw Error('Cannot infer unit scale');})();
 function curve(t,c,a,b){let left=0,right=1;const f=(v,p,q,r,s)=>(1-v)**3*p+3*(1-v)**2*v*q+3*(1-v)*v*v*r+v**3*s;for(let i=0;i<45;i++){const v=(left+right)/2;if(f(v,0,c[0],c[2],1)<t)left=v;else right=v;}return f((left+right)/2,a,c[1],c[3],b);}

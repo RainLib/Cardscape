@@ -1,5 +1,5 @@
 const fs=require('node:fs/promises');const path=require('node:path');const vm=require('node:vm');
-const {NativeWorker}=require('../electron/native-client.cjs');
+const {NativeWorker}=require('../dist/electron/native-client.cjs');
 const root=path.resolve(__dirname,'..'),source=path.resolve(root,'../outputs/card-3d-design-v2');
 async function main(){
   const assets=path.join(root,'assets');await fs.mkdir(assets,{recursive:true});

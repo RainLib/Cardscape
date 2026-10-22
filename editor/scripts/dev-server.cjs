@@ -1,8 +1,8 @@
 const http=require('node:http');
 const fs=require('node:fs/promises');
 const path=require('node:path');
-const {createServices,ROOT}=require('../electron/services.cjs');
-const {rendererDocument}=require('../electron/renderer-document.cjs');
+const {createServices,ROOT}=require('../dist/electron/services.cjs');
+const {rendererDocument}=require('../dist/electron/renderer-document.cjs');
 const port=Number(process.env.ATELIER_PORT||8770);
 if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid port');
 const services=createServices({runtimeDir:process.env.ATELIER_RUNTIME||path.join(ROOT,'runtime')});
@@ -19,8 +19,8 @@ const server=http.createServer(async(req,res)=>{
     }
     if(req.method!=='GET'){res.writeHead(405);res.end();return;}
     const relative=decodeURIComponent(url.pathname).replace(/^\/+/, '')||'index.html';
-    const file=path.resolve(ROOT,'renderer',relative);
-    if(!file.startsWith(path.join(ROOT,'renderer')+path.sep)){res.writeHead(403);res.end();return;}
+    const file=path.resolve(ROOT,'dist/renderer',relative);
+    if(!file.startsWith(path.join(ROOT,'dist/renderer')+path.sep)){res.writeHead(403);res.end();return;}
     const bytes=await fs.readFile(file);
     res.writeHead(200,{'Content-Type':mime[path.extname(file)]||'application/octet-stream','X-Content-Type-Options':'nosniff'});res.end(relative==='index.html'?rendererDocument(bytes):bytes);
   }catch(error){if(!res.headersSent)res.writeHead(error.code==='ENOENT'?404:400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:error.message}));}

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const R=require('../renderer/runtime-model.js'),F=require('../renderer/frame-model.js'),B=require('../renderer/particle-batch.js'),M=require('../renderer/mask-edit-model.js');
+const R=require('../dist/renderer/runtime-model.js'),F=require('../dist/renderer/frame-model.js'),B=require('../dist/renderer/particle-batch.js'),M=require('../dist/renderer/mask-edit-model.js');
 
 function harness(){
  const uploads=[],patches=[],deleted=[],created=[];let bound=null,nextId=0;
@@ -11,7 +11,7 @@ function harness(){
  class HTMLImageElement{constructor(src){this.src=src;this.currentSrc=src;this.naturalWidth=16;this.naturalHeight=24;}}
  const makeCanvas=()=>({dataset:{},width:16,height:24,setAttribute(){},getContext:type=>type==='webgl'?null:{fillRect(){}}});
  const window={CardRuntime:R,CardFrame:F,CardParticleBatch:B,CardMaskEdit:M,CardSpatial:{},dispatchEvent(){}},document={createElement:makeCanvas,getElementById:()=>({after(){}})};
- vm.runInNewContext(fs.readFileSync(require.resolve('../renderer/author-preview.js'),'utf8'),{window,document,HTMLImageElement});
+ vm.runInNewContext(fs.readFileSync(require.resolve('../dist/renderer/author-preview.js'),'utf8'),{window,document,HTMLImageElement});
  const canvas=makeCanvas(),renderer=window.CardSurfaceRenderer.create({canvas,gl,embedded:true,legacy:{addImage(){},updateMask(){}}});
  const add=(id,image)=>renderer.addImage({id,kind:'image'},image),image=src=>new HTMLImageElement(src);
  return {renderer,canvas,uploads,patches,deleted,created,add,image,makeCanvas,last:()=>uploads.at(-1).texture};

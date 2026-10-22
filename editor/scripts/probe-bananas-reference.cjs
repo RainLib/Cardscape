@@ -1,6 +1,6 @@
 // QA only: real production WebGL shaders/samples beside an official clip.
 const fs=require('node:fs/promises'),path=require('node:path');
-const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js'),B=require('../renderer/particle-batch.js');
+const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js'),B=require('../dist/renderer/particle-batch.js');
 async function main(){
  const dir=path.resolve(__dirname,'../outputs/snap-gap-v90'),config=M.particlePreset('bananas');
  const old=C.particles({enabled:true,visual:'banana',color:'#ffd35a',opacity:.95,blend:'normal'});
@@ -10,7 +10,7 @@ async function main(){
  const oldFragment=B.fragment.replace('else if(kind<13.5){vec4 effect=bananaSurface(uv,color);a=effect.a;rgb=effect.rgb;}',oldBranch);
  if(oldFragment===B.fragment)throw Error('Baseline branch replacement failed');
  const version=require('../package.json').version;
- const sampler=await fs.readFile(path.resolve(__dirname,'../renderer/component-model.js'),'utf8'),batch=await fs.readFile(path.resolve(__dirname,'../renderer/particle-batch.js'),'utf8');
+ const sampler=await fs.readFile(path.resolve(__dirname,'../dist/renderer/component-model.js'),'utf8'),batch=await fs.readFile(path.resolve(__dirname,'../dist/renderer/particle-batch.js'),'utf8');
  await fs.writeFile(path.join(dir,'bananas-samples.json'),JSON.stringify({version,config,frames,uiApplied:false,accepted1to1:false}));
  const page=`<!doctype html><meta charset="utf-8"><title>Gold Bananas — official clip calibration</title><style>
 body{margin:24px;background:#101820;color:#d5e4f0;font:14px system-ui}h1{font-size:22px}p{color:#9cafbf;line-height:1.6}.grid{display:grid;grid-template-columns:432px 500px;gap:24px;align-items:start}figure{margin:0}figcaption{margin:8px 0}.glyphs{display:flex;gap:12px}.glyphs canvas{width:210px;height:210px}.stage{position:relative;width:432px;height:540px;max-width:100%}#field{width:100%;height:100%}.guide{position:absolute;left:18.4%;top:12.1%;width:63.2%;height:75.8%;border:1px dashed #304556;box-sizing:border-box;pointer-events:none}button{background:#223a4e;color:#d5ecff;border:1px solid #42637f;padding:8px 14px;margin:0 6px 8px 0;cursor:pointer}pre{font-size:12px;white-space:pre-wrap}img{width:432px;max-width:100%}@media(max-width:1000px){.grid{grid-template-columns:1fr}}

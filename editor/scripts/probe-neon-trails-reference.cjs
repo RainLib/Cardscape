@@ -1,11 +1,11 @@
 // Independent, fixed-camera QA surface. No active workshop writes.
 const fs=require('node:fs/promises'),path=require('node:path'),vm=require('node:vm');
-const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js'),B=require('../renderer/particle-batch.js');
+const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js'),B=require('../dist/renderer/particle-batch.js');
 async function main(){
  const dir=path.resolve(__dirname,'../outputs/neon-trails-v92'),version=require('../package.json').version;
- const module={exports:{}};vm.runInNewContext(await fs.readFile(path.join(dir,'baseline-cosmetics-model.js'),'utf8'),{module,require:n=>n.includes('component')?require(path.join(dir,'baseline-component-model.js')):require('../renderer/frame-model.js')});const oldM=module.exports;
+ const module={exports:{}};vm.runInNewContext(await fs.readFile(path.join(dir,'baseline-cosmetics-model.js'),'utf8'),{module,require:n=>n.includes('component')?require(path.join(dir,'baseline-component-model.js')):require('../dist/renderer/frame-model.js')});const oldM=module.exports;
  const configs={baseline:oldM.particlePreset('trails'),current:M.particlePreset('trails')};
- const modules=await Promise.all(['../renderer/component-model.js',path.join(dir,'baseline-component-model.js'),'../renderer/particle-batch.js'].map(f=>fs.readFile(path.resolve(__dirname,f),'utf8')));
+ const modules=await Promise.all(['../dist/renderer/component-model.js',path.join(dir,'baseline-component-model.js'),'../dist/renderer/particle-batch.js'].map(f=>fs.readFile(path.resolve(__dirname,f),'utf8')));
  modules[1]=modules[1].replace('root.CardComponents=api','root.BaselineComponents=api');
  const page=`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>Neon Trails · 连续运动校准 0.19.92</title><style>
  body{margin:24px;background:#10191f;color:#d7e6ee;font:14px system-ui}h1{font-size:22px}p{line-height:1.6;color:#a7bdcb}.fields{display:flex;gap:16px;flex-wrap:wrap}figure{margin:0}canvas{width:560px;max-width:100%;background:#050b10}figcaption{padding:8px 0}button{padding:8px;background:#253e50;border:1px solid #4b657a;color:inherit;margin:6px 8px 6px 0;cursor:pointer}img{width:560px;max-width:100%}pre{white-space:pre-wrap}summary{cursor:pointer}

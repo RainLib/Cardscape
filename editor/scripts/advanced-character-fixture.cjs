@@ -1,6 +1,6 @@
 // One copied real card. Source pixels and Masks remain immutable. Adjacent
 // registered surfaces share a weight/depth field at their cut boundaries.
-const C=require('../renderer/character-animation-model.js'),S=require('../renderer/spatial-model.js');
+const C=require('../dist/renderer/character-animation-model.js'),S=require('../dist/renderer/spatial-model.js');
 const smooth=(a,b,v)=>{const x=Math.max(0,Math.min(1,(v-a)/(b-a)));return x*x*(3-2*x);};
 const frames=values=>values.map((value,i)=>({at:i/(values.length-1),value,ease:'smooth'}));
 function prepare(source){

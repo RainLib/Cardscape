@@ -1,5 +1,5 @@
 // Real asset audit: source topology, cut registration and rigid hand/gun regions.
-const assert=require('node:assert/strict'),C=require('../renderer/character-animation-model.js'),R=require('../renderer/runtime-model.js');
+const assert=require('node:assert/strict'),C=require('../dist/renderer/character-animation-model.js'),R=require('../dist/renderer/runtime-model.js');
 function audit(doc){
  const meshes=doc.characterRig.meshes,layers=new Map(doc.layers.map(l=>[l.id,l])),grips=[{layer:'near-grip',points:[[258,329],[212,177]]},{layer:'far-grip',points:[[742,353],[838,311]]}];
  const placed=(layer,x,y)=>{const p=R.placement(doc,layer);return C.point(C.matrix(512+p.x,768+p.y,p.rotation*180/Math.PI,p.scale),x-512,y-768);};

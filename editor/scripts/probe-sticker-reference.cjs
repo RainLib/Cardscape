@@ -1,5 +1,5 @@
 /* Public reference pixels are inspection data, never runtime assets. */
-const fs=require('node:fs'),path=require('node:path'),R=require('../renderer/runtime-model.js'),F=require('../renderer/frame-model.js'),K=require('../renderer/finish-catalog.js');
+const fs=require('node:fs'),path=require('node:path'),R=require('../dist/renderer/runtime-model.js'),F=require('../dist/renderer/frame-model.js'),K=require('../dist/renderer/finish-catalog.js');
 const directory=path.resolve(process.argv[2]||path.join(__dirname,'../outputs/stickers-v65')),a=R.fragment.indexOf('// Shared procedural finish'),shader=R.fragment.slice(a,R.fragment.indexOf('\nvoid ',a));
 const data={shader,recipe:K.value('frame-halloween-stickers').style,finish:F.finishes.indexOf('halloween-stickers')};
 fs.writeFileSync(path.join(directory,'stickers-reference.html'),`<!doctype html><meta charset="utf-8"><title>Halloween · 绿光贴纸轮廓</title>

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js'),B=require('../renderer/particle-batch.js');
+const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js'),B=require('../dist/renderer/particle-batch.js');
 const p=M.particlePreset('glimmer'),doc={layers:[]};
 function frame(time,budget=256,age=time,value=p,context=doc,facing=0){const samples=new Float64Array(256*7),visuals=new Float32Array(256);const count=C.sampleCompositionInto(value,time,context,facing,samples,visuals,budget,age);return {samples:samples.slice(0,count*7),visuals:visuals.slice(0,count),count};}
 test('Glimmer has one radial reveal followed by sustained chips; idle lifetime never retriggers it',()=>{
@@ -21,7 +21,7 @@ test('reveals follow named transformed sources and disappear on the unselected s
  assert.equal(M.particlePreset('tone',p).reveal.enabled,false);
 });
 test('AI accepts bounded reveal settings and rejects malformed values',()=>{
- const commands=require('../renderer/editor-commands.js');
+ const commands=require('../dist/renderer/editor-commands.js');
  for(const r of [{duration:0},{duration:3},{count:129},{size:.1},{travel:3.01},{stretch:13},{enabled:'true'}])assert.throws(()=>C.validateParticles(C.particles({...p,reveal:{...p.reveal,...r}})));
  assert.doesNotThrow(()=>commands.validate([{op:'particles',reveal:{enabled:true,duration:.24}}]));
 });

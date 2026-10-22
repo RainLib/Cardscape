@@ -1,6 +1,6 @@
 // QA page executes the production particle shaders and trajectory sampler.
 const fs=require('node:fs/promises'),path=require('node:path');
-const B=require('../renderer/particle-batch.js'),C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js');
+const B=require('../dist/renderer/particle-batch.js'),C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js');
 async function main(){
  const dir=path.resolve(__dirname,'../outputs/snap-reference-2026-10-11');
  const output=process.argv.includes('--output')?process.argv[process.argv.indexOf('--output')+1]:'emblem-calibration-v51.html';

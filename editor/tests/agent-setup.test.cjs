@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
-const {createServices}=require('../electron/services.cjs'),{createAgentSetup,authResult,compareVersions,quote}=require('../electron/agent-setup.cjs'),diagnostics=require('../renderer/agent-diagnostics.js');
+const {createServices}=require('../dist/electron/services.cjs'),{createAgentSetup,authResult,compareVersions,quote}=require('../dist/electron/agent-setup.cjs'),diagnostics=require('../dist/renderer/agent-diagnostics.js');
 test('login states never expose CLI authentication output and separate old CLI detection',()=>{
  const yes=authResult('codex',{code:0,output:'Logged in using API key - sk-secret-example'});assert.equal(yes.ready,true);assert.equal(JSON.stringify(yes).includes('secret'),false);
  assert.equal(authResult('codex',{code:1,output:'Not logged in'}).state,'logged_out');assert.equal(authResult('codex',{code:0,output:'Not logged in'}).ready,false);
@@ -23,7 +23,7 @@ test('update diagnostics compare versions, network failures remain unknown, and 
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'atelier-cli-terminal-'));let opened=null;const cfg={codexExecutable:'missing',profiles:[{id:'external',name:'测试',executable:process.execPath,requiresLogin:true,statusArgs:['-e','process.exit(1)'],loginArgs:['-e',"process.stdout.write(`$x 'quoted'`)"]}]};
  try{const setup=createAgentSetup({runtimeDir:dir,configuration:async()=>cfg,executable:async name=>name==='missing'?null:process.execPath,dialogs:{openSetup:async file=>{opened=file;return '';}},latest:async()=> '0.153.4'});
   const update=await setup.invoke('agent-setup-check-update');assert.equal(update.update.state,'install');assert.equal(update.update.latest,'0.153.4');
-  const login=await setup.invoke('agent-setup-login',{adapter:'external'});assert.ok(login.command.includes(quote(cfg.profiles[0].loginArgs[1])));if(process.platform==='darwin'){assert.ok(opened);const content=await fs.readFile(opened,'utf8');assert.ok(content.includes(login.command));assert.equal((await fs.stat(opened)).mode&0o777,0o700);}
+  const login=await setup.invoke('agent-setup-login',{adapter:'external'});assert.ok(login.command.includes(process.platform==='win32'?"'"+cfg.profiles[0].loginArgs[1].replace(/'/g,"''")+"'":quote(cfg.profiles[0].loginArgs[1])));if(process.platform==='darwin'){assert.ok(opened);const content=await fs.readFile(opened,'utf8');assert.ok(content.includes(login.command));assert.equal((await fs.stat(opened)).mode&0o777,0o700);}
   const offline=createAgentSetup({runtimeDir:dir,configuration:async()=>cfg,executable:async()=>null,latest:async()=>{throw Error('offline');}});assert.equal((await offline.invoke('agent-setup-check-update')).update.state,'error');
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });

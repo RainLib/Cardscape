@@ -1,6 +1,6 @@
 // Independent dense UV probes for a real UI-saved reduction. The source Spine
 // export can first be checked with verify-spine-source.cjs on its import baseline.
-const fs=require('node:fs'),assert=require('node:assert/strict'),C=require('../renderer/character-animation-model.js'),R=require('../renderer/runtime-model.js'),U=require('../renderer/character-mesh-tools.js');
+const fs=require('node:fs'),assert=require('node:assert/strict'),C=require('../dist/renderer/character-animation-model.js'),R=require('../dist/renderer/runtime-model.js'),U=require('../dist/renderer/character-mesh-tools.js');
 const [beforeFile,afterFile,reportFile]=process.argv.slice(2);if(!reportFile)throw Error('Usage: node verify-mesh-reduction.cjs BEFORE_CARD UI_SAVED_CARD REPORT');
 const before=JSON.parse(fs.readFileSync(beforeFile)),after=JSON.parse(fs.readFileSync(afterFile));C.validate(before);C.validate(after);assert.deepEqual(before.characterRig.bones,after.characterRig.bones);assert.deepEqual(before.characterRig.bindings,after.characterRig.bindings);
 const shape=a=>({...a,deformTracks:Object.fromEntries(Object.entries(a.deformTracks||{}).map(([layer,tracks])=>[layer,Object.fromEntries(Object.entries(tracks).map(([bone,frames])=>[bone,frames.map(({deltas,...f})=>f)]))]))});assert.deepEqual(before.actions.map(shape),after.actions.map(shape));

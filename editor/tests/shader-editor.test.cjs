@@ -1,8 +1,8 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const language=require('../renderer/shader-language.js');
-const runtime=require('../renderer/runtime-model.js');
-const {rendererDocument}=require('../electron/renderer-document.cjs');
+const language=require('../dist/renderer/shader-language.js');
+const runtime=require('../dist/renderer/runtime-model.js');
+const {rendererDocument}=require('../dist/electron/renderer-document.cjs');
 test('GLSL suggestions match stage inputs and exclude commented local declarations',()=>{
  const geometry=language.symbols('geometry','float wave = 0.0; // vec4 ghost;\n/* float hidden; */');
  assert.ok(geometry.some(s=>s.label==='q'));assert.ok(geometry.some(s=>s.label==='wave'));
@@ -17,7 +17,7 @@ test('driver diagnostics point to user lines and exclude wrapper lines',()=>{
  for(const source of [runtime.vertex('return q;'),runtime.fragmentSource('return color;')])assert.match(source,/#line 1\nreturn (q|color);\n#line 1001/);
 });
 test('renderer authorizes local editor styles with a fresh nonce and keeps script CSP strict',()=>{
- const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../renderer/index.html'),'utf8');
+ const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../dist/renderer/index.html'),'utf8');
  const first=rendererDocument(source),second=rendererDocument(source),nonce=first.match(/name="atelier-style-nonce" content="([^"]+)"/)[1];
  assert.ok(!first.includes('__ATELIER_STYLE_NONCE__'));assert.ok(first.includes("style-src 'self' 'nonce-"+nonce+"'"));
  assert.ok(first.includes("script-src 'self';"));assert.ok(!first.includes('unsafe-inline'));assert.notEqual(first,second);

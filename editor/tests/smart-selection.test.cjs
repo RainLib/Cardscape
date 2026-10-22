@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const os=require('node:os');
-const {createServices,ROOT}=require('../electron/services.cjs');
+const {createServices,ROOT}=require('../dist/electron/services.cjs');
 
 test('local object selection uses prompts, reuses image embeddings and validates coordinates',async t=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'card-smart-')),s=createServices({runtimeDir:dir});

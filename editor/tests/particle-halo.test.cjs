@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js'),K=require('../renderer/finish-catalog.js'),F=require('../renderer/frame-model.js'),W=require('../renderer/workshop-model.js'),R=require('../renderer/runtime-model.js');
+const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js'),K=require('../dist/renderer/finish-catalog.js'),F=require('../dist/renderer/frame-model.js'),W=require('../dist/renderer/workshop-model.js'),R=require('../dist/renderer/runtime-model.js');
 const e=C.emitter({target:'frame'}),rim={frameStyle:{...F.defaults},layers:[]};
 const path=C.haloPath(e,F.defaults.corner/1024),scratch=new Float64Array(4);
 function distance(q){let best=Infinity;for(const s of path.segments){const t=Math.max(0,Math.min(1,((q.x-s.x)*s.dx+(q.y-s.y)*s.dy)/(s.size*s.size)));best=Math.min(best,Math.hypot(q.x-s.x-s.dx*t,q.y-s.y-s.dy*t));}return best;}
@@ -39,7 +39,7 @@ test('halo supports ellipse and small named regions; invalid radius and strength
  const d={emissionRegions:[{...C.regionDefaults,id:'small',name:'小区域',shape:'ellipse',width:.2,height:.2,u:.3,v:.4}]};const p=C.particles({enabled:true,trajectory:'halo',radius:.03,emitter:{target:'card',regionId:'small'}});
  for(const q of C.sample(p,123,d)){assert.ok(Math.abs(q.x+.2)<=.13);assert.ok(Math.abs(q.y-.15)<=.18);}
  for(const change of [{radius:.21},{radius:-1},{opacity:1.01},{trajectory:'unknown'}])assert.throws(()=>C.validateParticles({...p,...change}));
- const {prepareAuthoring}=require('../electron/authoring-service.cjs'),original=R.ensure({id:'a',layers:[{id:'body',kind:'foreground',visible:true}],masks:{}});
+ const {prepareAuthoring}=require('../dist/electron/authoring-service.cjs'),original=R.ensure({id:'a',layers:[{id:'body',kind:'foreground',visible:true}],masks:{}});
  const result=await prepareAuthoring({document:original,documentToken:'a',commands:[{op:'particles',enabled:true,trajectory:'halo',radius:.04,opacity:.75,visual:'mixed'}]},{validate:d=>{C.validate(d);return d;}});
  assert.equal(result.document.particles.trajectory,'halo');assert.equal(result.document.particles.visual,'mixed');assert.equal(original.particles,undefined);
 });

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js'),B=require('../renderer/particle-batch.js'),K=require('../renderer/finish-catalog.js');
+const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js'),B=require('../dist/renderer/particle-batch.js'),K=require('../dist/renderer/finish-catalog.js');
 const doc={layers:[]},p=M.particlePreset('bubbles');
 function sample(value,time,context=doc,limit=256,facing=0){const data=new Float64Array(256*7),count=C.sampleInto(value,time,context,facing,data,limit);return {count,data:data.slice(0,count*7)};}
 test('bubble material and defaults remain reusable and never overwrite existing authored values',()=>{

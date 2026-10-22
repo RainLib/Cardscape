@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js'),B=require('../renderer/particle-batch.js');
+const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js'),B=require('../dist/renderer/particle-batch.js');
 const doc={layers:[]};
 function frame(p,time,age=time,budget=256,context=doc,facing=0){const out=new Float64Array(256*7),visuals=new Float32Array(256),count=C.sampleCompositionInto(p,time,context,facing,out,visuals,budget,age);return {count,samples:out.slice(0,count*7),visuals:visuals.slice(0,count)};}
 test('Neon Trails runs once, becomes empty, replays deterministically and retains the shared budget',()=>{
@@ -17,7 +17,7 @@ test('Gold Diamonds reveals real crystals, then retains bounded independent idle
  assert.equal(B.visuals.indexOf('diamond'),7);assert.equal(B.visuals.indexOf('sprite'),9);assert.equal(vertices.byteLength,61440);
 });
 test('new reveal settings round trip, preserve old behavior, validate AI input and follow named sources',()=>{
- const commands=require('../renderer/editor-commands.js'),old=C.particles({enabled:true,reveal:{enabled:true}});assert.equal(old.reveal.visual,'streak');assert.equal(old.reveal.only,false);
+ const commands=require('../dist/renderer/editor-commands.js'),old=C.particles({enabled:true,reveal:{enabled:true}});assert.equal(old.reveal.visual,'streak');assert.equal(old.reveal.only,false);
  for(const value of [{visual:'gem'},{only:'true'}])assert.throws(()=>C.validateParticles(C.particles({...old,reveal:{...old.reveal,...value}})));
  assert.doesNotThrow(()=>commands.validate([{op:'particles',reveal:{enabled:true,visual:'source',only:true}}]));
  const p=M.particlePreset('diamond'),restored=C.particles(JSON.parse(JSON.stringify(p)));assert.deepEqual(restored,p);
@@ -49,7 +49,7 @@ test('Neon Trails has delayed short rays, measured fast and slow populations, an
  }
  const old=C.particles({...p,reveal:{...p.reveal,profile:'burst',travel:.5}});
  assert.deepEqual(frame(old,.4),frame(C.particles({...old,reveal:{...old.reveal,stagger:.8}}),.4));
- const commands=require('../renderer/editor-commands.js');
+ const commands=require('../dist/renderer/editor-commands.js');
  assert.doesNotThrow(()=>commands.validate([{op:'particles',reveal:{enabled:true,profile:'trails',stagger:.5,travel:2.6}}]));
  for(const bad of [{profile:'random'},{stagger:-.1},{stagger:.81},{travel:3.01}])assert.throws(()=>C.validateParticles(C.particles({...p,reveal:{...p.reveal,...bad}})));
  assert.deepEqual(C.particles(JSON.parse(JSON.stringify(p))),p);

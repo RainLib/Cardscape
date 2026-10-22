@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const F=require('../renderer/frame-model.js'),K=require('../renderer/finish-catalog.js'),R=require('../renderer/runtime-model.js'),W=require('../renderer/workshop-model.js'),M=require('../renderer/cosmetics-model.js');
+const F=require('../dist/renderer/frame-model.js'),K=require('../dist/renderer/finish-catalog.js'),R=require('../dist/renderer/runtime-model.js'),W=require('../dist/renderer/workshop-model.js'),M=require('../dist/renderer/cosmetics-model.js');
 test('special rim finishes preserve legacy indices, rigid geometry and independent component edits',()=>{
  const legacy=['flat','metal','glow','cosmic','distressed','web','candy','ice','snow','wrapping','fire','fire-iridescent','chains','glyphs','refraction','overloaded'];
  assert.deepEqual(F.finishes.slice(0,16),legacy);

@@ -1,5 +1,5 @@
 const fs=require('node:fs/promises');const path=require('node:path');const crypto=require('node:crypto');
-const {NativeWorker}=require('../electron/native-client.cjs');
+const {NativeWorker}=require('../dist/electron/native-client.cjs');
 const root=path.resolve(__dirname,'..');
 async function main(){
   const worker=new NativeWorker();const qa=path.join(root,'qa');await fs.mkdir(qa,{recursive:true});

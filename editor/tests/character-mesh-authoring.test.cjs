@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const M=require('../renderer/character-mesh-authoring.js'),U=require('../renderer/character-mesh-tools.js'),C=require('../renderer/character-animation-model.js'),I=require('../renderer/character-animation-import.js'),{fixture}=require('./fixtures/character-animation.cjs');
+const M=require('../dist/renderer/character-mesh-authoring.js'),U=require('../dist/renderer/character-mesh-tools.js'),C=require('../dist/renderer/character-animation-model.js'),I=require('../dist/renderer/character-animation-import.js'),{fixture}=require('./fixtures/character-animation.cjs');
 const at=(m,i)=>({x:m.vertices[i*2],y:m.vertices[i*2+1]}),edge=(a,b)=>Math.min(a,b)+':'+Math.max(a,b);
 const area=m=>{let sum=0;for(let j=0;j<m.triangles.length;j+=3){const [a,b,c]=m.triangles.slice(j,j+3).map(i=>at(m,i)),v=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);assert.ok(v<-1e-7,'consistent winding / nondegenerate');sum-=v/2;}return sum;};
 function grid(){const m=C.advanced.grid('body','root',3,3);m.weights=m.weights.map((_,i)=>[{boneId:'root',weight:1-m.uv[i*2]},{boneId:'elbow',weight:m.uv[i*2]}].filter(w=>w.weight));m.morphs=[{expressionId:'smile',deltas:m.weights.flatMap((_,i)=>[i,m.vertices[i*2]*.002,m.vertices[i*2+1]*.001])}];m.depths=m.weights.map((_,i)=>m.uv[i*2]*.1);return m;}

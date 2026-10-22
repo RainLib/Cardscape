@@ -1,0 +1,227 @@
+export interface AtlasPage {
+  name: string;
+  pma: boolean;
+  width: number;
+  height: number;
+}
+export interface AtlasRegion {
+  name: string;
+  page: string;
+  rotate: number;
+  index: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  left: number;
+  bottom: number;
+  originalWidth: number;
+  originalHeight: number;
+}
+type RegionDraft = Omit<
+  AtlasRegion,
+  'left' | 'bottom' | 'originalWidth' | 'originalHeight'
+> &
+  Partial<
+    Pick<AtlasRegion, 'left' | 'bottom' | 'originalWidth' | 'originalHeight'>
+  >;
+export interface Atlas {
+  pages: AtlasPage[];
+  regions: AtlasRegion[];
+}
+export interface PixelPage {
+  width: number;
+  height: number;
+  data: ArrayLike<number>;
+}
+/* Atlas metadata and pixel reconstruction, independent of any third-party runtime. */
+
+const api = (() => {
+  'use strict';
+  const safe = (s: unknown): s is string =>
+    typeof s === 'string' &&
+    s.length > 0 &&
+    s.length < 512 &&
+    !/^(?:[a-z]+:|\/|\\)/i.test(s) &&
+    !s
+      .replaceAll('\\', '/')
+      .split('/')
+      .some((p) => p === '..');
+  function parse(text: unknown): Atlas {
+    if (typeof text !== 'string' || text.length > 2 * 1024 * 1024)
+      throw Error('图集文本无效或超过 2 MiB');
+    const pages: AtlasPage[] = [],
+      regions: RegionDraft[] = [],
+      names = new Set<string>();
+    let page: AtlasPage | null = null,
+      current: AtlasPage | RegionDraft | null = null,
+      newPage = true;
+    for (const raw of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) {
+        newPage = true;
+        current = null;
+        continue;
+      }
+      const colon = line.indexOf(':');
+      if (colon < 0) {
+        if (!safe(line)) throw Error('图集名称或路径无效');
+        if (newPage) {
+          page = { name: line, pma: false, width: 0, height: 0 };
+          pages.push(page);
+          if (pages.length > 16) throw Error('图集最多 16 页');
+          current = page;
+          newPage = false;
+        } else {
+          current = {
+            name: line,
+            page: page!.name,
+            rotate: 0,
+            index: -1,
+            x: NaN,
+            y: NaN,
+            width: NaN,
+            height: NaN,
+          };
+          regions.push(current);
+          if (regions.length > 2048) throw Error('图集区域超过 2048');
+        }
+        continue;
+      }
+      if (!current) throw Error('图集属性缺少所属页面');
+      const key = line.slice(0, colon).trim(),
+        value = line.slice(colon + 1).trim(),
+        numbers = () => {
+          const a = value.split(',').map((s) => Number(s.trim()));
+          if (!a.length || a.some((n) => !Number.isInteger(n)))
+            throw Error('图集整数属性无效');
+          return a;
+        };
+      if ('pma' in current) {
+        if (key === 'size') {
+          [current.width, current.height] = numbers();
+        } else if (key === 'pma') {
+          if (!['true', 'false'].includes(value))
+            throw Error('图集 PMA 属性无效');
+          current.pma = value === 'true';
+        } else if (key === 'repeat' && value !== 'none')
+          throw Error('不支持重复平铺图集');
+      } else if (key === 'bounds') {
+        const a = numbers();
+        if (a.length !== 4) throw Error('图集 bounds 无效');
+        [current.x, current.y, current.width, current.height] = a;
+      } else if (key === 'xy') {
+        [current.x, current.y] = numbers();
+      } else if (key === 'size') {
+        [current.width, current.height] = numbers();
+      } else if (key === 'orig') {
+        [current.originalWidth, current.originalHeight] = numbers();
+      } else if (key === 'offset') {
+        [current.left, current.bottom] = numbers();
+      } else if (key === 'offsets') {
+        const a = numbers();
+        if (a.length !== 4) throw Error('图集 offsets 无效');
+        [
+          current.left,
+          current.bottom,
+          current.originalWidth,
+          current.originalHeight,
+        ] = a;
+      } else if (key === 'rotate') {
+        current.rotate =
+          value === 'true' ? 90 : value === 'false' ? 0 : Number(value);
+        if (![0, 90, 180, 270].includes(current.rotate))
+          throw Error('仅支持直角图集旋转');
+      } else if (key === 'index') {
+        current.index = Number(value);
+        if (!Number.isInteger(current.index)) throw Error('图集索引无效');
+      }
+    }
+    if (!pages.length || !regions.length) throw Error('图集没有页面或区域');
+    for (const p of pages)
+      if (
+        !Number.isInteger(p.width) ||
+        !Number.isInteger(p.height) ||
+        p.width < 0 ||
+        p.height < 0 ||
+        p.width > 8192 ||
+        p.height > 8192 ||
+        p.width * p.height > 16 * 1024 * 1024
+      )
+        throw Error('图集页尺寸超过 16 MP / 8192 px');
+    for (const r of regions) {
+      r.left ??= 0;
+      r.bottom ??= 0;
+      r.originalWidth ??= r.width;
+      r.originalHeight ??= r.height;
+      const key = r.name + ':' + r.index;
+      if (names.has(key)) throw Error('图集区域名称与索引重复');
+      names.add(key);
+      if (
+        [r.x, r.y, r.left, r.bottom].some(
+          (v) => !Number.isInteger(v) || v < 0,
+        ) ||
+        [r.width, r.height, r.originalWidth, r.originalHeight].some(
+          (v) => !Number.isInteger(v) || v <= 0 || v > 8192,
+        ) ||
+        r.originalWidth * r.originalHeight > 16 * 1024 * 1024 ||
+        r.left + r.width > r.originalWidth ||
+        r.bottom + r.height > r.originalHeight
+      )
+        throw Error('图集区域尺寸或裁切偏移无效：' + r.name);
+    }
+    return {
+      pages,
+      regions: regions.map((r) => ({
+        ...r,
+        left: r.left!,
+        bottom: r.bottom!,
+        originalWidth: r.originalWidth!,
+        originalHeight: r.originalHeight!,
+      })),
+    };
+  }
+  function extract(region: AtlasRegion, page: PixelPage, pma = false) {
+    const r = region,
+      swap = r.rotate === 90 || r.rotate === 270,
+      pw = swap ? r.height : r.width,
+      ph = swap ? r.width : r.height;
+    if (
+      r.x + pw > page.width ||
+      r.y + ph > page.height ||
+      page.data.length !== page.width * page.height * 4
+    )
+      throw Error('图集区域越出实际页边界：' + r.name);
+    const data = new Uint8ClampedArray(r.originalWidth * r.originalHeight * 4),
+      top = r.originalHeight - r.height - r.bottom;
+    for (let y = 0; y < r.height; y++)
+      for (let x = 0; x < r.width; x++) {
+        let sx = x,
+          sy = y;
+        if (r.rotate === 90) {
+          sx = y;
+          sy = r.width - 1 - x;
+        } else if (r.rotate === 180) {
+          sx = r.width - 1 - x;
+          sy = r.height - 1 - y;
+        } else if (r.rotate === 270) {
+          sx = r.height - 1 - y;
+          sy = x;
+        }
+        const src = ((r.y + sy) * page.width + r.x + sx) * 4,
+          dst = ((top + y) * r.originalWidth + r.left + x) * 4,
+          alpha = page.data[src + 3];
+        for (let c = 0; c < 3; c++)
+          data[dst + c] = pma
+            ? alpha
+              ? Math.min(255, Math.round((page.data[src + c] * 255) / alpha))
+              : 0
+            : page.data[src + c];
+        data[dst + 3] = alpha;
+      }
+    return { data, width: r.originalWidth, height: r.originalHeight };
+  }
+  return { parse, extract, safe };
+})();
+
+export default api;

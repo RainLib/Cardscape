@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const K=require('../renderer/finish-catalog.js'),F=require('../renderer/frame-model.js'),C=require('../renderer/cosmetics-model.js'),R=require('../renderer/runtime-model.js'),U=require('../renderer/preview-update-model.js'),W=require('../renderer/workshop-model.js');
+const K=require('../dist/renderer/finish-catalog.js'),F=require('../dist/renderer/frame-model.js'),C=require('../dist/renderer/cosmetics-model.js'),R=require('../dist/renderer/runtime-model.js'),U=require('../dist/renderer/preview-update-model.js'),W=require('../dist/renderer/workshop-model.js');
 test('neon recipes preserve authored card data and need no additional textures or mesh topology',()=>{
  for(const color of ['blue','red','white','yellow','green','purple']){
   const old=R.ensure({id:'card',schema:'card-atelier/1',previewMode:'authored',width:1024,height:1536,layers:[{id:'hero',kind:'foreground',src:'hero.png'},{id:'frame',kind:'frame'}],masks:{emission:'mask.png'}}),d=structuredClone(old);

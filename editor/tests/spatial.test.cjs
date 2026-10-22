@@ -4,9 +4,9 @@ function chunk(type,bytes){const name=Buffer.from(type),out=Buffer.alloc(bytes.l
 function png(w,h,pixels){const head=Buffer.alloc(13);head.writeUInt32BE(w);head.writeUInt32BE(h,4);head[8]=8;head[9]=6;const raw=Buffer.alloc((w*4+1)*h);for(let y=0;y<h;y++)Buffer.from(pixels.slice(y*w*4,(y+1)*w*4)).copy(raw,y*(w*4+1)+1);return 'data:image/png;base64,'+Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',head),chunk('IDAT',zlib.deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]).toString('base64');}
 function decode(src){const b=Buffer.from(src.split(',')[1],'base64');let offset=8,idat=[],w,h,channels;while(offset<b.length){const n=b.readUInt32BE(offset),t=b.toString('ascii',offset+4,offset+8),d=b.subarray(offset+8,offset+8+n);if(t==='IHDR'){w=d.readUInt32BE(0);h=d.readUInt32BE(4);channels={0:1,2:3,6:4}[d[9]];}if(t==='IDAT')idat.push(d);offset+=n+12;}const raw=zlib.inflateSync(Buffer.concat(idat)),stride=w*channels,out=Buffer.alloc(w*h*channels);const paeth=(a,b,c)=>{const p=a+b-c,pa=Math.abs(p-a),pb=Math.abs(p-b),pc=Math.abs(p-c);return pa<=pb&&pa<=pc?a:pb<=pc?b:c;};for(let y=0;y<h;y++){const f=raw[y*(stride+1)];for(let x=0;x<stride;x++){const i=y*stride+x,left=x>=channels?out[i-channels]:0,up=y?out[i-stride]:0,corner=y&&x>=channels?out[i-stride-channels]:0;out[i]=(raw[y*(stride+1)+x+1]+([0,left,up,Math.floor((left+up)/2),paeth(left,up,corner)][f]))&255;}}return {w,h,channels,pixels:out};}
 
-const S=require('../renderer/spatial-model.js'),R=require('../renderer/runtime-model.js'),Space=require('../renderer/space-model.js'),E=require('../renderer/editor-commands.js');
+const S=require('../dist/renderer/spatial-model.js'),R=require('../dist/renderer/runtime-model.js'),Space=require('../dist/renderer/space-model.js'),E=require('../dist/renderer/editor-commands.js');
 test('legacy coverage multiplication is repaired without cutting opaque parent detail',async()=>{
- const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createServices}=require('../electron/services.cjs'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'split-edge-')),svc=createServices({runtimeDir:dir});
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createServices}=require('../dist/electron/services.cjs'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'split-edge-')),svc=createServices({runtimeDir:dir});
  try{const master=png(3,1,[20,40,60,128,30,50,70,255,40,60,80,255]),child=png(3,1,[20,40,60,64,30,50,70,0,40,60,80,128]),parent=png(3,1,[20,40,60,64,30,50,70,255,40,60,80,127]),mask=png(3,1,[128,128,128,255,0,0,0,255,128,128,128,255]),r=await svc.invoke('process',{op:'repair_split',args:{parent,child,master,mask}});
  assert.deepEqual([...decode(r.image).pixels.filter((_,i)=>i%4===3)],[128,0,128]);assert.deepEqual([...decode(r.parent).pixels],[20,40,60,0,30,50,70,255,40,60,80,127]);assert.equal(r.changed_pixels,1);
  await assert.rejects(svc.invoke('process',{op:'repair_split',args:{parent,child:png(1,1,[0,0,0,0]),master,mask}}),/dimensions/);
@@ -23,13 +23,13 @@ test('explicit cloth roots release the hem and trailing cape despite opaque back
  E.validate([{op:'attachment',layerId:'cloth',maxOffset:.1,anchor:{edge:'top',pin:870,release:1130},motion:.4}]);assert.throws(()=>E.validate([{op:'attachment',layerId:'cloth',anchor:{edge:'right',pin:700,release:690}}]),/根部/);assert.throws(()=>S.validateAttachment({maxOffset:.2,blendWidth:64}),/连接/);
 });
 test('corrected split edge expansion transfers alpha without opening gaps or cutting distant detail',async()=>{
- const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createServices}=require('../electron/services.cjs'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'split-radius-')),svc=createServices({runtimeDir:dir});
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createServices}=require('../dist/electron/services.cjs'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'split-radius-')),svc=createServices({runtimeDir:dir});
  try{const image=a=>png(5,1,a.map(v=>[20,40,60,v]).flat()),master=image([255,255,255,255,255]),child=image([0,80,0,0,0]),parent=image([255,175,255,255,255]),mask=png(5,1,[0,80,0,0,0].map(v=>[v,v,v,255]).flat()),r=await svc.invoke('process',{op:'repair_split',args:{parent,child,master,mask,radius:1,legacy:false}}),front=[...decode(r.image).pixels.filter((_,i)=>i%4===3)],back=[...decode(r.parent).pixels.filter((_,i)=>i%4===3)];
  assert.deepEqual(front,[80,80,80,0,0]);assert.deepEqual(back,[175,175,175,255,255]);assert.deepEqual(front.map((v,i)=>v+back[i]),[255,255,255,255,255]);
  }finally{svc.close();await fs.rm(dir,{recursive:true,force:true});}
 });
 test('underpaint support can be narrowed and re-expanded without overwriting original visible pixels',async()=>{
- const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createServices}=require('../electron/services.cjs'),{prepareAuthoring}=require('../electron/authoring-service.cjs'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'cloth-support-')),svc=createServices({runtimeDir:dir});
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createServices}=require('../dist/electron/services.cjs'),{prepareAuthoring}=require('../dist/electron/authoring-service.cjs'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'cloth-support-')),svc=createServices({runtimeDir:dir});
  try{const original=png(4,2,Array.from({length:8},(_,i)=>[80,90,100,i%4===0?255:0]).flat()),candidate=png(4,2,Array.from({length:8},()=>[15,35,55,255]).flat()),white=png(4,2,Array.from({length:8},()=>[255,255,255,255]).flat()),initial=await svc.invoke('process',{op:'underpaint',args:{image:original,candidate,mask:white}}),doc=R.ensure({id:'test',layers:[{id:'body',kind:'foreground',src:initial.image,master:initial.image,visible:true,locked:false,underpaint:{original,addedMask:initial.addedMask,filledPixels:initial.filled_pixels,jobId:'real-job'}}],masks:{rigid:initial.addedMask},effects:{}});
  const tools={validate:v=>v,process:(op,args)=>svc.invoke('process',{op,args})};
  const narrow=await prepareAuthoring({document:doc,documentToken:'test',commands:[{op:'repairRegion',layerId:'body',polygon:[[0,0],[1,0],[1,1],[0,1]],feather:0}]},tools),body=narrow.document.layers[0];assert.ok(body.underpaint.filledPixels<initial.filled_pixels);assert.equal(body.underpaint.candidate,initial.image);assert.equal(body.underpaint.original,original);assert.deepEqual([...decode(body.src).pixels.slice(0,4)],[80,90,100,255]);
@@ -46,13 +46,13 @@ test('attached cloth keeps its internal cut seam at the parent and limits tip se
  child.attachment={maxOffset:.015,blendWidth:96};assert.ok(Math.abs(S.connection(doc,child).z-link.parentZ-.015)<1e-10);child.attachment.maxOffset=1;assert.throws(()=>S.validate(doc),/连接/);
 });
 test('real underpaint fills selected missing pixels without replacing visible artwork',async()=>{
- const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createServices}=require('../electron/services.cjs'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'card-underpaint-')),svc=createServices({runtimeDir:dir});
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createServices}=require('../dist/electron/services.cjs'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'card-underpaint-')),svc=createServices({runtimeDir:dir});
  try{const image=png(3,1,[200,40,20,255,10,20,30,0,70,80,90,0]),candidate=png(3,1,[0,150,250,255,0,150,250,255,0,150,250,255]),mask=png(3,1,[255,255,255,255,0,0,0,255,255,255,255,255]);const r=await svc.invoke('process',{op:'underpaint',args:{image,candidate,mask}});assert.equal(r.filled_pixels,1);assert.deepEqual([...decode(r.image).pixels],[200,40,20,255,10,20,30,0,0,150,250,255]);assert.deepEqual([...decode(r.addedMask).pixels],[0,0,255]);
  await assert.rejects(svc.invoke('process',{op:'underpaint',args:{image,candidate:png(1,1,[0,0,0,255]),mask}}),/dimensions/);
  }finally{svc.close();await fs.rm(dir,{recursive:true,force:true});}
 });
 test('badges and character artwork obey the same editable painter order',()=>{
- const Stats=require('../renderer/card-stats.js'),doc=R.ensure({id:'card',layers:[{id:'art',kind:'foreground',x:0,y:0,scale:1,visible:true},{id:'title',kind:'text',text:'hero',x:0,y:0,scale:1,visible:true}],effects:{}});Stats.apply(doc,{cost:4,power:7});
+ const Stats=require('../dist/renderer/card-stats.js'),doc=R.ensure({id:'card',layers:[{id:'art',kind:'foreground',x:0,y:0,scale:1,visible:true},{id:'title',kind:'text',text:'hero',x:0,y:0,scale:1,visible:true}],effects:{}});Stats.apply(doc,{cost:4,power:7});
  const moved=E.plan(doc,[{op:'reorder',layerId:'stat-cost',index:3}],'stat-cost').document;
  assert.deepEqual(Stats.paintOrder(moved.layers).map(l=>l.id),['stat-cost','title','art','stat-power']);
  const raised=E.plan(moved,[{op:'reorder',layerId:'stat-cost',index:0}],'stat-cost').document;
@@ -62,7 +62,7 @@ test('badges and character artwork obey the same editable painter order',()=>{
  const order=Space.scene(front).filter(n=>n.layerId==='art'||n.layerId==='stat-power');assert.equal(order.at(-1).layerId,'art');
 });
 test('AI edits existing action parameters atomically and can enter the spatial inspector',async()=>{
- const {prepareAuthoring}=require('../electron/authoring-service.cjs'),doc=R.ensure({id:'card',layers:[{id:'title',kind:'text',text:'test',x:0,y:0,scale:1,opacity:1,visible:true}],effects:{}}),original=structuredClone(doc.actions),validate=v=>{R.validate(v);return v;};
+ const {prepareAuthoring}=require('../dist/electron/authoring-service.cjs'),doc=R.ensure({id:'card',layers:[{id:'title',kind:'text',text:'test',x:0,y:0,scale:1,opacity:1,visible:true}],effects:{}}),original=structuredClone(doc.actions),validate=v=>{R.validate(v);return v;};
  const result=await prepareAuthoring({document:doc,documentToken:'card',commands:[{op:'actionSettings',actionId:'flip',bend:0},{op:'view',mode:'space'}]},{validate});
  assert.equal(result.document.actions.find(a=>a.id==='flip').bend,0);assert.equal(result.document.actions.find(a=>a.id==='flip').duration,1.2);assert.equal(result.preview.mode,'space');assert.deepEqual(doc.actions,original);
  await assert.rejects(prepareAuthoring({document:doc,documentToken:'card',commands:[{op:'actionSettings',actionId:'flip',bend:0},{op:'actionSettings',actionId:'missing',bend:0}]},{validate}),/不存在/);assert.deepEqual(doc.actions,original);
@@ -91,10 +91,10 @@ test('spatial roles are bounded, editable and agree with the actual layer scene'
  const nodes=Space.scene(d,{mode:'actual'});assert.equal(nodes.find(n=>n.layerId==='title').z,.265);assert.ok(nodes.find(n=>n.layerId==='title').z>nodes.find(n=>n.part==='outside').z);
  Space.setProperty(d,'title','depth',.25);assert.equal(d.layers[1].spatial.z,.25);
  assert.throws(()=>S.set(d,d.layers[0],{role:'front'}));assert.throws(()=>E.validate([{op:'camera',distance:1}]));assert.throws(()=>E.validate([{op:'spatial',layerId:'body',role:'body',z:2}]));
- require('../renderer/card-stats.js').apply(d,{cost:4,power:7});for(const l of d.layers.filter(require('../renderer/card-stats.js').isStat)){assert.equal(S.resolve(d,l).role,'stat');assert.ok(Math.abs(S.resolve(d,l).relativeZ-.015)<1e-12);}
+ require('../dist/renderer/card-stats.js').apply(d,{cost:4,power:7});for(const l of d.layers.filter(require('../dist/renderer/card-stats.js').isStat)){assert.equal(S.resolve(d,l).role,'stat');assert.ok(Math.abs(S.resolve(d,l).relativeZ-.015)<1e-12);}
 });
 test('native alpha cleanup and failed-candidate recovery preserve the original and reject cross-card access',async()=>{
- const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createHash}=require('node:crypto'),{createServices}=require('../electron/services.cjs');
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createHash}=require('node:crypto'),{createServices}=require('../dist/electron/services.cjs');
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'alpha-recovery-')),svc=createServices({runtimeDir:dir}),id='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
  try{const source=png(4,1,[21,42,63,0,31,52,73,1,41,62,83,4,51,72,93,5]),raw=Buffer.from(source.split(',')[1],'base64'),jobDir=path.join(dir,'agent-jobs',id);await fs.mkdir(path.join(jobDir,'output'),{recursive:true});await fs.mkdir(path.join(dir,'agent-snapshots'),{recursive:true});
  await fs.writeFile(path.join(jobDir,'output/result.png'),raw);await fs.writeFile(path.join(jobDir,'result.json'),JSON.stringify({status:'unavailable',image:'output/result.png',message:'weak alpha residue'}));await fs.writeFile(path.join(dir,'agent-snapshots',id+'.json'),JSON.stringify({source,mask:null}));await fs.writeFile(path.join(jobDir,'job.json'),JSON.stringify({id,state:'failed',mode:'generate',documentToken:'card-a',sourceHash:createHash('sha256').update(raw).digest('hex'),padding:[0,0,0,0],events:[],message:'weak alpha residue',width:4,height:1,outputWidth:4,outputHeight:1}));
@@ -104,7 +104,7 @@ test('native alpha cleanup and failed-candidate recovery preserve the original a
  }finally{svc.close();await fs.rm(dir,{recursive:true,force:true});}
 });
 test('native complementary extraction preserves the master, geometry and global masks',async()=>{
- const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createServices}=require('../electron/services.cjs'),{prepareAuthoring}=require('../electron/authoring-service.cjs');
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{createServices}=require('../dist/electron/services.cjs'),{prepareAuthoring}=require('../dist/electron/authoring-service.cjs');
  const input=png(1,1,[80,160,220,255]);
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'card-spatial-')),svc=createServices({runtimeDir:dir});
  try{const process=(op,args)=>svc.invoke('process',{op,args}),image=(await process('resize',{image:input,width:1024,height:1536})).image,white=(await process('image_channel',{image,channel:'white'})).image;

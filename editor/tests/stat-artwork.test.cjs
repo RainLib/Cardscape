@@ -1,9 +1,9 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const Stats=require('../renderer/card-stats.js');
-const Commands=require('../renderer/editor-commands.js');
-const Runtime=require('../renderer/runtime-model.js');
-const {prepareAuthoring}=require('../electron/authoring-service.cjs');
+const Stats=require('../dist/renderer/card-stats.js');
+const Commands=require('../dist/renderer/editor-commands.js');
+const Runtime=require('../dist/renderer/runtime-model.js');
+const {prepareAuthoring}=require('../dist/electron/authoring-service.cjs');
 const base=()=>Runtime.ensure({id:'stat-art-test',name:'徽标测试',width:1024,height:1536,layers:[],masks:{},effects:{}});
 
 test('approved badge artwork keeps editable values, roles and transforms across serialization',()=>{

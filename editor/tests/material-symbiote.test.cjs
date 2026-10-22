@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const C=require('../renderer/component-model.js'),K=require('../renderer/finish-catalog.js'),M=require('../renderer/cosmetics-model.js'),R=require('../renderer/runtime-model.js'),W=require('../renderer/workshop-model.js');
-const S=require('../renderer/spatial-model.js');
+const C=require('../dist/renderer/component-model.js'),K=require('../dist/renderer/finish-catalog.js'),M=require('../dist/renderer/cosmetics-model.js'),R=require('../dist/renderer/runtime-model.js'),W=require('../dist/renderer/workshop-model.js');
+const S=require('../dist/renderer/spatial-model.js');
 
 test('replacement chooses one original backdrop without editing the layered artwork or covering a baseplate',()=>{
  const d={layers:[{id:'near',kind:'image',visible:true,spatial:{role:'near'}},{id:'base',kind:'image',role:'baseplate',visible:true},{id:'hidden',kind:'background',visible:false},{id:'mid',kind:'image',spatial:{role:'mid'}},{id:'original',kind:'background',visible:true}]};

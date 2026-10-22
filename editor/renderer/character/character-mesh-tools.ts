@@ -1,0 +1,1087 @@
+import type { SkinMesh, DeformFrame } from '../../shared/character';
+import type { CardDocument, CardLayer } from '../../shared/document';
+import type { Point2 } from '../../shared/geometry';
+import type {
+  EditableMesh,
+  TopologyMesh,
+  GeneratedTopology,
+  MeshEditOptions,
+  GenerateOptions,
+  BarycentricLocation,
+  DeformTrackReference,
+} from '../../shared/mesh-editing';
+type OutlineEdge = { a: number; b: number; direction: number; used: boolean };
+type TriangleEdge = { j: number; a: number; b: number; c: number };
+type SparseMap = Map<number, number[]>;
+/* Self-owned topology authoring. Trace alpha cells conservatively, triangulate
+ * their outlines, then add feature/spacing samples and legalize internal edges.
+ * Existing weights, morphs and depth are sampled from the old triangle field. */
+import importedCardCharacterWeightTools from './character-weight-tools.ts';
+
+const api = (() => {
+  'use strict';
+  const cross = (a: Point2, b: Point2, c: Point2) =>
+      (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x),
+    at = (mesh: Pick<SkinMesh, 'vertices'>, i: number) => ({
+      x: mesh.vertices[i * 2],
+      y: mesh.vertices[i * 2 + 1],
+    });
+  const oriented = (points: Point2[], a: number, b: number, c: number) =>
+    cross(points[a], points[b], points[c]) < 0 ? [a, b, c] : [a, c, b];
+  function bary(p: Point2, a: Point2, b: Point2, c: Point2) {
+    const den = cross(a, b, c);
+    if (Math.abs(den) < 1e-9) return null;
+    const u = cross(p, b, c) / den,
+      v = cross(a, p, c) / den;
+    return [u, v, 1 - u - v];
+  }
+  // Atlas UV cells may be much smaller than source-pixel triangles. Evaluate in
+  // registered image pixels so valid dense UV cells do not look degenerate.
+  const uvPixel = (p: Point2) => ({ x: p.x * 1024, y: p.y * 1536 });
+  function baryUV(p: Point2, a: Point2, b: Point2, c: Point2) {
+    return bary(uvPixel(p), uvPixel(a), uvPixel(b), uvPixel(c));
+  }
+  const inside = (values: number[] | null): values is number[] =>
+    !!values && values.every((v) => v >= -1e-7);
+  function triangulate(
+    points: Point2[],
+    polygon: number[],
+    { preserveVertices = false }: { preserveVertices?: boolean } = {},
+  ) {
+    let ids = [...polygon],
+      area = 0;
+    for (let i = 0; i < ids.length; i++) {
+      const p = points[ids[i]],
+        q = points[ids[(i + 1) % ids.length]];
+      area += p.x * q.y - q.x * p.y;
+    }
+    if (area < 0) ids.reverse();
+    const triangles = [];
+    while (ids.length > 3) {
+      let found = false;
+      for (let j = 0; j < ids.length; j++) {
+        const a = ids[(j + ids.length - 1) % ids.length],
+          b = ids[j],
+          c = ids[(j + 1) % ids.length];
+        if (cross(points[a], points[b], points[c]) <= 1e-8) continue;
+        if (
+          ids.some(
+            (i) =>
+              i !== a &&
+              i !== b &&
+              i !== c &&
+              ![a, b, c].some(
+                (v) =>
+                  Math.hypot(
+                    points[i].x - points[v].x,
+                    points[i].y - points[v].y,
+                  ) < 1e-8,
+              ) &&
+              inside(bary(points[i], points[a], points[b], points[c])),
+          )
+        )
+          continue;
+        triangles.push(...oriented(points, a, b, c));
+        ids.splice(j, 1);
+        found = true;
+        break;
+      }
+      if (!found) {
+        const collinear = ids.findIndex(
+          (b, j) =>
+            Math.abs(
+              cross(
+                points[ids[(j + ids.length - 1) % ids.length]],
+                points[b],
+                points[ids[(j + 1) % ids.length]],
+              ),
+            ) < 1e-8,
+        );
+        if (collinear >= 0 && !preserveVertices) ids.splice(collinear, 1);
+        else throw Error('轮廓无法三角化，请提高轮廓采样尺寸或修正交叉边');
+      }
+    }
+    if (
+      ids.length === 3 &&
+      Math.abs(cross(points[ids[0]], points[ids[1]], points[ids[2]])) > 1e-8
+    )
+      triangles.push(...oriented(points, ids[0], ids[1], ids[2]));
+    else if (preserveVertices)
+      throw Error('删除会留下共线邻域，请先调整相邻点');
+    return triangles;
+  }
+  function outlines(
+    alpha: ArrayLike<number>,
+    width: number,
+    height: number,
+    cell = 8,
+  ) {
+    const cols = Math.ceil(width / cell),
+      rows = Math.ceil(height / cell),
+      solid = new Uint8Array(cols * rows);
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++)
+        if (alpha[y * width + x] > 0)
+          solid[Math.floor(y / cell) * cols + Math.floor(x / cell)] = 1;
+    // A one-cell margin protects antialiased edge pixels and narrow wisps.
+    const occupied = new Uint8Array(solid.length);
+    for (let y = 0; y < rows; y++)
+      for (let x = 0; x < cols; x++)
+        if (solid[y * cols + x])
+          for (let dy = -1; dy <= 1; dy++)
+            for (let dx = -1; dx <= 1; dx++)
+              if (x + dx >= 0 && x + dx < cols && y + dy >= 0 && y + dy < rows)
+                occupied[(y + dy) * cols + x + dx] = 1;
+    const edges: OutlineEdge[] = [],
+      out = new Map<number, OutlineEdge[]>(),
+      key = (x: number, y: number) => y * (cols + 1) + x,
+      filled = (x: number, y: number) =>
+        x >= 0 && x < cols && y >= 0 && y < rows && occupied[y * cols + x];
+    function edge(
+      x: number,
+      y: number,
+      nx: number,
+      ny: number,
+      direction: number,
+    ) {
+      const e = { a: key(x, y), b: key(nx, ny), direction, used: false };
+      edges.push(e);
+      if (!out.has(e.a)) out.set(e.a, []);
+      out.get(e.a)!.push(e);
+    }
+    for (let y = 0; y < rows; y++)
+      for (let x = 0; x < cols; x++)
+        if (filled(x, y)) {
+          if (!filled(x, y - 1)) edge(x, y, x + 1, y, 0);
+          if (!filled(x + 1, y)) edge(x + 1, y, x + 1, y + 1, 1);
+          if (!filled(x, y + 1)) edge(x + 1, y + 1, x, y + 1, 2);
+          if (!filled(x - 1, y)) edge(x, y + 1, x, y, 3);
+        }
+    const result: Point2[][] = [];
+    for (const first of edges) {
+      if (first.used) continue;
+      const loop = [];
+      let e = first;
+      for (let step = 0; step <= edges.length; step++) {
+        e.used = true;
+        loop.push({
+          x: Math.min(width, (e.a % (cols + 1)) * cell),
+          y: Math.min(height, Math.floor(e.a / (cols + 1)) * cell),
+        });
+        if (e.b === first.a) break;
+        const candidates = (out.get(e.b) || []).filter((n) => !n.used);
+        candidates.sort(
+          (a, b) =>
+            [1, 0, 3, 2].indexOf((a.direction - e.direction + 4) % 4) -
+            [1, 0, 3, 2].indexOf((b.direction - e.direction + 4) % 4),
+        );
+        if (!candidates.length) throw Error('透明轮廓未闭合');
+        e = candidates[0];
+      }
+      const pending = [loop];
+      while (pending.length) {
+        const ring = pending.pop()!,
+          seen = new Map<string, number>();
+        let split = false;
+        for (let i = 0; i < ring.length; i++) {
+          const key = ring[i].x + ':' + ring[i].y;
+          if (seen.has(key)) {
+            const j = seen.get(key)!,
+              a = ring.slice(j, i),
+              b = ring.slice(0, j).concat(ring.slice(i));
+            if (a.length >= 3) pending.push(a);
+            if (b.length >= 3) pending.push(b);
+            split = true;
+            break;
+          }
+          seen.set(key, i);
+        }
+        if (split) continue;
+        const simple = ring.filter(
+          (p, i) =>
+            Math.abs(
+              cross(
+                ring[(i + ring.length - 1) % ring.length],
+                p,
+                ring[(i + 1) % ring.length],
+              ),
+            ) > 1e-8,
+        );
+        let area = 0;
+        for (let i = 0; i < simple.length; i++) {
+          const p = simple[i],
+            q = simple[(i + 1) % simple.length];
+          area += p.x * q.y - q.x * p.y;
+        }
+        if (area > 0 && simple.length >= 3) result.push(simple); // Transparent holes stay filled by transparent texture pixels.
+      }
+    }
+    return result;
+  }
+  function locate(mesh: TopologyMesh, p: Point2) {
+    for (let j = 0; j < mesh.triangles.length; j += 3) {
+      const ids = mesh.triangles.slice(j, j + 3),
+        values = bary(p, at(mesh, ids[0]), at(mesh, ids[1]), at(mesh, ids[2]));
+      if (inside(values)) return { ids, values, j };
+    }
+    return null;
+  }
+  function locateUV(mesh: Pick<SkinMesh, 'uv' | 'triangles'>, p: Point2) {
+    for (let j = 0; j < mesh.triangles.length; j += 3) {
+      const ids = mesh.triangles.slice(j, j + 3),
+        values = baryUV(
+          p,
+          ...([ids[0], ids[1], ids[2]].map((i) => ({
+            x: mesh.uv[i * 2],
+            y: mesh.uv[i * 2 + 1],
+          })) as [Point2, Point2, Point2]),
+        );
+      if (inside(values)) return { ids, values, j };
+    }
+    return null;
+  }
+  function appendPoint(mesh: TopologyMesh, p: Point2) {
+    const n = mesh.vertices.length / 2,
+      old = locate(mesh, p);
+    if (!old) return -1;
+    const near = old.ids.find(
+      (i) => Math.hypot(at(mesh, i).x - p.x, at(mesh, i).y - p.y) < 1e-5,
+    );
+    if (near !== undefined) return near;
+    const points = Array.from({ length: n }, (_, i) => at(mesh, i));
+    points.push(p);
+    const on = old.values.findIndex((v) => Math.abs(v) < 1e-7),
+      triangles = [];
+    if (on < 0) {
+      triangles.push(
+        ...mesh.triangles.slice(0, old.j),
+        ...oriented(points, old.ids[0], old.ids[1], n),
+        ...oriented(points, old.ids[1], old.ids[2], n),
+        ...oriented(points, old.ids[2], old.ids[0], n),
+        ...mesh.triangles.slice(old.j + 3),
+      );
+    } else {
+      const a = old.ids[(on + 1) % 3],
+        b = old.ids[(on + 2) % 3];
+      for (let j = 0; j < mesh.triangles.length; j += 3) {
+        const tri = mesh.triangles.slice(j, j + 3);
+        if (tri.includes(a) && tri.includes(b)) {
+          const c = tri.find((i) => i !== a && i !== b)!;
+          triangles.push(
+            ...oriented(points, a, n, c),
+            ...oriented(points, n, b, c),
+          );
+        } else triangles.push(...tri);
+      }
+    }
+    mesh.vertices.push(p.x, p.y);
+    mesh.triangles = triangles;
+    if (on >= 0 && mesh.topology) {
+      const a = old.ids[(on + 1) % 3],
+        b = old.ids[(on + 2) % 3];
+      mesh.topology.edges = mesh.topology.edges.flatMap((e) =>
+        e.includes(a) && e.includes(b)
+          ? [
+              [a, n],
+              [n, b],
+            ]
+          : [e],
+      );
+    }
+    return n;
+  }
+  function legalize<T extends TopologyMesh>(mesh: T): T {
+    const points: Array<{ x: number; y: number; radius?: number }> = Array.from(
+      { length: mesh.vertices.length / 2 },
+      (_, i) => at(mesh, i),
+    );
+    for (let pass = 0; pass < 24; pass++) {
+      const edges = new Map<string, TriangleEdge[]>(),
+        used = new Set<number>();
+      let changed = 0;
+      for (let j = 0; j < mesh.triangles.length; j += 3) {
+        const tri = mesh.triangles.slice(j, j + 3);
+        for (let k = 0; k < 3; k++) {
+          const a = tri[k],
+            b = tri[(k + 1) % 3],
+            id = Math.min(a, b) + ':' + Math.max(a, b);
+          if (!edges.has(id)) edges.set(id, []);
+          edges.get(id)!.push({ j, a, b, c: tri[(k + 2) % 3] });
+        }
+      }
+      for (const pair of edges.values()) {
+        if (
+          pair.length !== 2 ||
+          pair.some((e) => used.has(e.j)) ||
+          (mesh.topology?.edges || []).some(
+            (e) => e.includes(pair[0].a) && e.includes(pair[0].b),
+          )
+        )
+          continue;
+        const [{ j, a, b, c }, { j: k, c: d }] = pair,
+          A = points[a],
+          B = points[b],
+          P = points[c],
+          Q = points[d];
+        if (cross(P, Q, A) * cross(P, Q, B) >= -1e-8) continue;
+        const ax = A.x - Q.x,
+          ay = A.y - Q.y,
+          bx = B.x - Q.x,
+          by = B.y - Q.y,
+          cx = P.x - Q.x,
+          cy = P.y - Q.y,
+          det =
+            (ax * ax + ay * ay) * (bx * cy - by * cx) -
+            (bx * bx + by * by) * (ax * cy - ay * cx) +
+            (cx * cx + cy * cy) * (ax * by - ay * bx);
+        if (det * Math.sign(cross(A, B, P)) <= 1e-5) continue;
+        mesh.triangles.splice(j, 3, ...oriented(points, c, d, a));
+        mesh.triangles.splice(k, 3, ...oriented(points, d, c, b));
+        used.add(j);
+        used.add(k);
+        changed++;
+      }
+      if (!changed) break;
+    }
+    return mesh;
+  }
+  function generate(
+    alpha: Uint8Array,
+    width: number,
+    height: number,
+    {
+      spacing = 64,
+      cell = 8,
+      features = [],
+      maxVertices = 1800,
+    }: GenerateOptions = {},
+  ): GeneratedTopology {
+    if (
+      !(alpha instanceof Uint8Array) ||
+      alpha.length !== width * height ||
+      !Number.isFinite(spacing) ||
+      spacing < 8 ||
+      spacing > 256 ||
+      !Number.isInteger(cell) ||
+      cell < 2 ||
+      cell > 32
+    )
+      throw Error('轮廓布点参数无效');
+    const loops = outlines(alpha, width, height, cell),
+      mesh: GeneratedTopology = { vertices: [], triangles: [], uv: [] };
+    if (!loops.length) throw Error('当前图片没有可见像素');
+    for (const loop of loops) {
+      const offset = mesh.vertices.length / 2;
+      mesh.vertices.push(...loop.flatMap((p) => [p.x, p.y]));
+      const points: Array<{ x: number; y: number; radius?: number }> =
+        Array.from({ length: mesh.vertices.length / 2 }, (_, i) => at(mesh, i));
+      mesh.triangles.push(
+        ...triangulate(
+          points,
+          loop.map((_, i) => offset + i),
+        ),
+      );
+    }
+    if (mesh.vertices.length / 2 > maxVertices)
+      throw Error('轮廓顶点超出容量，请增大轮廓采样尺寸');
+    for (const p of features) {
+      if (mesh.vertices.length / 2 >= maxVertices) break;
+      if (p.x >= 0 && p.x <= width && p.y >= 0 && p.y <= height)
+        appendPoint(mesh, p);
+    }
+    const points: Array<{ x: number; y: number; radius?: number }> = Array.from(
+        { length: mesh.vertices.length / 2 },
+        (_, i) => at(mesh, i),
+      ),
+      xs = points.map((p) => p.x),
+      ys = points.map((p) => p.y),
+      left = Math.min(...xs),
+      top = Math.min(...ys),
+      w = Math.max(...xs) - left,
+      h = Math.max(...ys) - top,
+      halton = (i: number, base: number) => {
+        let value = 0,
+          unit = 1;
+        while (i) {
+          unit /= base;
+          value += unit * (i % base);
+          i = Math.floor(i / base);
+        }
+        return value;
+      };
+    const radius = (p: Point2) =>
+      features.some(
+        (f) => (f.x - p.x) ** 2 + (f.y - p.y) ** 2 < (spacing * 1.4) ** 2,
+      )
+        ? spacing * 0.42
+        : spacing;
+    for (const p of points) p.radius = radius(p) * 0.8;
+    for (
+      let j = 1;
+      j <= Math.min(20000, Math.ceil(((w * h) / (spacing * spacing)) * 36)) &&
+      points.length < maxVertices;
+      j++
+    ) {
+      const p = { x: left + w * halton(j, 2), y: top + h * halton(j, 3) },
+        r = radius(p) * 0.8;
+      if (
+        points.some(
+          (q) =>
+            (q.x - p.x) ** 2 + (q.y - p.y) ** 2 < Math.min(r, q.radius!) ** 2,
+        )
+      )
+        continue;
+      const i = appendPoint(mesh, p);
+      if (i >= points.length) points.push({ ...p, radius: r });
+    }
+    legalize(mesh);
+    mesh.uv = mesh.vertices.map((v, i) => v / (i % 2 ? height : width));
+    return mesh;
+  }
+  function sample(mesh: TopologyMesh, p: Point2): BarycentricLocation | null {
+    const found = locate(mesh, p);
+    if (found) return found;
+    let best: BarycentricLocation | null = null,
+      distance = Infinity;
+    for (let j = 0; j < mesh.triangles.length; j += 3) {
+      const ids = mesh.triangles.slice(j, j + 3);
+      for (let k = 0; k < 3; k++) {
+        const a = at(mesh, ids[k]),
+          b = at(mesh, ids[(k + 1) % 3]),
+          dx = b.x - a.x,
+          dy = b.y - a.y,
+          t = Math.max(
+            0,
+            Math.min(
+              1,
+              ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1),
+            ),
+          ),
+          d = Math.hypot(p.x - a.x - dx * t, p.y - a.y - dy * t);
+        if (d < distance) {
+          distance = d;
+          const values = [0, 0, 0];
+          values[k] = 1 - t;
+          values[(k + 1) % 3] = t;
+          best = { ids, values };
+        }
+      }
+    }
+    return best;
+  }
+  function attributes(
+    mesh: EditableMesh,
+    location: BarycentricLocation,
+    morphMaps: SparseMap[],
+  ) {
+    const { ids, values } = location,
+      weights = new Map<string, number>();
+    ids.forEach((i, k) => {
+      for (const w of mesh.weights[i])
+        weights.set(
+          w.boneId,
+          (weights.get(w.boneId) || 0) + w.weight * values[k],
+        );
+    });
+    const normalized = importedCardCharacterWeightTools.normalized(
+      [...weights].map(([boneId, weight]) => ({ boneId, weight })),
+    );
+    return {
+      weights: normalized,
+      depth: ids.reduce(
+        (sum, i, k) => sum + (mesh.depths?.[i] || 0) * values[k],
+        0,
+      ),
+      morphs: morphMaps.map((map) =>
+        [0, 1].map((axis) =>
+          ids.reduce(
+            (sum, i, k) => sum + (map.get(i)?.[axis] || 0) * values[k],
+            0,
+          ),
+        ),
+      ),
+    };
+  }
+  function morphMaps(mesh: EditableMesh) {
+    return mesh.morphs.map((m) => {
+      const map: SparseMap = new Map();
+      for (let j = 0; j < m.deltas.length; j += 3)
+        map.set(m.deltas[j], [m.deltas[j + 1], m.deltas[j + 2]]);
+      return map;
+    });
+  }
+  // A weighted vertex carries a separate rest position and FFD vector for each
+  // influence. Interpolating these with bare barycentric coefficients would apply
+  // weights twice. Condition the samples on each resulting bone weight instead.
+  function tracks(
+    mesh: {layerId?:string},
+    document: MeshEditOptions['document'],
+  ): DeformTrackReference[] {
+    return (document?.actions || []).flatMap((a) =>
+      Object.entries((mesh.layerId ? a.deformTracks?.[mesh.layerId] : undefined) || {}).flatMap(
+        ([boneId, frames]) => frames.map((frame) => ({ boneId, frame })),
+      ),
+    );
+  }
+  function sparseMap(values: number[] = []) {
+    const map: SparseMap = new Map();
+    for (let j = 0; j < values.length; j += 3)
+      map.set(values[j], [values[j + 1], values[j + 2]]);
+    return map;
+  }
+  function sampler(mesh: EditableMesh, document: MeshEditOptions['document']) {
+    if (mesh.binds && !document)
+      throw Error('拓扑编辑需要完整工程，以同时保留绑定与 FFD 动画');
+    const frames = tracks(mesh, document),
+      exact = !!mesh.binds || frames.length > 0,
+      maps = morphMaps(mesh),
+      binds = new Map<string, SparseMap>(
+        Object.entries(mesh.binds || {}).map(([id, v]) => [id, sparseMap(v)]),
+      ),
+      vectors = frames.map((t) => ({ ...t, map: sparseMap(t.frame.deltas) }));
+    return {
+      frames,
+      exact,
+      point(p: Point2, location: BarycentricLocation | null) {
+        if (!location) throw Error('网格缺少可插值三角形');
+        const a = attributes(mesh, location, maps),
+          { ids, values } = location;
+        if (exact) {
+          const weights = new Map<string, number>();
+          ids.forEach((i, k) => {
+            for (const w of mesh.weights[i])
+              weights.set(
+                w.boneId,
+                (weights.get(w.boneId) || 0) +
+                  Math.max(0, values[k]) * w.weight,
+              );
+          });
+          const active = [...weights].filter(([, w]) => w > 1e-12);
+          if (active.length > 4)
+            throw Error(
+              '此处插值需要超过 4 根骨骼；请先调整邻域权重，避免丢失绑定与动画',
+            );
+          const total = active.reduce((v, [, w]) => v + w, 0);
+          a.weights = active.map(([boneId, weight]) => ({
+            boneId,
+            weight: weight / total,
+          }));
+        }
+        const conditional = (
+          boneId: string,
+          read: (i: number, axis: number) => number,
+        ) => {
+          const weights = ids.map(
+              (i, k) =>
+                Math.max(0, values[k]) *
+                (mesh.weights[i].find((w) => w.boneId === boneId)?.weight || 0),
+            ),
+            sum = weights.reduce((a, b) => a + b, 0);
+          return [0, 1].map((axis) =>
+            sum
+              ? ids.reduce((v, i, k) => v + weights[k] * read(i, axis), 0) / sum
+              : 0,
+          );
+        };
+        const bindValues: Array<[string, number[]]> = exact
+          ? a.weights.map((w): [string, number[]] => [
+              w.boneId,
+              conditional(
+                w.boneId,
+                (i, axis) =>
+                  mesh.vertices[i * 2 + axis] +
+                  (binds.get(w.boneId)?.get(i)?.[axis] || 0),
+              ).map((v, axis) => v - (axis ? p.y : p.x)),
+            ])
+          : [];
+        const deformValues = vectors.map((t) =>
+          conditional(t.boneId, (i, axis) => t.map.get(i)?.[axis] || 0),
+        );
+        return {
+          ...a,
+          uv: [0, 1].map((axis) =>
+            ids.reduce((v, i, k) => v + mesh.uv[i * 2 + axis] * values[k], 0),
+          ),
+          bindValues,
+          deformValues,
+        };
+      },
+    };
+  }
+  function triple(values: number[], index: number, delta: number[]) {
+    if (delta.some((v) => Math.abs(v) > 1e-12)) values.push(index, ...delta);
+  }
+  function checkpointAnimation(
+    mesh: EditableMesh,
+    document?: MeshEditOptions['document'],
+  ) {
+    const binds = mesh.binds,
+      frames = tracks(mesh, document).map(
+        ({ frame }): [DeformFrame, number[]] => [frame, frame.deltas],
+      );
+    return () => {
+      if (binds) mesh.binds = binds;
+      else delete mesh.binds;
+      for (const [frame, deltas] of frames) frame.deltas = deltas;
+    };
+  }
+  function reindex(values: number[], index: number) {
+    const result = [];
+    for (let j = 0; j < values.length; j += 3)
+      if (values[j] !== index)
+        result.push(
+          values[j] > index ? values[j] - 1 : values[j],
+          values[j + 1],
+          values[j + 2],
+        );
+    return result;
+  }
+  function transfer(
+    old: SkinMesh,
+    topology: GeneratedTopology,
+    { document }: MeshEditOptions = {},
+  ): SkinMesh {
+    const field = sampler(old, document),
+      deforms = field.frames.map((): number[] => []);
+    const cells = new Map<string, number[]>(),
+      size = 96;
+    for (let j = 0; j < old.triangles.length; j += 3) {
+      const points = old.triangles.slice(j, j + 3).map((i) => at(old, i));
+      for (
+        let y = Math.floor(Math.min(...points.map((p) => p.y)) / size);
+        y <= Math.floor(Math.max(...points.map((p) => p.y)) / size);
+        y++
+      )
+        for (
+          let x = Math.floor(Math.min(...points.map((p) => p.x)) / size);
+          x <= Math.floor(Math.max(...points.map((p) => p.x)) / size);
+          x++
+        ) {
+          const key = x + ':' + y;
+          if (!cells.has(key)) cells.set(key, []);
+          cells.get(key)!.push(j);
+        }
+    }
+    const locateFast = (p: Point2) => {
+      for (const j of cells.get(
+        Math.floor(p.x / size) + ':' + Math.floor(p.y / size),
+      ) || []) {
+        const ids = old.triangles.slice(j, j + 3),
+          values = bary(p, at(old, ids[0]), at(old, ids[1]), at(old, ids[2]));
+        if (inside(values)) return { ids, values };
+      }
+      return sample(old, p);
+    };
+    const next: SkinMesh = {
+      layerId: old.layerId,
+      vertices: [...topology.vertices],
+      uv: [...topology.uv],
+      triangles: [...topology.triangles],
+      weights: [],
+      morphs: old.morphs.map((m) => ({
+        expressionId: m.expressionId,
+        deltas: [],
+      })),
+      ...(topology.topology
+        ? { topology: structuredClone(topology.topology) }
+        : {}),
+      ...(old.depths ? { depths: [] } : {}),
+    };
+    if (field.exact) next.binds = {};
+    for (let i = 0; i < next.vertices.length / 2; i++) {
+      const a = field.point(at(next, i), locateFast(at(next, i)));
+      next.uv.splice(i * 2, 2, ...a.uv);
+      next.weights.push(a.weights);
+      for (const [id, delta] of a.bindValues)
+        triple((next.binds![id] ||= []), i, delta);
+      a.deformValues.forEach((v, j) => triple(deforms[j], i, v));
+      if (next.depths) next.depths.push(a.depth);
+      a.morphs.forEach((delta, j) => {
+        if (Math.hypot(...delta) > 1e-8)
+          next.morphs[j].deltas.push(i, ...delta);
+      });
+    }
+    field.frames.forEach(({ frame }, j) => (frame.deltas = deforms[j]));
+    return next;
+  }
+  function snapBoundary(mesh: TopologyMesh, p: Point2, radius: number) {
+    const edges = new Map<string, { a: number; b: number; count: number }>();
+    for (let j = 0; j < mesh.triangles.length; j += 3)
+      for (let k = 0; k < 3; k++) {
+        const a = mesh.triangles[j + k],
+          b = mesh.triangles[j + ((k + 1) % 3)],
+          key = Math.min(a, b) + ':' + Math.max(a, b);
+        if (!edges.has(key)) edges.set(key, { a, b, count: 0 });
+        edges.get(key)!.count++;
+      }
+    let best = radius * radius,
+      result = p;
+    for (const { a, b, count } of edges.values()) {
+      if (count !== 1) continue;
+      const A = at(mesh, a),
+        B = at(mesh, b),
+        dx = B.x - A.x,
+        dy = B.y - A.y,
+        t = Math.max(
+          0,
+          Math.min(
+            1,
+            ((p.x - A.x) * dx + (p.y - A.y) * dy) / (dx * dx + dy * dy),
+          ),
+        ),
+        q = { x: A.x + dx * t, y: A.y + dy * t },
+        distance = (p.x - q.x) ** 2 + (p.y - q.y) ** 2;
+      if (distance <= best) {
+        best = distance;
+        result = q;
+      }
+    }
+    return result;
+  }
+  function insert(
+    mesh: EditableMesh,
+    p: Point2,
+    { pin = false, document }: MeshEditOptions & { pin?: boolean } = {},
+  ) {
+    if (mesh.weights.length >= 4096) throw Error('网格已达到 4096 顶点上限');
+    const location = locate(mesh, p);
+    if (!location) throw Error('请在网格轮廓内部加点');
+    const oldCount = mesh.weights.length,
+      near = location.ids.find(
+        (i) => Math.hypot(at(mesh, i).x - p.x, at(mesh, i).y - p.y) < 1e-5,
+      ),
+      field = near === undefined ? sampler(mesh, document) : null,
+      a = field?.point(p, location),
+      index = appendPoint(mesh, p);
+    if (index === oldCount) {
+      if (!a || !field) throw Error('新增顶点缺少插值数据');
+      mesh.uv.push(...a.uv);
+      mesh.weights.push(a.weights);
+      if (mesh.depths) mesh.depths.push(a.depth);
+      a.morphs.forEach((delta, j) => {
+        if (Math.hypot(...delta) > 1e-8)
+          mesh.morphs[j].deltas.push(index, ...delta);
+      });
+      if (field.exact) {
+        mesh.binds = Object.fromEntries(
+          Object.entries(mesh.binds || {}).map(([id, v]) => [id, [...v]]),
+        );
+        for (const [id, delta] of a.bindValues)
+          triple((mesh.binds[id] ||= []), index, delta);
+      }
+      field.frames.forEach(({ frame }, j) => {
+        frame.deltas = [...frame.deltas];
+        triple(frame.deltas, index, a.deformValues[j]);
+      });
+    }
+    if (pin) {
+      mesh.topology ||= { pins: [], edges: [] };
+      if (!mesh.topology.pins.includes(index)) mesh.topology.pins.push(index);
+    }
+    return index;
+  }
+  function move(mesh: SkinMesh, index: number, p: Point2) {
+    if (
+      !Number.isInteger(index) ||
+      index < 0 ||
+      index >= mesh.weights.length ||
+      ![p.x, p.y].every(Number.isFinite) ||
+      p.x < 0 ||
+      p.x > 1024 ||
+      p.y < 0 ||
+      p.y > 1536
+    )
+      throw Error('拓扑顶点必须位于源图范围');
+    for (let j = 0; j < mesh.triangles.length; j += 3) {
+      const ids = mesh.triangles.slice(j, j + 3);
+      if (!ids.includes(index)) continue;
+      const old = ids.map((i) => at(mesh, i)),
+        next = ids.map((i) => (i === index ? p : at(mesh, i)));
+      if (
+        cross(old[0], old[1], old[2]) * cross(next[0], next[1], next[2]) <=
+        1e-8
+      )
+        throw Error('移动会翻转或压平三角形，请调整相邻点或连边');
+    }
+    const u =
+        mesh.uv[index * 2] +
+        (mesh.binds ? 0 : (p.x - mesh.vertices[index * 2]) / 1024),
+      v =
+        mesh.uv[index * 2 + 1] +
+        (mesh.binds ? 0 : (p.y - mesh.vertices[index * 2 + 1]) / 1536);
+    if (u < 0 || u > 1 || v < 0 || v > 1)
+      throw Error('移动会使 UV 超出源图范围');
+    mesh.vertices[index * 2] = p.x;
+    mesh.vertices[index * 2 + 1] = p.y;
+    mesh.uv[index * 2] = u;
+    mesh.uv[index * 2 + 1] = v;
+  }
+  // Plan a one-ring retriangulation without modifying attributes. An interior
+  // vertex has a closed link; a boundary vertex has one connected open link.
+  function deletion(mesh: SkinMesh, index: number) {
+    if (!Number.isInteger(index) || index < 0 || index >= mesh.weights.length)
+      throw Error('顶点索引无效');
+    if (mesh.weights.length <= 3) throw Error('网格至少保留 3 个顶点');
+    if (mesh.topology?.pins.includes(index))
+      throw Error('请先取消该关键点，再删除顶点');
+    if (mesh.topology?.edges.some((e) => e.includes(index)))
+      throw Error('请先移除该点关联的约束边');
+    const touching = [],
+      links = new Map<number, number[]>();
+    for (let j = 0; j < mesh.triangles.length; j += 3) {
+      const tri = mesh.triangles.slice(j, j + 3);
+      if (!tri.includes(index)) continue;
+      touching.push(j);
+      const [a, b] = tri.filter((i) => i !== index);
+      for (const [u, v] of [
+        [a, b],
+        [b, a],
+      ] as const) {
+        if (!links.has(u)) links.set(u, []);
+        links.get(u)!.push(v);
+      }
+    }
+    if (!touching.length)
+      return {
+        triangles: [...mesh.triangles],
+        boundary: false,
+        polygon: [],
+        unused: true,
+      };
+    const ends = [...links].filter(([, v]) => v.length === 1).map(([i]) => i),
+      boundary = ends.length === 2;
+    if (
+      !touching.length ||
+      ![0, 2].includes(ends.length) ||
+      [...links.values()].some((v) => v.length < 1 || v.length > 2)
+    )
+      throw Error('顶点邻域不是单一流形');
+    const first = boundary ? ends[0] : [...links.keys()][0],
+      polygon = [first];
+    let previous = -1,
+      current = first;
+    while (polygon.length <= links.size) {
+      const next = links.get(current)!.find((i) => i !== previous);
+      if (next === undefined || next === first) break;
+      polygon.push(next);
+      previous = current;
+      current = next;
+    }
+    if (polygon.length !== links.size)
+      throw Error('顶点邻域包含多个不连通区域');
+    const points = mesh.weights.map((_, i) => at(mesh, i)),
+      replacement =
+        polygon.length >= 3
+          ? triangulate(points, polygon, { preserveVertices: true })
+          : [],
+      remove = new Set<number>(touching),
+      triangles = [...replacement];
+    for (let j = 0; j < mesh.triangles.length; j += 3)
+      if (!remove.has(j)) triangles.push(...mesh.triangles.slice(j, j + 3));
+    if (!triangles.length) throw Error('删除会清空整个网格');
+    const used = new Set<number>(triangles);
+    if (polygon.some((i) => !used.has(i)))
+      throw Error('删除会清空独立网格区域或留下孤立顶点');
+    // New diagonals must not cross existing geometry, overlap another face or
+    // turn an edge into a nonmanifold seam (including concave boundary corners).
+    const counts = new Map<string, number>(),
+      segments = new Map<string, number[]>();
+    for (let j = 0; j < triangles.length; j += 3)
+      for (let k = 0; k < 3; k++) {
+        const a = triangles[j + k],
+          b = triangles[j + ((k + 1) % 3)],
+          key = Math.min(a, b) + ':' + Math.max(a, b);
+        counts.set(key, (counts.get(key) || 0) + 1);
+        segments.set(key, [a, b]);
+      }
+    if ([...counts.values()].some((n) => n > 2))
+      throw Error('删除会产生非流形连边');
+    const strictInside = (p: Point2, ids: number[]) =>
+      bary(p, points[ids[0]], points[ids[1]], points[ids[2]])?.every(
+        (v) => v > 1e-7,
+      );
+    for (let j = 0; j < replacement.length; j += 3) {
+      const ids = replacement.slice(j, j + 3);
+      for (let k = 0; k < 3; k++) {
+        const a = ids[k],
+          b = ids[(k + 1) % 3],
+          A = points[a],
+          B = points[b];
+        for (const [c, d] of segments.values()) {
+          if ([a, b].includes(c) || [a, b].includes(d)) continue;
+          const P = points[c],
+            Q = points[d];
+          const on = (p: Point2) =>
+            Math.abs(cross(A, B, p)) < 1e-8 &&
+            (p.x - A.x) * (p.x - B.x) + (p.y - A.y) * (p.y - B.y) < -1e-8;
+          if (
+            (cross(A, B, P) * cross(A, B, Q) < -1e-8 &&
+              cross(P, Q, A) * cross(P, Q, B) < -1e-8) ||
+            on(P) ||
+            on(Q)
+          )
+            throw Error('删除会使轮廓或连边交叉');
+        }
+      }
+      const center = {
+        x: ids.reduce((n, i) => n + points[i].x, 0) / 3,
+        y: ids.reduce((n, i) => n + points[i].y, 0) / 3,
+      };
+      for (let k = replacement.length; k < triangles.length; k += 3) {
+        const other = triangles.slice(k, k + 3);
+        if (
+          strictInside(center, other) ||
+          other.some((i) => !ids.includes(i) && strictInside(points[i], ids))
+        )
+          throw Error('删除会使网格区域重叠');
+      }
+    }
+    return { triangles, boundary, polygon };
+  }
+  function erase(
+    mesh: SkinMesh,
+    index: number,
+    { document }: MeshEditOptions = {},
+  ) {
+    if (mesh.binds && !document)
+      throw Error('拓扑编辑需要完整工程，以同时保留绑定与 FFD 动画');
+    const { triangles } = deletion(mesh, index);
+    mesh.triangles = triangles.map((i) => (i > index ? i - 1 : i));
+    mesh.vertices.splice(index * 2, 2);
+    mesh.uv.splice(index * 2, 2);
+    mesh.weights.splice(index, 1);
+    mesh.depths?.splice(index, 1);
+    if (mesh.topology) {
+      mesh.topology.pins = mesh.topology.pins.map((i) =>
+        i > index ? i - 1 : i,
+      );
+      mesh.topology.edges = mesh.topology.edges.map((e) =>
+        e.map((i) => (i > index ? i - 1 : i)),
+      );
+    }
+    for (const morph of mesh.morphs) {
+      const deltas = [];
+      for (let j = 0; j < morph.deltas.length; j += 3) {
+        const i = morph.deltas[j];
+        if (i !== index)
+          deltas.push(
+            i > index ? i - 1 : i,
+            morph.deltas[j + 1],
+            morph.deltas[j + 2],
+          );
+      }
+      morph.deltas = deltas;
+    }
+    if (mesh.binds)
+      mesh.binds = Object.fromEntries(
+        Object.entries(mesh.binds).map(([id, v]) => [id, reindex(v, index)]),
+      );
+    for (const { frame } of tracks(mesh, document))
+      frame.deltas = reindex(frame.deltas, index);
+  }
+  function flip(mesh: SkinMesh, a: number, b: number) {
+    if (mesh.topology?.edges.some((e) => e.includes(a) && e.includes(b)))
+      throw Error('请先移除该约束边，再翻转连边');
+    const pair: Array<{ j: number; c: number }> = [];
+    for (let j = 0; j < mesh.triangles.length; j += 3) {
+      const ids = mesh.triangles.slice(j, j + 3);
+      if (ids.includes(a) && ids.includes(b))
+        pair.push({ j, c: ids.find((i) => i !== a && i !== b)! });
+    }
+    if (pair.length !== 2) throw Error('请选择一条内部边的两个端点');
+    const [{ j, c }, { j: k, c: d }] = pair,
+      points = Array.from({ length: mesh.weights.length }, (_, i) =>
+        at(mesh, i),
+      );
+    if (
+      cross(points[c], points[d], points[a]) *
+        cross(points[c], points[d], points[b]) >=
+      -1e-8
+    )
+      throw Error('这条边无法安全翻转');
+    mesh.triangles.splice(j, 3, ...oriented(points, c, d, a));
+    mesh.triangles.splice(k, 3, ...oriented(points, d, c, b));
+  }
+  function shared(doc: CardDocument, layer: CardLayer, enabled = true) {
+    const mesh = doc.characterRig?.meshes?.find((m) => m.layerId === layer.id);
+    if (!mesh) return [];
+    if (!enabled) return [mesh];
+    const key = JSON.stringify([mesh.vertices, mesh.uv, mesh.triangles]),
+      base = importedCardCharacterWeightTools.vertexPoints(doc, layer, {
+        vertices: [512, 768, 600, 768],
+        weights: [[], []],
+      });
+    return (doc.characterRig?.meshes || []).filter((m) => {
+      const l = doc.layers.find((l) => l.id === m.layerId),
+        p = importedCardCharacterWeightTools.vertexPoints(doc, l, {
+          vertices: [512, 768, 600, 768],
+          weights: [[], []],
+        });
+      return (
+        JSON.stringify([m.vertices, m.uv, m.triangles]) === key &&
+        p.every((q, i) => Math.hypot(q.x - base[i].x, q.y - base[i].y) < 1e-6)
+      );
+    });
+  }
+  function inheritMorphs(meshes: SkinMesh[]) {
+    if (meshes.length < 2) return;
+    const targets = new Map<string, number[]>(),
+      signature = JSON.stringify([
+        meshes[0].vertices,
+        meshes[0].uv,
+        meshes[0].triangles,
+      ]);
+    for (const mesh of meshes) {
+      if (
+        JSON.stringify([mesh.vertices, mesh.uv, mesh.triangles]) !== signature
+      )
+        throw Error('共享表情要求完全相同的网格拓扑');
+      for (const morph of mesh.morphs) {
+        const deltas = [];
+        for (let j = 0; j < morph.deltas.length; j += 3)
+          deltas.push(morph.deltas.slice(j, j + 3));
+        deltas.sort((a, b) => a[0] - b[0]);
+        const values = deltas.flat(),
+          previous = targets.get(morph.expressionId);
+        if (
+          previous &&
+          (previous.length !== values.length ||
+            previous.some((v, i) => Math.abs(v - values[i]) > 1e-8))
+        )
+          throw Error('共享组存在不同的同名表情目标，请关闭表情同步后分别编辑');
+        targets.set(morph.expressionId, values);
+      }
+    }
+    const all = [...targets].map(([expressionId, deltas]) => ({
+      expressionId,
+      deltas,
+    }));
+    for (const mesh of meshes)
+      mesh.morphs = all.map((m) => ({
+        expressionId: m.expressionId,
+        deltas: [...m.deltas],
+      }));
+  }
+  return {
+    bary,
+    baryUV,
+    triangulate,
+    legalize,
+    locate,
+    locateUV,
+    outlines,
+    generate,
+    transfer,
+    insert,
+    snapBoundary,
+    move,
+    erase,
+    deletion,
+    flip,
+    shared,
+    inheritMorphs,
+    checkpointAnimation,
+  };
+})();
+
+export default api;

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const T=require('../renderer/character-weight-tools.js'),C=require('../renderer/character-animation-model.js'),A=C.advanced;
+const T=require('../dist/renderer/character-weight-tools.js'),C=require('../dist/renderer/character-animation-model.js'),A=C.advanced;
 const {fixture}=require('./fixtures/character-animation.cjs');
 const near=(a,b)=>assert.ok(Math.abs(a-b)<.000001,`${a} != ${b}`);
 function normalized(ws){assert.ok(ws.length>0&&ws.length<=4);near(ws.reduce((s,w)=>s+w.weight,0),1);assert.ok(ws.every(w=>w.weight>0&&w.weight<=1));}
@@ -24,14 +24,27 @@ test('automatic binding respects chosen influences and locks, with registered la
  m.weights[0]=[{boneId:'root',weight:.35},{boneId:'shoulder',weight:.65}];T.auto(doc,layer,m,['shoulder','elbow'],new Set(['root']));near(m.weights[0].find(w=>w.boneId==='root').weight,.35);m.weights.forEach(normalized);
  const p=T.vertexPoints(doc,layer,m)[5],source=T.sourcePoint(doc,layer,p);near(source.x,m.vertices[10]);near(source.y,m.vertices[11]);
 });
+
+test('weight editor coordinates match runtime placement with slots, rotation, pivot and animated skinning',()=>{
+ const R=require('../dist/renderer/runtime-model.js'),doc=fixture(),layer=doc.layers.find(l=>l.id==='forearm'),mesh=A.grid('forearm','root',2,2);
+ Object.assign(layer,{x:27,y:-18,rotation:31,scale:.8,pivot:{u:.3,v:.7},slotId:'registered'});
+ doc.slots=[{id:'registered',name:'Registered',u:.42,v:.63,rotation:-17,scale:1.25,z:.08,clip:false,effect:'none',strength:1,speed:1}];
+ doc.characterRig.meshes=[mesh];mesh.weights=mesh.weights.map(()=>[{boneId:'elbow',weight:1}]);C.validate(doc);
+ const base=R.placement(doc,layer),matrix=C.matrix(512+base.x,768+base.y,base.rotation*180/Math.PI,base.scale);
+ const rest=T.vertexPoints(doc,layer,mesh);
+ rest.forEach((p,i)=>{const expected=C.point(matrix,mesh.vertices[i*2]-512,mesh.vertices[i*2+1]-768);near(p.x,expected.x);near(p.y,expected.y);const source=T.sourcePoint(doc,layer,p);near(source.x,mesh.vertices[i*2]);near(source.y,mesh.vertices[i*2+1]);});
+ const pose=C.sample(doc,doc.actions[2],doc.actions[2].duration/2,{seek:true}),geometry=C.geometry(doc,layer,pose,base),posed=T.vertexPoints(doc,layer,mesh,pose);
+ posed.forEach((p,i)=>{const expected=C.point(matrix,geometry.positions[i*3]*1024,-geometry.positions[i*3+1]*1024);near(p.x,expected.x);near(p.y,expected.y);});
+ assert.ok(posed.some((p,i)=>Math.hypot(p.x-rest[i].x,p.y-rest[i].y)>1));
+});
 test('dragging joints converts through a rotated and scaled parent, and bone picking has a screen-space radius',()=>{
  const doc=fixture();doc.characterRig.bones[0].rotation=32;doc.characterRig.bones[0].scale=1.4;C.validate(doc);T.moveJoint(doc,'elbow',{x:700,y:410});const p=C.point(C.compile(doc.characterRig).rest.get('elbow'),0,0);near(p.x,700);near(p.y,410);assert.equal(T.pick(doc,{x:709,y:410},1),'elbow');assert.equal(T.pick(doc,{x:709,y:410},2),null);
  T.moveJoint(doc,'root',{x:500,y:600});near(doc.characterRig.bones[0].x,500);near(doc.characterRig.bones[0].y,600);
 });
 test('painted weights change actual bone deformation and remain valid after native import',()=>{
- const doc=fixture(),layer=doc.layers.find(l=>l.id==='body'),m=A.grid('body','root',2,2);doc.characterRig.meshes=[m];const pose=C.sample(doc,doc.actions[2],doc.actions[2].duration/2,{seek:true}),base=require('../renderer/runtime-model.js').placement(doc,layer),before=C.geometry(doc,layer,pose,base).positions;
+ const doc=fixture(),layer=doc.layers.find(l=>l.id==='body'),m=A.grid('body','root',2,2);doc.characterRig.meshes=[m];const pose=C.sample(doc,doc.actions[2],doc.actions[2].duration/2,{seek:true}),base=require('../dist/renderer/runtime-model.js').placement(doc,layer),before=C.geometry(doc,layer,pose,base).positions;
  T.paint(m,'elbow',[{x:512,y:768}],{radius:100,strength:1,mode:'replace',value:1});C.validate(doc);const after=C.geometry(doc,layer,pose,base).positions;assert.ok(Math.hypot(after[12]-before[12],after[13]-before[13])>.01);m.weights.forEach(normalized);
- const I=require('../renderer/character-animation-import.js'),next=I.createRegistry().convert('cardscape',I.pack(doc),doc);assert.deepEqual(next.characterRig.meshes[0].weights,m.weights);
+ const I=require('../dist/renderer/character-animation-import.js'),next=I.createRegistry().convert('cardscape',I.pack(doc),doc);assert.deepEqual(next.characterRig.meshes[0].weights,m.weights);
 });
 test('pie sectors preserve influence proportions and identify the matching stable bone color',()=>{
  const ws=[{boneId:'root',weight:.6},{boneId:'elbow',weight:.4}],slices=T.slices(ws);near(slices[0].end-slices[0].start,Math.PI*1.2);near(slices[1].end,Math.PI*1.5);
@@ -40,7 +53,7 @@ test('pie sectors preserve influence proportions and identify the matching stabl
 });
 test('posed picking and brush coordinates follow actual skinning through registered layer transforms',()=>{
  const doc=fixture(),layer=doc.layers.find(l=>l.id==='body'),m=A.grid('body','root',2,2);doc.characterRig.meshes=[m];layer.rotation=27;layer.scale=1.3;layer.x=22;layer.y=-31;m.weights=m.weights.map(()=>[{boneId:'elbow',weight:1}]);
- const pose=C.sample(doc,doc.actions[2],doc.actions[2].duration/2,{seek:true}),points=T.vertexPoints(doc,layer,m,pose),rest=T.vertexPoints(doc,layer,m),base=require('../renderer/runtime-model.js').placement(doc,layer),g=C.geometry(doc,layer,pose,base);
+ const pose=C.sample(doc,doc.actions[2],doc.actions[2].duration/2,{seek:true}),points=T.vertexPoints(doc,layer,m,pose),rest=T.vertexPoints(doc,layer,m),base=require('../dist/renderer/runtime-model.js').placement(doc,layer),g=C.geometry(doc,layer,pose,base);
  const expected=C.point(C.matrix(512+base.x,768+base.y,base.rotation*180/Math.PI,base.scale),g.positions[12]*1024,-g.positions[13]*1024);near(points[4].x,expected.x);near(points[4].y,expected.y);assert.ok(Math.hypot(rest[4].x-points[4].x,rest[4].y-points[4].y)>10);
  const before=structuredClone(m.weights),uv=[...m.uv];T.paint(m,'root',[points[4]],{points,selection:new Set([4]),radius:5000,strength:.4,feather:0});near(m.weights[4].find(w=>w.boneId==='root').weight,.4);for(let i=0;i<m.weights.length;i++)if(i!==4)assert.deepEqual(m.weights[i],before[i]);assert.deepEqual(m.uv,uv);
  assert.deepEqual(T.box(points,{x:points[4].x-.1,y:points[4].y-.1},{x:points[4].x+.1,y:points[4].y+.1}),new Set([4]));
@@ -63,15 +76,15 @@ test('batch copy, paste, prune and smoothing preserve locks and unselected verti
  T.smooth(m,locked,new Set([4]));near(m.weights[4].find(w=>w.boneId==='root').weight,.3);assert.deepEqual(m.weights[5],before[5]);m.weights.forEach(normalized);
 });
 test('each bone owns its tip independently of parent links, source pixels and deformation',()=>{
- const doc=fixture(),layer=doc.layers.find(l=>l.id==='body'),m=A.grid('body','root',2,2);doc.characterRig.meshes=[m];doc.characterRig.bones[0].rotation=34;doc.characterRig.bones[0].scale=1.2;C.validate(doc);const rest=C.compile(doc.characterRig).rest,origin=C.point(rest.get('elbow'),0,0),tip=C.point(rest.get('elbow'),120,40),pose=C.sample(doc,doc.actions[2],.5,{seek:true}),base=require('../renderer/runtime-model.js').placement(doc,layer),before=C.geometry(doc,layer,pose,base).positions;
+ const doc=fixture(),layer=doc.layers.find(l=>l.id==='body'),m=A.grid('body','root',2,2);doc.characterRig.meshes=[m];doc.characterRig.bones[0].rotation=34;doc.characterRig.bones[0].scale=1.2;C.validate(doc);const rest=C.compile(doc.characterRig).rest,origin=C.point(rest.get('elbow'),0,0),tip=C.point(rest.get('elbow'),120,40),pose=C.sample(doc,doc.actions[2],.5,{seek:true}),base=require('../dist/renderer/runtime-model.js').placement(doc,layer),before=C.geometry(doc,layer,pose,base).positions;
  T.moveTip(doc,'elbow',tip);const segment=T.segments(doc).find(s=>s.id==='elbow');near(segment.p.x,origin.x);near(segment.p.y,origin.y);near(segment.tip.x,tip.x);near(segment.tip.y,tip.y);near(doc.characterRig.bones[2].tip[0],120);near(doc.characterRig.bones[2].tip[1],40);assert.deepEqual(C.geometry(doc,layer,C.sample(doc,doc.actions[2],.5,{seek:true}),base).positions,before);
- const I=require('../renderer/character-animation-import.js'),next=I.createRegistry().convert('cardscape',I.pack(doc),doc);assert.deepEqual(next.characterRig.bones[2].tip,doc.characterRig.bones[2].tip);doc.characterRig.bones[2].tip=[Infinity,0];assert.throws(()=>C.validate(doc));
+ const I=require('../dist/renderer/character-animation-import.js'),next=I.createRegistry().convert('cardscape',I.pack(doc),doc);assert.deepEqual(next.characterRig.bones[2].tip,doc.characterRig.bones[2].tip);doc.characterRig.bones[2].tip=[Infinity,0];assert.throws(()=>C.validate(doc));
 });
 test('triangle raster transforms map source UV corners exactly to posed mesh corners',()=>{
  const source=[{x:3,y:8},{x:100,y:15},{x:40,y:160}],target=[{x:12,y:-3},{x:85,y:41},{x:-50,y:155}],matrix=T.triangleTransform(source,target);source.forEach((p,i)=>{const q=C.point(matrix,p.x,p.y);near(q.x,target[i].x);near(q.y,target[i].y);});assert.equal(T.triangleTransform([source[0],source[0],source[1]],target),null);
 });
 test('weight test poses deform actual mesh positions and changing weights changes that deformation without recording animation',()=>{
- const doc=fixture(),layer=doc.layers.find(l=>l.id==='body'),mesh=A.grid('body','root',2,2);doc.characterRig.meshes=[mesh];const actions=structuredClone(doc.actions),draft=T.testAction(doc,doc.actions[0],'elbow',0,35),pose=C.sample(doc,draft,0,{seek:true}),base=require('../renderer/runtime-model.js').placement(doc,layer),before=C.geometry(doc,layer,pose,base).positions;
+ const doc=fixture(),layer=doc.layers.find(l=>l.id==='body'),mesh=A.grid('body','root',2,2);doc.characterRig.meshes=[mesh];const actions=structuredClone(doc.actions),draft=T.testAction(doc,doc.actions[0],'elbow',0,35),pose=C.sample(doc,draft,0,{seek:true}),base=require('../dist/renderer/runtime-model.js').placement(doc,layer),before=C.geometry(doc,layer,pose,base).positions;
  mesh.weights[4]=[{boneId:'elbow',weight:1}];const after=C.geometry(doc,layer,pose,base).positions;assert.ok(Math.hypot(after[12]-before[12],after[13]-before[13])>.05);assert.deepEqual(doc.actions,actions);assert.notDeepEqual(draft.boneTracks.elbow.rotation,doc.actions[0].boneTracks.elbow.rotation);
 });
 test('testing an IK-driven bone temporarily disables its constraint in the preview action only',()=>{

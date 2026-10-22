@@ -3,28 +3,43 @@
   "version": "0.19.92",
   "private": true,
   "description": "Cardscape: layered 2.5D card editor powered by Electron, WebGL and Rust",
-  "main": "electron/main.cjs",
+  "main": "dist/electron/main.cjs",
   "scripts": {
     "native:build": "cargo build --release --manifest-path native/Cargo.toml",
     "native:test": "cargo test --manifest-path native/Cargo.toml",
     "prepare:assets": "node scripts/prepare-assets.cjs",
-    "prestart": "node scripts/prepare-app-icon.cjs",
-    "start": "electron .",
-    "dev": "node scripts/dev-server.cjs",
+    "prestart": "npm run build && node scripts/prepare-app-icon.cjs",
+    "start": "electron-vite preview",
+    "dev": "electron-vite dev",
     "test": "node --test tests/*.test.cjs",
     "test:sdk": "node scripts/test-godot.cjs",
-    "check": "node scripts/build-editor.cjs && node scripts/check.cjs",
+    "check": "npm run typecheck && npm run build && node scripts/check.cjs",
     "selection:setup": "node scripts/setup-selection.cjs",
     "cutout:setup": "node scripts/setup-cutout.cjs",
-    "build:editor": "node scripts/build-editor.cjs",
-    "material-maker:setup": "node scripts/setup-material-maker.cjs"
+    "build:editor": "npm run build",
+    "material-maker:setup": "node scripts/setup-material-maker.cjs",
+    "build:runtime": "node build/runtime.mts",
+    "build": "npm run build:runtime && electron-vite build",
+    "predev": "npm run build:runtime",
+    "dev:web": "npm run build:runtime && node scripts/dev-server.cjs",
+    "typecheck": "node build/typecheck.mts",
+    "pretest": "npm run build:runtime",
+    "test:electron": "npm run build && node scripts/smoke-electron.mts",
+    "test:electron:dev": "npm run build && node scripts/smoke-electron.mts --dev",
+    "format": "prettier --write renderer/app.ts renderer/core shared build renderer/editing/document-factory.ts renderer/rendering/document-renderer.ts types/ui.d.ts types/platform.d.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^24.19.2",
     "electron": "44.7.0",
-    "esbuild": "0.28.2"
+    "electron-vite": "^5.0.0",
+    "esbuild": "0.28.2",
+    "prettier": "3.6.2",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.7"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18.0"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",

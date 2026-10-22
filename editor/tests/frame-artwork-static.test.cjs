@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const A=require('../renderer/frame-artwork.js'),F=require('../renderer/frame-model.js');
+const A=require('../dist/renderer/frame-artwork.js'),F=require('../dist/renderer/frame-model.js');
 function surfaceFactory(){
  const canvases=[];let reads=0;
  const make=()=>{const canvas={width:0,height:0,data:null,draws:[],toDataURL(){return 'data:image/png;size='+this.width+'x'+this.height;}};canvases.push(canvas);
@@ -24,7 +24,7 @@ test('static raster cache is bounded and separates replacement images without mo
 
 test('component composition and artwork preview retain rear, carrier, metal, front order with overscan',async()=>{
  const factory=surfaceFactory(),window={CardFrame:{...F,draw(ctx){ctx.drawImage({carrier:true});}}};
- vm.runInNewContext(fs.readFileSync(require.resolve('../renderer/frame-artwork.js'),'utf8'),{window,document:{createElement:factory.make}});const art=window.CardFrameArtwork,flow=source(20,30),metal=source(20,30),scene=art.value(F.defaults,{metal:'metal',flow:'flow'});let loads=0;
+ vm.runInNewContext(fs.readFileSync(require.resolve('../dist/renderer/frame-artwork.js'),'utf8'),{window,document:{createElement:factory.make}});const art=window.CardFrameArtwork,flow=source(20,30),metal=source(20,30),scene=art.value(F.defaults,{metal:'metal',flow:'flow'});let loads=0;
  await art.loadDocument({assetKind:'frame',...scene.document},async src=>{loads++;return src==='flow'?flow:metal;});assert.equal(loads,2);
  const front=art.imageForLayer(scene.document.layers[0],flow),rear=art.imageForLayer(scene.document.layers[3],flow),canvas=factory.make();assert.equal(art.draw(canvas.getContext('2d'),scene),true);
  assert.equal(canvas.draws[0],rear);assert.equal(canvas.draws[1].carrier,true);assert.equal(canvas.draws[2],metal);assert.equal(canvas.draws[3],front);
@@ -34,7 +34,7 @@ test('component composition and artwork preview retain rear, carrier, metal, fro
 });
 
 test('the independent editor uses the same masked images and respects frame asset layer order',()=>{
- const app=fs.readFileSync(require.resolve('../renderer/app.js'),'utf8'),start=app.indexOf('function drawLayer('),end=app.indexOf('function popRaster(',start),compositionStart=app.indexOf('function drawComposition('),compositionEnd=app.indexOf('function compose(',compositionStart),calls=[],masked={masked:true},raw={raw:true};
+ const app=fs.readFileSync(require.resolve('../dist/renderer/app.js'),'utf8'),start=app.indexOf('function drawLayer('),end=app.indexOf('function popRaster(',start),compositionStart=app.indexOf('function drawComposition('),compositionEnd=app.indexOf('function compose(',compositionStart),calls=[],masked={masked:true},raw={raw:true};
  const frame={id:'frame',kind:'frame',visible:true,opacity:1},front={id:'front',kind:'image',role:'frame-artwork',shaderChannel:3,visible:true,opacity:1},rear={...front,id:'rear',shaderChannel:2},metal={...front,id:'metal',shaderChannel:1};
  const doc={assetKind:'frame',layers:[front,metal,frame,rear]},images=new Map([[front.id,raw],[metal.id,raw],[rear.id,raw]]),factory=surfaceFactory();
  const context={doc,images,window:{CardRuntime:{placement:()=>({x:0,y:0,scale:1,rotation:0})},CardFrame:{resolve:()=>F.defaults,draw:()=>calls.push('frame')},CardFrameArtwork:{imageForLayer(l,s){assert.equal(s,raw);calls.push(l.id);return masked;},draw:()=>false},CardStats:{paintOrder:layers=>layers.slice().reverse()},CardSpatial:{background:()=>false}},registeredImage:(l,s)=>s,adjustedImage:(l,s)=>s};

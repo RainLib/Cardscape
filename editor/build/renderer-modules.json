@@ -1,0 +1,282 @@
+{
+  "renderer/agent/agent-diagnostics.ts": {
+    "global": "AgentDiagnostics",
+    "default": true
+  },
+  "renderer/agent/ai-edit-geometry.ts": {
+    "global": "AIEditGeometry",
+    "default": true
+  },
+  "renderer/animation/animation-authoring-model.ts": {
+    "global": "CardAnimationAuthoring",
+    "default": true
+  },
+  "renderer/character/character-advanced-model.ts": {
+    "global": "CardCharacterAdvanced",
+    "default": true
+  },
+  "renderer/character/character-animation-import.ts": {
+    "global": "CardCharacterImport",
+    "default": true
+  },
+  "renderer/character/character-animation-model.ts": {
+    "global": "CardCharacterAnimation",
+    "default": true
+  },
+  "renderer/character/character-deform-model.ts": {
+    "global": "CardCharacterDeform",
+    "default": true
+  },
+  "renderer/character/character-ik-model.ts": {
+    "global": "CardCharacterIK",
+    "default": true
+  },
+  "renderer/character/character-joint-tools.ts": {
+    "global": "CardCharacterJointTools",
+    "default": true
+  },
+  "renderer/character/character-mesh-authoring.ts": {
+    "global": "CardCharacterMeshAuthoring",
+    "default": true
+  },
+  "renderer/character/character-mesh-reduction.ts": {
+    "global": "CardCharacterMeshReduction",
+    "default": true
+  },
+  "renderer/character/character-mesh-repair.ts": {
+    "global": "CardCharacterMeshRepair",
+    "default": true
+  },
+  "renderer/character/character-mesh-scope.ts": {
+    "global": "CardCharacterMeshScope",
+    "default": true
+  },
+  "renderer/character/character-mesh-tools.ts": {
+    "global": "CardCharacterMeshTools",
+    "default": true
+  },
+  "renderer/character/character-motion-audit.ts": {
+    "global": "CardCharacterMotionAudit",
+    "default": true
+  },
+  "renderer/character/character-pose-tools.ts": {
+    "global": "CardCharacterPoseTools",
+    "default": true
+  },
+  "renderer/character/character-weight-repair.ts": {
+    "global": "CardCharacterWeightRepair",
+    "default": true
+  },
+  "renderer/character/character-weight-tools.ts": {
+    "global": "CardCharacterWeightTools",
+    "default": true
+  },
+  "renderer/character/spine-atlas-model.ts": {
+    "global": "CardSpineAtlas",
+    "default": true
+  },
+  "renderer/character/spine-import-model.ts": {
+    "global": "CardSpineImport",
+    "default": true
+  },
+  "renderer/editing/card-stats.ts": {
+    "global": "CardStats",
+    "default": true
+  },
+  "renderer/editing/cosmetics-model.ts": {
+    "global": "CardCosmetics",
+    "default": true
+  },
+  "renderer/editing/editor-commands.ts": {
+    "global": "EditorCommands",
+    "default": true
+  },
+  "renderer/editing/frame-artwork.ts": {
+    "global": "CardFrameArtwork",
+    "default": true
+  },
+  "renderer/editing/frame-model.ts": {
+    "global": "CardFrame",
+    "default": true
+  },
+  "renderer/editing/frame-raster.ts": {
+    "global": "CardFrameRaster",
+    "default": true
+  },
+  "renderer/editing/layer-tree.ts": {
+    "global": "CardLayers",
+    "default": true
+  },
+  "renderer/editing/loading-yield.ts": {
+    "global": "CardLoadingYield",
+    "default": true
+  },
+  "renderer/editing/mask-edit-model.ts": {
+    "global": "CardMaskEdit",
+    "default": true
+  },
+  "renderer/editing/shortcuts.ts": {
+    "global": "CardShortcuts",
+    "default": true
+  },
+  "renderer/editing/title-model.ts": {
+    "global": "CardTitle",
+    "default": true
+  },
+  "renderer/editing/transform-model.ts": {
+    "global": "CardTransform",
+    "default": true
+  },
+  "renderer/editing/workspace-layout.ts": {
+    "global": "CardWorkspaceLayout",
+    "default": true
+  },
+  "renderer/rendering/adaptive-textures.ts": {
+    "global": "CardAdaptiveTextures",
+    "default": true
+  },
+  "renderer/rendering/export-profile.ts": {
+    "global": "CardExportProfile",
+    "default": true
+  },
+  "renderer/rendering/inspection-model.ts": {
+    "global": "CardInspection",
+    "default": true
+  },
+  "renderer/rendering/mesh-rigidity.ts": {
+    "global": "MeshRigidity",
+    "default": true
+  },
+  "renderer/rendering/particle-batch.ts": {
+    "global": "CardParticleBatch",
+    "default": true
+  },
+  "renderer/rendering/preview-region.ts": {
+    "global": "CardPreviewRegion",
+    "default": true
+  },
+  "renderer/rendering/preview-update-model.ts": {
+    "global": "CardPreviewUpdate",
+    "default": true
+  },
+  "renderer/rendering/runtime-model.ts": {
+    "global": "CardRuntime",
+    "default": true
+  },
+  "renderer/rendering/space-model.ts": {
+    "global": "CardSpace",
+    "default": true
+  },
+  "renderer/rendering/spatial-model.ts": {
+    "global": "CardSpatial",
+    "default": true
+  },
+  "renderer/shaders/shader-graph-model.ts": {
+    "global": "CardShaderGraph",
+    "default": true
+  },
+  "renderer/shaders/shader-language.ts": {
+    "global": "ShaderLanguage",
+    "default": true
+  },
+  "renderer/workshop/asset-drop-model.ts": {
+    "global": "CardAssetDrop",
+    "default": true
+  },
+  "renderer/workshop/asset-workspace-model.ts": {
+    "global": "CardAssetWorkspace",
+    "default": true
+  },
+  "renderer/workshop/back-asset-model.ts": {
+    "global": "CardBack",
+    "default": true
+  },
+  "renderer/workshop/component-model.ts": {
+    "global": "CardComponents",
+    "default": true
+  },
+  "renderer/workshop/finish-catalog.ts": {
+    "global": "CardFinishCatalog",
+    "default": true
+  },
+  "renderer/workshop/workshop-catalog.ts": {
+    "global": "CardWorkshopCatalog",
+    "default": true
+  },
+  "renderer/workshop/workshop-model.ts": {
+    "global": "CardWorkshop",
+    "default": true
+  },
+  "renderer/workshop/workshop-tabs.ts": {
+    "global": "CardWorkshopTabs",
+    "default": true
+  },
+  "renderer/core/document-assets.ts": {
+    "global": "CardDocumentAssets",
+    "exports": ["prepare"]
+  },
+  "renderer/core/document-snapshot.ts": {
+    "global": "CardDocumentSnapshot",
+    "exports": ["snapshot"]
+  },
+  "renderer/core/resource-cache.ts": {
+    "global": "CardResourceCache",
+    "exports": ["ResourceCache"]
+  },
+  "renderer/core/bridge.ts": {
+    "global": "CardBridge",
+    "exports": ["createBridge"],
+    "exportsAlias": {
+      "create": "createBridge"
+    }
+  },
+  "renderer/session-model.ts": {
+    "global": "CardSession",
+    "exports": ["encoder"]
+  },
+  "renderer/core/image-assets.ts": {
+    "global": "CardImageAssets",
+    "exports": [
+      "createImageAssets",
+      "canvasFor",
+      "pngFromImage",
+      "createFontRegistry"
+    ]
+  },
+  "renderer/core/session-controller.ts": {
+    "global": "CardRecovery",
+    "exports": ["createSessionController"]
+  },
+  "renderer/rendering/document-renderer.ts": {
+    "global": "CardDocumentRenderer",
+    "exports": ["createDocumentRenderer"]
+  },
+  "renderer/core/dom.ts": {
+    "global": "CardDOM",
+    "exports": ["element"]
+  },
+  "renderer/core/mask-assets.ts": {
+    "global": "CardMaskAssets",
+    "exports": ["createMaskAssets", "maskNames", "maskColors"]
+  },
+  "renderer/editing/document-factory.ts": {
+    "global": "CardDocumentFactory",
+    "exports": ["createBlankDocument"]
+  },
+  "renderer/rendering/remote-assets.ts": {
+    "global": "CardRemoteAssets",
+    "default": true
+  },
+  "renderer/character/character-import-registry.ts": {
+    "global": "CardCharacterImportRegistry",
+    "default": true
+  },
+  "renderer/rendering/runtime-core.ts": {
+    "global": "CardRuntimeCore",
+    "default": true
+  },
+  "renderer/rendering/runtime-validation.ts": {
+    "global": "CardRuntimeValidation",
+    "exports": ["createRuntimeValidator"]
+  }
+}

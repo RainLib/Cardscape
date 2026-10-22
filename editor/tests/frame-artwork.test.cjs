@@ -1,8 +1,8 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path');
-const A=require('../renderer/frame-artwork.js'),K=require('../renderer/finish-catalog.js'),W=require('../renderer/workshop-model.js'),R=require('../renderer/runtime-model.js'),F=require('../renderer/frame-model.js');
+const A=require('../dist/renderer/frame-artwork.js'),K=require('../dist/renderer/finish-catalog.js'),W=require('../dist/renderer/workshop-model.js'),R=require('../dist/renderer/runtime-model.js'),F=require('../dist/renderer/frame-model.js');
 test('artwork preparation retries failure and deduplicates both complete images',async()=>{
  await assert.rejects(A.prepare(async()=>{throw Error('offline');}),/offline/);
- let decodes=0;const load=async p=>{decodes++;return 'data:image/png;base64,'+(await fs.readFile(path.join(__dirname,'../renderer',p))).toString('base64');};
+ let decodes=0;const load=async p=>{decodes++;return 'data:image/png;base64,'+(await fs.readFile(path.join(__dirname,'../dist/renderer',p))).toString('base64');};
  const [a,b]=await Promise.all([A.prepare(load),A.prepare(load)]);assert.equal(a,b);assert.equal(decodes,2);
 });
 test('reference artwork is a reusable independent frame scene and other recipes remove it',()=>{
@@ -19,5 +19,5 @@ test('frame asset editing uses its primary layers and keeps the selected documen
 test('portable layer shader controls validate, survive reordering and leave ordinary alpha protected',()=>{
  const d=R.ensure({layers:[{id:'light',kind:'image',shaderChannel:3,shaderTransparent:true},{id:'metal',kind:'image',shaderChannel:1}],masks:{}});R.validate(d);d.layers.reverse();R.validate(d);assert.equal(d.layers.find(l=>l.id==='light').shaderChannel,3);
  for(const channel of [-1,256,.5,NaN]){d.layers[0].shaderChannel=channel;assert.throws(()=>R.validate(d),/Shader 通道/);}d.layers[0].shaderChannel=1;d.layers[0].shaderTransparent='yes';assert.throws(()=>R.validate(d),/透明扩展/);
- const {portableBody}=require('../electron/godot-export.cjs');assert.equal(portableBody(A.flowBody),A.flowBody);assert.equal(portableBody(A.flowPrelude),A.flowPrelude);assert.ok(A.flowBody.length<=4096);
+ const {portableBody}=require('../dist/electron/godot-export.cjs');assert.equal(portableBody(A.flowBody),A.flowBody);assert.equal(portableBody(A.flowPrelude),A.flowPrelude);assert.ok(A.flowBody.length<=4096);
 });

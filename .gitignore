@@ -20,3 +20,15 @@ target/
 *.download
 /editor/renderer/shader-nodes.bundle.js
 /editor/renderer/shader-nodes.bundle.css
+
+# Generated TypeScript runtime and electron-vite bundles
+/editor/electron/*.cjs
+/editor/electron/*.mjs
+/editor/renderer/*.js
+!/editor/renderer/assets/
+/editor/dist/
+/editor/type-errors.txt
+*.tsbuildinfo
+
+/editor/test-results.txt
+/editor/*-smoke-log.txt

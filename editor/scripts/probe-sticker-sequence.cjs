@@ -1,5 +1,5 @@
 /* Two real GPU contexts, one reference clock; no reference pixels enter either shader. */
-const fs=require('node:fs'),path=require('node:path'),{createHash}=require('node:crypto'),R=require('../renderer/runtime-model.js'),F=require('../renderer/frame-model.js'),K=require('../renderer/finish-catalog.js');
+const fs=require('node:fs'),path=require('node:path'),{createHash}=require('node:crypto'),R=require('../dist/renderer/runtime-model.js'),F=require('../dist/renderer/frame-model.js'),K=require('../dist/renderer/finish-catalog.js');
 const root=path.resolve(process.argv[2]);
 const beforeLabel=process.argv[3]||'0.19.69';
 const previewScale=270/820,registrationScale=690/1024;

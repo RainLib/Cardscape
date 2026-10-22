@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const W=require('../renderer/character-weight-repair.js'),A=require('../renderer/character-motion-audit.js'),C=require('../renderer/character-animation-model.js');
+const W=require('../dist/renderer/character-weight-repair.js'),A=require('../dist/renderer/character-motion-audit.js'),C=require('../dist/renderer/character-animation-model.js');
 const real=require('./fixtures/spine-4.3.26-weight-fault.json');
 function apply(d,r){const copy=structuredClone(d);copy.characterRig.meshes[0].weights=r.weights;return copy;}
 test('real Spine 4.3.26 local repair fixes every clip while preserving exact FFD, binds and topology',()=>{

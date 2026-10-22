@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const C=require('../renderer/component-model.js'),K=require('../renderer/finish-catalog.js'),M=require('../renderer/cosmetics-model.js'),R=require('../renderer/runtime-model.js'),W=require('../renderer/workshop-model.js');
+const C=require('../dist/renderer/component-model.js'),K=require('../dist/renderer/finish-catalog.js'),M=require('../dist/renderer/cosmetics-model.js'),R=require('../dist/renderer/runtime-model.js'),W=require('../dist/renderer/workshop-model.js');
 
 test('reference surfaces preserve editable art, nested images, independent back and emission binding through publication',()=>{
  for(const id of ['material-circuits','material-frosted','material-wakandanglass','material-purple-rays','material-rainbow-rays']){
@@ -22,7 +22,7 @@ test('reference surfaces preserve editable art, nested images, independent back 
 });
 
 test('three web rims keep rigid cut corners and no outer aura while retaining custom source scenes',()=>{
- const F=require('../renderer/frame-model.js');
+ const F=require('../dist/renderer/frame-model.js');
  for(const id of ['frame-web-black','frame-web-red','frame-web-pink']){
   const v=K.value(id,{style:F.defaults,document:{layers:[{id:'custom-frame',src:'frame-art'}]}});
   F.validate({frameStyle:v.style});assert.equal(v.style.finish,'web');assert.equal(v.style.shape,'rect');assert.equal(v.style.corner,48);

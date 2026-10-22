@@ -1,4 +1,4 @@
-const fs=require('node:fs/promises');const path=require('node:path');const assert=require('node:assert/strict');const {createHash}=require('node:crypto');const {NativeWorker}=require('../electron/native-client.cjs');
+const fs=require('node:fs/promises');const path=require('node:path');const assert=require('node:assert/strict');const {createHash}=require('node:crypto');const {NativeWorker}=require('../dist/electron/native-client.cjs');
 const root=path.resolve(__dirname,'..'),runtime=path.join(root,'runtime/authoring-audit'),output=path.resolve(root,'../outputs/card-authoring-audit-v1');
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 (async()=>{

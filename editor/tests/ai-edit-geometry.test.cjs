@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const G=require('../renderer/ai-edit-geometry.js');
+const G=require('../dist/renderer/ai-edit-geometry.js');
 
 test('paint coordinates invert view zoom, pan and expanded-image offsets',()=>{
  const padding=[320,80,64,160],b=G.layout(740,460,1024,1536,padding,2.25,{x:-70,y:45});

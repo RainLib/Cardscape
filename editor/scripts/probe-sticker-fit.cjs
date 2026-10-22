@@ -1,6 +1,6 @@
 // QA: fit a bounded, continuous orbit against visible reference frames. Never export their pixels.
 const fs=require('node:fs'),path=require('node:path'),{createHash}=require('node:crypto');
-const R=require('../renderer/runtime-model.js'),F=require('../renderer/frame-model.js'),K=require('../renderer/finish-catalog.js');
+const R=require('../dist/renderer/runtime-model.js'),F=require('../dist/renderer/frame-model.js'),K=require('../dist/renderer/finish-catalog.js');
 const root=path.resolve(process.argv[2]),start=R.fragment.indexOf('// Shared procedural finish');
 const baselinePath=path.join(root,'before-shared.glsl');
 let shader=fs.existsSync(baselinePath)?fs.readFileSync(baselinePath,'utf8'):R.fragment.slice(start,R.fragment.indexOf('\nvoid ',start));

@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
-const {createServices}=require('../electron/services.cjs'),R=require('../renderer/runtime-model.js'),W=require('../renderer/workshop-model.js'),S=require('../renderer/session-model.js');
+const {createServices}=require('../dist/electron/services.cjs'),R=require('../dist/renderer/runtime-model.js'),W=require('../dist/renderer/workshop-model.js'),S=require('../dist/renderer/session-model.js');
 const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 function card(id,name=id){return R.ensure({schema:'card-atelier/1',id,name,width:1024,height:1536,layers:[{id:'figure',name:'人物',kind:'foreground',x:0,y:0,scale:1,opacity:1,visible:true,locked:false,src:png}],masks:{motion:png},back:png,effects:{},thumbnail:png});}
 async function sessionSave(service,project,token,revision,view){return service.invoke('editor-session-save',{token,sequence:1,revision,savedRevision:0,view,...await S.encoder()(project)});}

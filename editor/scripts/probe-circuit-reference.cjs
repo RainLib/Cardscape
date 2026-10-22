@@ -1,6 +1,6 @@
 // QA only: public reference pixels never become exported card assets.
 const fs=require('node:fs'),path=require('node:path');
-const R=require('../renderer/runtime-model.js'),K=require('../renderer/finish-catalog.js');
+const R=require('../dist/renderer/runtime-model.js'),K=require('../dist/renderer/finish-catalog.js');
 const dir=path.resolve(__dirname,'../outputs/circuits-v58');
 const baseline=JSON.parse(fs.readFileSync(path.join(dir,'baseline.json')));
 const shared=s=>s.slice(s.indexOf('// Shared procedural finish'),s.indexOf('\nvoid ',s.indexOf('// Shared procedural finish')));

@@ -1,5 +1,5 @@
 /* GPU reference inspection only. Public image pixels are never exported as product assets. */
-const fs=require('node:fs'),path=require('node:path'),R=require('../renderer/runtime-model.js'),K=require('../renderer/finish-catalog.js'),F=require('../renderer/frame-model.js');
+const fs=require('node:fs'),path=require('node:path'),R=require('../dist/renderer/runtime-model.js'),K=require('../dist/renderer/finish-catalog.js'),F=require('../dist/renderer/frame-model.js');
 const directory=path.resolve(__dirname,'../outputs/pax-v61');
 const a=R.fragment.indexOf('// Shared procedural finish'),shader=R.fragment.slice(a,R.fragment.indexOf('\nvoid ',a)),recipe=K.value('frame-pax-2025').style;
 const data={shader,recipe,finish:F.finishes.indexOf(recipe.finish)};

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const F=require('../renderer/frame-model.js'),K=require('../renderer/finish-catalog.js'),R=require('../renderer/runtime-model.js'),M=require('../renderer/cosmetics-model.js'),W=require('../renderer/workshop-model.js');
+const F=require('../dist/renderer/frame-model.js'),K=require('../dist/renderer/finish-catalog.js'),R=require('../dist/renderer/runtime-model.js'),M=require('../dist/renderer/cosmetics-model.js'),W=require('../dist/renderer/workshop-model.js');
 
 test('detail rims retain component art, independent back and rigid geometry through publish, apply and reopen',()=>{
  for(const [id,finish] of [['chains-silver','chains'],['glyphs-green','glyphs'],['refraction-rainbow','refraction'],['overloaded','overloaded'],['pax-2025','pax'],['brains','brains'],['candy-halloween','candy-halloween'],['halloween-stickers','halloween-stickers']]){
@@ -25,7 +25,7 @@ test('animated detail reflections request playback; zero speed freezes every det
 });
 
 test('large border decorations reserve the same uncropped footprint in raster and 3D geometry',()=>{
- const Raster=require('../renderer/frame-raster.js'),style=K.value('frame-halloween-stickers').style;
+ const Raster=require('../dist/renderer/frame-raster.js'),style=K.value('frame-halloween-stickers').style;
  assert.deepEqual(Raster.bounds(style),{x:-144,y:-144,width:1312,height:1824});
  const geometry=F.geometry(style),left=Math.min(...geometry.aura.positions.filter((_,i)=>i%3===0));
  assert.equal(left,-.5-144/1024);

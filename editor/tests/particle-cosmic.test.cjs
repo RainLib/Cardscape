@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js'),K=require('../renderer/finish-catalog.js'),B=require('../renderer/particle-batch.js'),F=require('../renderer/frame-model.js');
+const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js'),K=require('../dist/renderer/finish-catalog.js'),B=require('../dist/renderer/particle-batch.js'),F=require('../dist/renderer/frame-model.js');
 const p=M.particlePreset('cosmic'),doc={layers:[],frameStyle:F.defaults},rim=C.haloPath(C.emitter(p.emitter),F.defaults.corner/1024);
 function distance(x,y){let d=Infinity;for(const s of rim.segments){const t=Math.max(0,Math.min(1,((x-s.x)*s.dx+(y-s.y)*s.dy)/(s.size*s.size)));d=Math.min(d,Math.hypot(x-s.x-s.dx*t,y-s.y-s.dy*t));}return d;}
 function frame(time,value=p,context=doc,budget=256,facing=0){const data=new Float64Array(256*7);return {data,n:C.sampleInto(value,time,context,facing,data,budget)};}

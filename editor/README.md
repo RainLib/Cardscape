@@ -26,6 +26,8 @@
 
 Electron 桌面编辑器，重计算交给独立 Rust 进程，卡牌预览使用 GPU。
 
+应用代码已迁移到 TypeScript，并按编辑、人物、渲染、工坊、Shader、Agent 分目录；electron-vite 管理三类进程的构建和桌面开发。新核心模块采用严格类型检查，旧文档/插件的动态字段保留兼容类型边界。构建命令、目录职责、性能策略及验证范围见 [TypeScript 架构说明](docs/typescript-architecture.md)。
+
 ## 启动
 
 项目总览与 Makefile 命令见 [根目录 README](../README.md)。运行所需样卡素材已随源码保留，Rust worker 需要在目标机器构建。
@@ -36,6 +38,8 @@ macOS 可双击本目录的 `启动卡牌工坊.command`。当前已打开的开
 cd Cardscape/editor
 npm start
 ```
+
+开发时使用 `npm run dev` 启动 Electron + Vite；纯网页预览使用 `npm run dev:web`。`npm start` 自动先构建，旧 macOS 双击启动器也会先生成 TypeScript 产物。
 
 首次在另一台机器运行：
 

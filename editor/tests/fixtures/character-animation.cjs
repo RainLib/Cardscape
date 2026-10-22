@@ -1,5 +1,5 @@
 const zlib=require('node:zlib');
-const R=require('../../renderer/runtime-model.js');
+const R=require('../../dist/renderer/runtime-model.js');
 function crc(b){let c=0xffffffff;for(const v of b){c^=v;for(let i=0;i<8;i++)c=(c>>>1)^((c&1)?0xedb88320:0);}return(c^0xffffffff)>>>0;}
 function chunk(type,b){const t=Buffer.from(type),r=Buffer.alloc(b.length+12);r.writeUInt32BE(b.length);t.copy(r,4);b.copy(r,8);r.writeUInt32BE(crc(Buffer.concat([t,b])),b.length+8);return r;}
 const pngCache=new Map();

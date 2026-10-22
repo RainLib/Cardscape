@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const region=require('../renderer/preview-region.js'),spatial=require('../renderer/spatial-model.js'),runtime=require('../renderer/runtime-model.js'),space=require('../renderer/space-model.js');
+const region=require('../dist/renderer/preview-region.js'),spatial=require('../dist/renderer/spatial-model.js'),runtime=require('../dist/renderer/runtime-model.js'),space=require('../dist/renderer/space-model.js');
 function card(){return {spatial:{...spatial.defaults},layers:[{id:'body',name:'body',kind:'foreground',x:0,y:-19,scale:1.12,spatial:{role:'body',z:.07,clip:false}},{id:'skirt',kind:'image',splitSourceId:'body',x:0,y:-20,scale:1.12,spatial:{role:'front',z:.17,clip:false},attachment:{maxOffset:.1,blendWidth:96,anchor:{edge:'top',pin:870,release:1130},motion:.35}},{id:'title',kind:'text'},{id:'other',kind:'foreground'}]};}
 test('shared mother regions follow split surfaces but never unrelated artwork',()=>{
  const d=card(),[body,cloth,title,other]=d.layers,before=structuredClone(d);

@@ -1,6 +1,6 @@
 // Independent GPU input: source game images remain in QA, never exported assets.
 const fs=require('node:fs/promises'),path=require('node:path'),{createHash}=require('node:crypto');
-const R=require('../renderer/runtime-model.js'),K=require('../renderer/finish-catalog.js');
+const R=require('../dist/renderer/runtime-model.js'),K=require('../dist/renderer/finish-catalog.js');
 async function main(){
  const output=path.resolve('outputs/rays-v86'),prediction=JSON.parse(await fs.readFile(path.join(output,'geometry-prediction.json'))),version=require('../package.json').version;
  const sequence=process.argv.includes('--sequence');

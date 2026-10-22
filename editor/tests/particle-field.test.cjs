@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js');
+const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js');
 function samples(p,time,doc={layers:[]}){const values=new Float64Array(256*7),count=C.sampleInto(p,time,doc,0,values);return Array.from({length:count},(_,i)=>values.slice(i*7,i*7+7));}
 test('sustained Glimmer covers artwork and a bounded outer fringe without distant particles',()=>{
  const p=M.particlePreset('glimmer');C.validateParticles(p);assert.equal(p.trajectory,'field');

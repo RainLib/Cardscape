@@ -7,7 +7,7 @@ function harness(){
  function refresh(kind){const next=(drafts[kind]||value(kind))?.finish;if(next!==current){changes.push(next);current=next;}}
  const host={activateRuntime(){},state:()=>state,mutate(label,fn){if(reject)throw Error('validation failed');fn(state.document);for(const kind of Object.keys(drafts))refresh(kind);return true;},say(message){get('error').textContent=message;}};
  const window={cardEditorHost:host,CardFinishCatalog:{entries,find:id=>entries.find(e=>e.id===id),value:id=>({finish:id==='frame-other'?'other':'new'}),apply(d,kind){if(kind==='frame')d.frameStyle={finish:'new'};else d[kind]={finish:'new'};}},atelierComponents:{getDraft:kind=>drafts[kind],draft(kind,v){if(v)drafts[kind]=v;else delete drafts[kind];refresh(kind);},revealAuthored(kinds){for(const kind of kinds){delete drafts[kind];refresh(kind);}}},addEventListener(){},atelierWorkspace:{ensurePreview(){}}};
- vm.runInNewContext(fs.readFileSync(require.resolve('../renderer/finish-library.js'),'utf8'),{window,document:{getElementById:get,createElement:node}});
+ vm.runInNewContext(fs.readFileSync(require.resolve('../dist/renderer/finish-library.js'),'utf8'),{window,document:{getElementById:get,createElement:node}});
  return {open:()=>window.atelierFinishLibrary.open(),preview:kind=>get('finish-library-list').children.find(b=>b.dataset.recipe===kind).onclick(),apply:()=>get('finish-library-apply').onclick(),close:()=>window.atelierFinishLibrary.close(),changes,drafts,reject(){reject=true;},get(id){return get(id);}};
 }
 test('applying an effect preview commits directly without briefly restoring old geometry',()=>{

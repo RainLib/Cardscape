@@ -1,6 +1,6 @@
 // Reproducible authoring recipe for the existing registered Quantumslinger.
 // Work on an offline copy and open that copy in the editor for acceptance.
-const C=require('../renderer/character-animation-model.js'),T=require('../renderer/character-weight-tools.js'),J=require('../renderer/character-joint-tools.js'),Pixels=require('./character-source-coverage.cjs');
+const C=require('../dist/renderer/character-animation-model.js'),T=require('../dist/renderer/character-weight-tools.js'),J=require('../dist/renderer/character-joint-tools.js'),Pixels=require('./character-source-coverage.cjs');
 const smooth=(a,b,v)=>{const t=Math.max(0,Math.min(1,(v-a)/(b-a)));return t*t*(3-2*t);};
 function prepare(source,{support}={}){
  const doc=structuredClone(source),required=['root','shoulder','forearm','near-leg','far-leg','cloth'];for(const id of required)if(!doc.characterRig?.bones.some(b=>b.id===id))throw Error('Missing Quantumslinger bone: '+id);

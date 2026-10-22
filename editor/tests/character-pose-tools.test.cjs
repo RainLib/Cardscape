@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const C=require('../renderer/character-animation-model.js'),P=require('../renderer/character-pose-tools.js'),{fixture}=require('./fixtures/character-animation.cjs');
+const C=require('../dist/renderer/character-animation-model.js'),P=require('../dist/renderer/character-pose-tools.js'),{fixture}=require('./fixtures/character-animation.cjs');
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
 function ikFixture(){const d=fixture();d.characterRig.constraints=[{id:'aim',name:'Aim',rootId:'shoulder',tipId:'elbow',end:[100,0],target:[650,500],mix:1,bend:1}];C.validate(d);return d;}
 test('FK manipulation bakes the solved IK pose before releasing the chain without a jump',()=>{const d=ikFixture(),a=d.actions[0],before=structuredClone(d),pose=C.sample(d,a,.3,{seek:true}),next=P.fk(d,a,.3,'elbow'),after=C.sample(d,next,.3,{seek:true});for(const id of ['shoulder','elbow'])pose.bones.get(id).world.forEach((v,i)=>close(v,after.bones.get(id).world[i]));close(C.control(d,next,'ik','aim',.3/a.duration).mix,0);assert.deepEqual(d,before);});

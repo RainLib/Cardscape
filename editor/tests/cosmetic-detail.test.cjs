@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const C=require('../renderer/component-model.js'),K=require('../renderer/finish-catalog.js'),M=require('../renderer/cosmetics-model.js'),F=require('../renderer/frame-model.js'),R=require('../renderer/runtime-model.js'),W=require('../renderer/workshop-model.js');
+const C=require('../dist/renderer/component-model.js'),K=require('../dist/renderer/finish-catalog.js'),M=require('../dist/renderer/cosmetics-model.js'),F=require('../dist/renderer/frame-model.js'),R=require('../dist/renderer/runtime-model.js'),W=require('../dist/renderer/workshop-model.js');
 const context={layers:[],frameStyle:F.defaults},p=M.particlePreset('krackle');
 function sample(t,config=p,doc=context){const output=new Float64Array(256*7),count=C.sampleInto(config,t,doc,0,output);return {count,output};}
 test('Krackle births stagger within near-rim clusters without visible rebirth jumps',()=>{

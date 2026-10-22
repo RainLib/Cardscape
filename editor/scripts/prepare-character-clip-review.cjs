@@ -1,5 +1,5 @@
 // Read-only validation and review setup for a clip authored in the real editor.
-const fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict'),C=require('../renderer/character-animation-model.js'),R=require('../renderer/runtime-model.js'),S=require('../renderer/spatial-model.js'),Audit=require('../renderer/character-motion-audit.js');
+const fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict'),C=require('../dist/renderer/character-animation-model.js'),R=require('../dist/renderer/runtime-model.js'),S=require('../dist/renderer/spatial-model.js'),Audit=require('../dist/renderer/character-motion-audit.js');
 async function main(){
  const [project,exportDirectory,actionId,outputDirectory]=process.argv.slice(2);if(!outputDirectory)throw Error('Usage: node scripts/prepare-character-clip-review.cjs PROJECT EXPORTED_CARD ACTION_ID OUTPUT_DIRECTORY');
  const directory=path.resolve(outputDirectory),exported=path.resolve(exportDirectory),doc=JSON.parse(await fs.readFile(project)),manifest=JSON.parse(await fs.readFile(path.join(exported,'manifest.json'))),action=doc.actions.find(a=>a.id===actionId);if(!action)throw Error('Action not found');

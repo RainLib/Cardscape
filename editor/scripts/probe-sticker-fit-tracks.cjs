@@ -1,6 +1,6 @@
 // QA only. A single continuous elliptical track is fitted, never a table of reference pixels.
 const fs=require('node:fs'),path=require('node:path'),{createHash}=require('node:crypto');
-const R=require('../renderer/runtime-model.js'),F=require('../renderer/frame-model.js'),K=require('../renderer/finish-catalog.js');
+const R=require('../dist/renderer/runtime-model.js'),F=require('../dist/renderer/frame-model.js'),K=require('../dist/renderer/finish-catalog.js');
 const root=path.resolve(process.argv[2]),target=process.argv[3]||'right-top-bat';
 const targets={'right-top-bat':{cell:[.14,.16],along:.79,region:[540,5,695,115]},'left-top-bat':{cell:[.24,.26],along:.215,region:[105,5,280,100]}};
 if(!targets[target])throw Error('Target must be right-top-bat or left-top-bat');

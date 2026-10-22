@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const commands=require('../renderer/editor-commands.js'),options=require('../electron/agent-options.cjs');
+const commands=require('../dist/renderer/editor-commands.js'),options=require('../dist/electron/agent-options.cjs');
 test('inspection during AI production is allowed but newer content and explicit view changes stay protected',()=>{const bound={documentToken:'card-a',revision:5,viewKey:'front'},tilt={...bound,viewKey:'tilt'};assert.equal(commands.bindingMatches(bound,tilt,[{op:'frame'}]),true);assert.equal(commands.bindingMatches(bound,tilt,[{op:'pose'}]),false);assert.equal(commands.bindingMatches(bound,{...tilt,revision:6},[{op:'frame'}]),false);assert.equal(commands.bindingMatches(bound,{...tilt,documentToken:'card-b'},[{op:'frame'}]),false);});
 const sample=()=>({previewMode:'sample',effects:{depth:1,cape:true},deformation:{bend:0,wind:1,speed:1},actions:[{id:'flip'}],layers:[{id:'title',kind:'text',name:'标题',text:'标题',x:0,y:0,scale:1,opacity:1,visible:true,locked:false},{id:'person',kind:'foreground',name:'人物',x:0,y:0,scale:1,opacity:1,visible:true,locked:false},{id:'bg',kind:'background',name:'背景',x:0,y:0,scale:1,opacity:1,visible:true,locked:true}]});
 test('CLI defaults honor root/profile, ignore secrets and support refreshed catalogue',()=>{

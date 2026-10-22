@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
-const R=require('../renderer/runtime-model.js'),W=require('../renderer/workshop-model.js');
-const {exportRuntime}=require('../electron/runtime-export.cjs'),{exportGodot,portableBody}=require('../electron/godot-export.cjs');
+const R=require('../dist/renderer/runtime-model.js'),W=require('../dist/renderer/workshop-model.js');
+const {exportRuntime}=require('../dist/electron/runtime-export.cjs'),{exportGodot,portableBody}=require('../dist/electron/godot-export.cjs');
 const body='return displacedSource(uv, time);';
 const prelude='vec4 displacedSource(vec2 uv, float time){return sampleSource(uv + vec2(.005 * sin(time), 0.0));}';
 

@@ -2,7 +2,7 @@
 
 Cardscape（卡境）是一款面向动态卡牌创作的桌面编辑器，将平面插画、图层、Mask、空间层级和 GPU 动效组合成可编辑的 2.5D 卡牌场景。
 
-基于 **Electron + JavaScript / WebGL + Rust**。当前版本为 **0.15.1**，原项目名称为「卡牌工坊 / Card Atelier」。现有 `.cardproj` 格式、`card-atelier/*` 协议标识和 `ATELIER_*` 环境变量保留兼容。
+基于 **Electron + TypeScript / WebGL + Rust**，使用 **electron-vite** 统一构建主进程、预加载与渲染进程。当前版本为 **0.19.92**，原项目名称为「卡牌工坊 / Card Atelier」。现有 `.cardproj` 格式、`card-atelier/*` 协议标识和 `ATELIER_*` 环境变量保留兼容。目录职责、类型边界与性能策略见 [TypeScript 架构说明](editor/docs/typescript-architecture.md)。
 
 ## 主要能力
 
@@ -17,7 +17,7 @@ Cardscape（卡境）是一款面向动态卡牌创作的桌面编辑器，将�
 
 ## 快速开始
 
-需要 Node.js 22 或更新版本、npm、支持 Rust 2024 edition 的稳定 Rust 工具链；本地 AI 功能还需要 Python 及相应依赖。
+需要 Node.js 22.18 或更新版本、npm、支持 Rust 2024 edition 的稳定 Rust 工具链；本地 AI 功能还需要 Python 及相应依赖。
 
 ```sh
 git clone git@github.com:RainLib/Cardscape.git
@@ -26,12 +26,14 @@ make setup
 make start
 ```
 
-网页开发预览：
+桌面开发与网页预览：
 
 ```sh
 make dev
+# electron-vite 桌面开发：前端自动刷新，主进程变化自动重启
+make web
 # http://127.0.0.1:8770/index.html
-# 使用其他端口：make dev PORT=8771
+# 网页预览使用其他端口：make web PORT=8771
 ```
 
 macOS 也可以双击 `editor/启动卡牌工坊.command`。启动器名称保留以兼容已有使用方式。Node.js 必须可从终端 PATH 访问。
@@ -47,8 +49,9 @@ macOS 也可以双击 `editor/启动卡牌工坊.command`。启动器名称保�
 | `make install` | 按 package-lock 安装 Node 依赖 |
 | `make build` | 构建前端与 release worker |
 | `make start` | 启动桌面端 |
-| `make dev PORT=8770` | 启动本地网页端 |
-| `make check` | 前端打包与 JavaScript 语法检查 |
+| `make dev` | Electron + Vite 桌面开发与热更新 |
+| `make web PORT=8770` | 启动本地网页端 |
+| `make check` | TypeScript 类型检查、生产构建与兼容脚本检查 |
 | `make test` | 语法检查、Rust 与 Node 测试 |
 | `make test-node` / `make test-native` | 单独执行测试 |
 | `make icons` | 同步 macOS 应用包图标 |
@@ -62,7 +65,10 @@ macOS 也可以双击 `editor/启动卡牌工坊.command`。启动器名称保�
 ```text
 editor/
   electron/       主进程、IPC、工程与 Agent 服务
-  renderer/       编辑器 UI、WebGL 与独立播放器
+  renderer/       按功能分组的 TypeScript UI、WebGL 与独立播放器
+  shared/         IPC 与文档类型契约
+  build/          TypeScript 构建与兼容产物生成
+  dist/           构建输出（不提交）
   native/         Rust 图像与 Mask worker
   native-ai/      Python 智能选区与抠图 worker
   assets/         默认素材与应用图标

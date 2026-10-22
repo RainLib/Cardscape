@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{EventEmitter}=require('node:events');
-const {createLoadingWindow,normalize}=require('../electron/loading-window.cjs');
+const {createLoadingWindow,normalize}=require('../dist/electron/loading-window.cjs');
 function fixture(background=false){
  const events=[],windows=[];class Window extends EventEmitter{constructor(options){super();this.options=options;this.id=windows.length+1;this.dead=false;this.webContents=new EventEmitter();this.webContents.mainFrame={url:'atelier://app/splash.html'};this.webContents.send=(...args)=>events.push(['send',...args]);this.webContents.setWindowOpenHandler=fn=>this.popup=fn;windows.push(this);}setMenu(){}async loadURL(url){this.url=url;}isDestroyed(){return this.dead;}hide(){events.push(['splash-hide']);}show(){events.push(['splash-show']);}focus(){}destroy(){this.dead=true;}}
  const main={hide:()=>events.push(['main-hide']),show:()=>events.push(['main-show']),focus(){},isDestroyed:()=>false,webContents:{setBackgroundThrottling:value=>events.push(['throttle',value])}};

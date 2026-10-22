@@ -1,7 +1,7 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');const os=require('node:os');const path=require('node:path');
-const {NativeWorker}=require('../electron/native-client.cjs');
-const {createServices,validateProject}=require('../electron/services.cjs');
+const {NativeWorker}=require('../dist/electron/native-client.cjs');
+const {createServices,validateProject}=require('../dist/electron/services.cjs');
 async function tinyMask(worker,weights=[0,1,1,0]){return worker.call('bake_mask',{width:32,height:48,uv:[0,0,1,0,1,1,0,1],weights,indices:[0,1,2,0,2,3]});}
 test('native PNG pipeline, rigid guard, resize and shared topology',async()=>{
   const w=new NativeWorker();try{

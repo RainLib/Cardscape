@@ -4,7 +4,7 @@ CARGO ?= cargo
 PORT ?= 8770
 EDITOR := editor
 
-.PHONY: help install setup build build-editor build-native start dev check test test-node test-native icons selection-setup cutout-setup
+.PHONY: help install setup build build-editor build-native start dev web check test test-node test-native icons selection-setup cutout-setup
 
 help: ## 列出常用命令
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -17,19 +17,22 @@ setup: install ## 首次准备：依赖、编辑器前端、Rust worker
 
 build: build-editor build-native ## 构建前端与原生 worker
 
-build-editor: ## 打包 Shader 代码与节点编辑器前端
+build-editor: ## 构建 TypeScript、Electron 与编辑器前端
 	$(NPM) --prefix $(EDITOR) run build:editor
 
 build-native: ## 构建 Rust release worker
 	$(CARGO) build --release --manifest-path $(EDITOR)/native/Cargo.toml
 
-start: build-editor ## 启动 Electron 桌面端（先执行 make setup）
+start: ## 构建并启动 Electron 桌面端（先执行 make setup）
 	$(NPM) --prefix $(EDITOR) start
 
-dev: build-editor ## 启动本地网页端，可指定 PORT=8771
-	cd $(EDITOR) && ATELIER_PORT=$(PORT) $(NPM) run dev
+dev: ## 启动 electron-vite 桌面开发与热更新
+	$(NPM) --prefix $(EDITOR) run dev
 
-check: ## 构建前端并检查 JavaScript 语法
+web: ## 启动本地网页端，可指定 PORT=8771
+	cd $(EDITOR) && ATELIER_PORT=$(PORT) $(NPM) run dev:web
+
+check: ## TypeScript 类型检查、生产构建与兼容脚本检查
 	$(NPM) --prefix $(EDITOR) run check
 
 test: check test-native test-node ## 执行语法检查、Rust 与 Node 测试

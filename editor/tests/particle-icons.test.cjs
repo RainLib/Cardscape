@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const C=require('../renderer/component-model.js'),M=require('../renderer/cosmetics-model.js'),K=require('../renderer/finish-catalog.js'),B=require('../renderer/particle-batch.js'),F=require('../renderer/frame-model.js'),W=require('../renderer/workshop-model.js'),R=require('../renderer/runtime-model.js');
+const C=require('../dist/renderer/component-model.js'),M=require('../dist/renderer/cosmetics-model.js'),K=require('../dist/renderer/finish-catalog.js'),B=require('../dist/renderer/particle-batch.js'),F=require('../dist/renderer/frame-model.js'),W=require('../dist/renderer/workshop-model.js'),R=require('../dist/renderer/runtime-model.js');
 const profiles=[['flowers','flower',44,'rainbow'],['paws','paw',32,'rainbow'],['pizza','pizza',24,'solid']],context={layers:[],frameStyle:F.defaults};
 function sample(p,time,doc=context,budget=256,facing=0){const data=new Float64Array(256*7);return {data,count:C.sampleInto(p,time,doc,facing,data,budget)};}
 test('illustrated silhouettes have distinct palettes, preserve source art and survive reusable publication',()=>{

@@ -1,7 +1,7 @@
 // Prepare isolated, reproducible real-art QA copies. Never overwrite a workshop.
 const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('node:crypto'),assert=require('node:assert/strict');
-const C=require('../renderer/character-animation-model.js'),R=require('../renderer/runtime-model.js'),cases=require('./real-character-cases.cjs');
-const {createServices}=require('../electron/services.cjs');
+const C=require('../dist/renderer/character-animation-model.js'),R=require('../dist/renderer/runtime-model.js'),cases=require('./real-character-cases.cjs');
+const {createServices}=require('../dist/electron/services.cjs');
 const hash=v=>crypto.createHash('sha256').update(v).digest('hex');
 const frames=values=>values.map((value,i)=>({at:i/(values.length-1),value,ease:'smooth'}));
 function prepare(source,spec){

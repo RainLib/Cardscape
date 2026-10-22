@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const G=require('../renderer/shader-graph-model.js'),R=require('../renderer/runtime-model.js');
-const {portableBody}=require('../electron/godot-export.cjs');
+const G=require('../dist/renderer/shader-graph-model.js'),R=require('../dist/renderer/runtime-model.js');
+const {portableBody}=require('../dist/electron/godot-export.cjs');
 const doc=()=>R.ensure({schema:'card-atelier/1',id:'nodes',name:'Nodes',width:1024,height:1536,layers:[],masks:{},effects:{}});
 test('both graph stages compile into portable hooks and survive document serialization',()=>{
  for(const stage of ['geometry','fragment'])for(const preset of ['original','wave']){

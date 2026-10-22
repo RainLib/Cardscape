@@ -1,6 +1,6 @@
 // Compare a UI-saved refined mesh to its original animated triangle field.
 // The baseline can separately be verified against the source Spine export.
-const fs=require('node:fs'),assert=require('node:assert/strict'),U=require('../renderer/character-mesh-tools.js'),C=require('../renderer/character-animation-model.js'),R=require('../renderer/runtime-model.js');
+const fs=require('node:fs'),assert=require('node:assert/strict'),U=require('../dist/renderer/character-mesh-tools.js'),C=require('../dist/renderer/character-animation-model.js'),R=require('../dist/renderer/runtime-model.js');
 const [beforePath,afterPath,output]=process.argv.slice(2);if(!output)throw Error('Usage: node verify-ffd-retopology.cjs BEFORE_CARD UI_SAVED_CARD REPORT');
 const before=JSON.parse(fs.readFileSync(beforePath)),after=JSON.parse(fs.readFileSync(afterPath));C.validate(before);C.validate(after);assert.deepEqual(before.characterRig.bones,after.characterRig.bones);assert.deepEqual(before.characterRig.bindings,after.characterRig.bindings);
 const at=(m,i)=>({x:m.vertices[i*2],y:m.vertices[i*2+1]}),actionShape=a=>({...a,deformTracks:Object.fromEntries(Object.entries(a.deformTracks||{}).map(([id,tracks])=>[id,Object.fromEntries(Object.entries(tracks).map(([bone,frames])=>[bone,frames.map(f=>({...f,deltas:[]}))]))]))});assert.deepEqual(before.actions.map(actionShape),after.actions.map(actionShape));

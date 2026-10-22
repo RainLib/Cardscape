@@ -1,2 +1,4 @@
-const path=require('node:path');
-Promise.all(['shader-editor','shader-nodes'].map(name=>require('esbuild').build({entryPoints:[path.resolve(__dirname,'../renderer/'+name+'-source.mjs')],outfile:path.resolve(__dirname,'../renderer/'+name+'.bundle.js'),bundle:true,minify:true,format:'iife',target:'chrome120',legalComments:'eof'}))).catch(error=>{console.error(error);process.exitCode=1;});
+// Compatibility entry point; the build is maintained in TypeScript.
+const {spawnSync}=require('node:child_process');
+const result=spawnSync(process.platform==='win32'?'npm.cmd':'npm',['run','build'],{cwd:require('node:path').resolve(__dirname,'..'),stdio:'inherit',shell:process.platform==='win32'});
+process.exitCode=result.status??1;

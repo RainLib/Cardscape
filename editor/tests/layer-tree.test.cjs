@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const folders=require('../renderer/layer-tree.js'),commands=require('../renderer/editor-commands.js');
+const folders=require('../dist/renderer/layer-tree.js'),commands=require('../dist/renderer/editor-commands.js');
 const doc=()=>({layers:['title','near','hero','far'].map(id=>({id,name:id,kind:'image',x:0,y:0,scale:1,opacity:1,visible:true,locked:false})),effects:{},deformation:{}});
 const order=d=>d.layers.map(l=>l.id);
 

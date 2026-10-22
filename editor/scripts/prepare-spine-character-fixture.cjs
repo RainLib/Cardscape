@@ -1,6 +1,6 @@
 // Conformance fixture made from our own real artwork and native animation.
 // This is offline QA preparation, not a Spine editor/runtime integration.
-const fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict'),C=require('../renderer/character-animation-model.js'),R=require('../renderer/runtime-model.js'),S=require('../renderer/spine-import-model.js');
+const fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict'),C=require('../dist/renderer/character-animation-model.js'),R=require('../dist/renderer/runtime-model.js'),S=require('../dist/renderer/spine-import-model.js');
 async function main(){
  const [input,output]=process.argv.slice(2);if(!output)throw Error('Usage: node prepare-spine-character-fixture.cjs SOURCE_CARD OUTPUT_DIR');const original=JSON.parse(await fs.readFile(input)),d=structuredClone(original),a=d.actions.find(a=>a.id==='raise-gun-leg-wide'),rig=d.characterRig,c=rig.constraints[0],last=rig.bones.find(b=>b.id===c.tipId);
  assert.ok(!rig.bones.some(b=>b.parentId===last.id));const phi=Math.atan2(c.end[1],c.end[0])*180/Math.PI;last.rotation+=phi;last.tip=[Math.hypot(...c.end),0];c.end=last.tip;C.validate(d);const rest=C.compile(rig),boneIndex=new Map(rig.bones.map((b,i)=>[b.id,i]));

@@ -1,6 +1,6 @@
 // Reference-only QA page. No downloaded pixels enter authored/exported assets.
 const fs=require('node:fs'),path=require('node:path');
-const R=require('../renderer/runtime-model.js'),K=require('../renderer/finish-catalog.js');
+const R=require('../dist/renderer/runtime-model.js'),K=require('../dist/renderer/finish-catalog.js');
 const directory=path.resolve(process.argv[2]||'outputs/snap-reference-2026-10-11');
 const baseline=JSON.parse(fs.readFileSync(path.join(directory,'neon-v49-baseline.json')));
 const shared=fragment=>fragment.slice(fragment.indexOf('// Shared procedural finish'),fragment.indexOf('\nvoid ',fragment.indexOf('// Shared procedural finish')));

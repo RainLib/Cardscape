@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
-const {createServices}=require('../electron/services.cjs'),R=require('../renderer/runtime-model.js'),W=require('../renderer/workshop-model.js'),S=require('../renderer/session-model.js');
+const {createServices}=require('../dist/electron/services.cjs'),R=require('../dist/renderer/runtime-model.js'),W=require('../dist/renderer/workshop-model.js'),S=require('../dist/renderer/session-model.js');
 const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 function card(name='原版'){return R.ensure({schema:'card-atelier/1',id:'initial',name,width:1024,height:1536,layers:[{id:'figure',name:'人物',kind:'foreground',x:0,y:0,scale:1,opacity:1,visible:true,locked:false,src:png}],masks:{motion:png},back:png,effects:{}});}
 test('refresh and process restart recover the current card, unsaved order and view without overwriting the saved file',async()=>{
@@ -8,7 +8,7 @@ test('refresh and process restart recover the current card, unsaved order and vi
   let w=W.create(card(),'workshop','card-a');w=W.add(w,card('新卡'),'card-b');w.activeCardId='card-a';
   const saved=await service.invoke('save-workshop',{workshop:await W.encode(w)}),original=await fs.readFile(saved.file);
   const boot=await service.invoke('bootstrap');assert.equal(boot.workshop.activeCardId,'card-a');
-  w.activeCardId='card-b';const d=W.resolve(w);require('../renderer/card-stats.js').apply(d,{cost:3,power:8});d.layers.reverse();d.layers.find(l=>l.id==='figure').x=71;d.revision=9;w=W.commit(w,d);
+  w.activeCardId='card-b';const d=W.resolve(w);require('../dist/renderer/card-stats.js').apply(d,{cost:3,power:8});d.layers.reverse();d.layers.find(l=>l.id==='figure').x=71;d.revision=9;w=W.commit(w,d);
   const encode=S.encoder(),snapshot=await encode(w),view={mode:'space',selected:['stat-power'],pose:{yaw:35,pitch:20,time:2},paused:true};
   await service.invoke('editor-session-save',{token:boot.sessionToken,sequence:1,revision:9,savedRevision:0,view,...snapshot});snapshot.ack();
   const delta=await encode(w);assert.equal(Object.keys(delta.blobs).length,0);

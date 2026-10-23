@@ -49,7 +49,15 @@ export interface ComponentValue extends Record<string, unknown> {
   geometry?: unknown;
   shader_key?: string;
 }
-export interface ExportDocument extends CardDocument {
+type KnownDocument = {
+  [K in keyof CardDocument as string extends K ? never : K]: CardDocument[K];
+};
+export interface ExportDocument
+  extends Omit<
+    KnownDocument,
+    'particles' | 'material' | 'backScene' | 'componentScenes'
+  > {
+  [extension: string]: unknown;
   layers: ExportLayer[];
   shader?: ShaderSettings;
   exportSettings?: ExportSettings;
@@ -128,8 +136,11 @@ export interface ImageWorker {
     args?: unknown,
   ): Promise<Timed<NativeResults[K]>>;
 }
+export interface ExportResource extends Omit<WorkshopResource, 'versions'> {
+  versions: Array<{ version: number; value: ComponentValue }>;
+}
 export interface GodotSnapshot {
-  data: { cards: AssetManifest[]; components: WorkshopResource[] };
+  data: { cards: AssetManifest[]; components: ExportResource[] };
   texturePaths: Record<string, string>;
   shaderPaths: Record<string, string>;
 }

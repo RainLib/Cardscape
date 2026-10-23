@@ -55,6 +55,9 @@ export type RuntimeDocument = Pick<CardDocument, 'layers'> &
       | 'effects'
       | 'backScene'
       | 'cosmetics'
+      | 'frameStyle'
+      | 'frameStyles'
+      | 'spatial'
       | 'characterRig'
     >
   > & {

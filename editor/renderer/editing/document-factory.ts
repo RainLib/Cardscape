@@ -22,6 +22,9 @@ export async function createBlankDocument(
   }
   ctx.fillStyle = '#1c2934';
   ctx.fillRect(0, 0, 1024, 1536);
+  const mesh = await services.mesh();
+  if (!mesh.positions || !mesh.uv || !mesh.indices)
+    throw Error('原生网格响应缺少几何数据');
   const document: CardDocument = {
     schema: 'card-atelier/1',
     cosmetics: { ...cosmetics.defaults, level: 'common' },
@@ -30,7 +33,12 @@ export async function createBlankDocument(
     height: 1536,
     previewMode: 'authored',
     spatial: { ...spatial.defaults },
-    foregroundMesh: await services.mesh(),
+    foregroundMesh: {
+      ...mesh,
+      positions: mesh.positions,
+      uv: mesh.uv,
+      indices: mesh.indices,
+    },
     masks,
     back: canvas.toDataURL('image/png'),
     meshGuides: [],

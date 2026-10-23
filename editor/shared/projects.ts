@@ -1,3 +1,9 @@
+import type {
+  WorkshopValue,
+  AssetDraft,
+  BackgroundArchive,
+  LegacyResourceKind,
+} from './workshop';
 import type { CardDocument } from './document';
 export type ResourceKind =
   | 'base'
@@ -14,14 +20,14 @@ export interface WorkshopCard {
   id: string;
   name: string;
   document: CardDocument;
-  bindings: Partial<Record<ResourceKind, ResourceBinding>>;
+  bindings: Partial<Record<LegacyResourceKind, ResourceBinding>>;
   thumbnail?: string;
 }
 export interface WorkshopResource {
   id: string;
   name: string;
-  kind: ResourceKind;
-  versions: Array<{ version: number; value: unknown }>;
+  kind: LegacyResourceKind;
+  versions: Array<{ version: number; value: WorkshopValue }>;
 }
 export interface WorkshopDocument {
   schema: 'card-workshop/1';
@@ -30,6 +36,10 @@ export interface WorkshopDocument {
   activeCardId: string;
   cards: WorkshopCard[];
   resources: WorkshopResource[];
+  editingAsset?: AssetDraft;
+  assetDrafts?: Record<string, AssetDraft>;
+  previewDefaults?: Partial<Record<LegacyResourceKind, ResourceBinding>>;
+  backgroundArchive?: BackgroundArchive[];
   [extension: string]: unknown;
 }
 export type Project = CardDocument | WorkshopDocument;

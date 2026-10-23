@@ -1,3 +1,4 @@
+import type { ShaderStage } from '../../shared/render-models';
 import importedCardShaderGraph from './shader-graph-model.ts';
 import {LiteGraph,LGraph,LGraphCanvas} from 'litegraph.js/build/litegraph.core.js';
 import 'litegraph.js/css/litegraph.css';
@@ -7,7 +8,7 @@ for(const [key,d] of Object.entries<any>(M.definitions)){
  Node.title=d.name;Node.prototype.onDrawForeground=function(ctx){if(this.flags.collapsed)return;const value=this.properties.value??this.properties.color??this.properties.channel;if(value!==undefined){ctx.fillStyle='#a9bac8';ctx.font='12px system-ui';ctx.fillText(String(value),10,this.size[1]-12);}};
  LiteGraph.registerNodeType('card/'+key,Node);
 }
-let graph=null,view=null,stage='fragment',token='',mode='glsl',graphs: Record<string, any>={},applying=false,loading=false,timer: any=0,selected=null,lastShader='',draftSignature='';
+let graph=null,view=null,stage: ShaderStage='fragment',token='',mode='glsl',graphs: Record<string, any>={},applying=false,loading=false,timer: any=0,selected=null,lastShader='',draftSignature='';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const shaderIdentity=s=>JSON.stringify([s.editorMode,s.graphs,s.geometryBody,s.fragmentBody,s.fragmentPrelude]);
 function pack(){return {...graph.serialize(),schema:'card-shader-graph/1',stage};}

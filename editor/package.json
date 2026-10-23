@@ -26,6 +26,7 @@
     "pretest": "npm run build:runtime",
     "test:electron": "npm run build && node scripts/smoke-electron.mts",
     "test:electron:dev": "npm run build && node scripts/smoke-electron.mts --dev",
+    "test:player": "npm run build && node scripts/smoke-exported-player.mts",
     "format": "prettier --write renderer/app.ts renderer/core shared build renderer/editing/document-factory.ts renderer/rendering/document-renderer.ts types/ui.d.ts types/platform.d.ts"
   },
   "devDependencies": {

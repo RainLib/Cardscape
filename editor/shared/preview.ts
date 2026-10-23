@@ -1,3 +1,13 @@
+import type { CharacterAction } from './character';
+import type { RuntimeShader } from './runtime';
+import type {
+  ExternalView,
+  SurfaceResult,
+  PreviewRegion,
+  PixelRect,
+  PixelImage,
+} from './surface-preview';
+import type { InspectionOptions } from '../renderer/rendering/inspection-model';
 import type { CardDocument, CardLayer } from './document';
 
 export interface PreviewView {
@@ -17,14 +27,33 @@ export interface ShaderResult {
 }
 export interface PreviewAPI {
   setDocument(document: CardDocument): void;
-  setTexture(group: string, image: TexImageSource): void;
-  addImage(layer: CardLayer, image: TexImageSource): void;
-  setText(layer: CardLayer, image: TexImageSource): void;
+  setTexture(
+    group: string,
+    image:
+      | HTMLImageElement
+      | HTMLCanvasElement
+      | ImageBitmap
+      | OffscreenCanvas
+      | ImageData,
+  ): void;
+  addImage(
+    layer: CardLayer,
+    image:
+      | HTMLImageElement
+      | HTMLCanvasElement
+      | ImageBitmap
+      | OffscreenCanvas
+      | ImageData,
+  ): void;
+  setText(
+    layer: CardLayer,
+    image: HTMLImageElement | HTMLCanvasElement | ImageBitmap | OffscreenCanvas,
+  ): void;
   updateMask(
     id: string,
-    image: ImageData | HTMLCanvasElement | HTMLImageElement,
-    rect?: unknown,
-    source?: unknown,
+    image: PixelImage,
+    rect?: PixelRect,
+    source?: { canvas: HTMLCanvasElement; version: number },
   ): void;
   pose(yaw: number, pitch?: number): void;
   setTime(seconds: number): void;
@@ -42,28 +71,32 @@ export interface PreviewAPI {
   removeTexture(id: string): void;
   removeMask(id: string): void;
   resetAssets(): void;
-  setRegion(value: unknown): void;
+  setRegion(value: PreviewRegion | null): void;
   compileSources(vertex: string, fragment: string): ShaderResult;
-  compileShader(config: unknown): ShaderResult;
+  compileShader(config: Partial<RuntimeShader>): ShaderResult;
   compileGeometry(body: string): ShaderResult;
   playAction(
     id: string,
     seconds?: number,
     paused?: boolean,
-    draft?: unknown,
+    draft?: CharacterAction | null,
   ): void;
   stopAction(): void;
   transitionPose(yaw: number, pitch?: number, duration?: number): void;
-  inspect(value?: unknown, seconds?: number, paused?: boolean): boolean;
+  inspect(
+    value?: InspectionOptions,
+    seconds?: number,
+    paused?: boolean,
+  ): boolean;
   pauseInspection(): void;
   stopInspection(): void;
   replayParticles(): void;
-  setPreviewLevel(value: string): void;
+  setPreviewLevel(value: string | null): void;
   getPreviewLevel(): string;
   getCharacterGeometry(): Record<string, { positions: number[] }>;
   setRenderOverrides(value: Partial<CardDocument>): void;
   setEmitterContext(value: CardDocument | null): void;
-  drawExternal(options: unknown): unknown;
+  drawExternal(options: ExternalView): SurfaceResult;
   dispose(): void;
 }
 

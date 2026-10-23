@@ -7,6 +7,7 @@ import { exportRemote } from './remote-export';
 import type { WorkshopDocument } from '../shared/projects';
 import type {
   AssetManifest,
+  ExportResource,
   ExportLayer,
   ShaderSettings,
   ComponentValue,
@@ -284,15 +285,17 @@ export async function exportGodot(
     delete m.shaderAssets;
     cards.push(m);
   }
-  const components = W.clone(w.resources);
-  for (const resource of components)
+  const components: ExportResource[] = [];
+  for (const resource of W.clone(w.resources)) {
+    const exported: ExportResource = { ...resource, versions: [] };
+    components.push(exported);
     for (const v of resource.versions) {
       const value =
         resource.kind === 'particles'
           ? await particleAsset(v.value, directory)
           : await componentAsset(v.value, directory);
       if (!value) throw Error('共享组件缺少内容');
-      v.value = value;
+      exported.versions.push({ ...v, value });
       if (value.src) value.src = await asset(value.src, directory);
       if (resource.kind === 'back' && value.layers)
         for (const l of value.layers) l.src = await asset(l.src, directory);
@@ -300,6 +303,7 @@ export async function exportGodot(
       if (resource.kind === 'effect')
         value.shader_key = await shader({ ...R.defaults.shader, ...value });
     }
+  }
   const data = {
     schema: 'cardscape-library/1',
     name: w.name,

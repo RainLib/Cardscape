@@ -1,4 +1,8 @@
-import type {CharacterHost} from '../shared/character-panels';
+import type { WorkspaceHost } from '../shared/workspace';
+import type { AgentUIHost } from '../shared/agent-ui';
+import type { ResourceKind, ResourceBinding } from '../shared/projects';
+import type { WorkshopValue } from '../shared/workshop';
+import type { CharacterHost } from '../shared/character-panels';
 import { createBlankDocument as blankDocument } from './editing/document-factory.ts';
 import { createMaskAssets, maskNames, maskColors } from './core/mask-assets.ts';
 import { element as $ } from './core/dom.ts';
@@ -1482,7 +1486,8 @@ export const moduleApi = (() => {
     let cached = popRasterCache.get(image);
     const key = JSON.stringify([layer.componentAdjustments, layer.adjustments]);
     if (
-      cached?.inset === inset &&
+      cached &&
+      cached.inset === inset &&
       cached.version === (maskVersions.get(inset) || 0) &&
       cached.key === key
     )
@@ -4706,11 +4711,11 @@ export const moduleApi = (() => {
       workshop?: unknown;
       document?: CardDocument;
       name?: string;
-      kind?: string;
-      value?: unknown;
+      kind?: ResourceKind;
+      value?: WorkshopValue;
       resourceId?: string;
       bind?: boolean;
-      binding?: unknown;
+      binding?: ResourceBinding;
       version?: number;
       ids?: string[];
     } = {},
@@ -4834,9 +4839,7 @@ export const moduleApi = (() => {
           throw Error('资源仍被卡片使用，先替换引用或转为独立副本');
         next.resources = next.resources.filter((r) => r.id !== args.id);
         if (next.assetDrafts)
-          for (const [key, d] of Object.entries<{ resourceId: string }>(
-            next.assetDrafts,
-          ))
+          for (const [key, d] of Object.entries(next.assetDrafts))
             if (d.resourceId === args.id) delete next.assetDrafts[key];
         label = '移除未使用资源';
       } else throw Error('工坊操作无效');
@@ -4856,7 +4859,7 @@ export const moduleApi = (() => {
     resourceId = '',
     version = 0,
     fresh = false,
-    kind = 'back',
+    kind: ResourceKind = 'back',
   ) {
     if (!workshop || loading || busy || applying || gesture || freeTransform)
       throw Error('请先结束当前操作，并打开工坊');
@@ -4869,7 +4872,11 @@ export const moduleApi = (() => {
       blank.id = 'draft-' + crypto.randomUUID();
       blank.assetKind = kind;
       blank.cosmetics = { ...importedCardCosmetics.defaults };
-      kind = resourceId ? W.resource(beforeWorkshop, resourceId).kind : kind;
+      const resourceKind = resourceId
+        ? W.resource(beforeWorkshop, resourceId).kind
+        : kind;
+      if (!Object.hasOwn(W.kinds, resourceKind)) throw Error('组件分类无效');
+      kind = resourceKind as ResourceKind;
       let value;
       try {
         value = fresh ? null : W.capture(before, kind);
@@ -5067,7 +5074,9 @@ export const moduleApi = (() => {
     await returnAsset(value);
   }
   const exposedcardEditorHost = {
-    validateDocument(value: unknown): asserts value is CardDocument { importedCardRuntime.validate(value); },
+    validateDocument(value: unknown): asserts value is CardDocument {
+      importedCardRuntime.validate(value);
+    },
     loadImage: imageFrom,
     imageCacheStats: () => imageAssets.stats(),
     async applyCharacterImport(next, context) {
@@ -5873,6 +5882,7 @@ export const moduleApi = (() => {
     },
   };
   exposedcardEditorHost satisfies CharacterHost;
+  exposedcardEditorHost satisfies WorkspaceHost;
   window.cardEditorHost = exposedcardEditorHost;
   const exposedcardAIHost = {
     captureChatComposition() {
@@ -5914,11 +5924,14 @@ export const moduleApi = (() => {
         throw Error('工程已变化，请重新恢复');
       const before = snapshot(),
         beforeWorkshop = workshop ? structuredClone(workshop) : null;
-      const next = result.workshop
-        ? W.resolve(result.workshop)
+      const recoveredWorkshop = result.workshop
+        ? W.migrate(result.workshop)
+        : null;
+      const next = recoveredWorkshop
+        ? W.resolve(recoveredWorkshop)
         : result.document;
       await loadDocument(next, false);
-      workshop = result.workshop ? W.migrate(result.workshop) : null;
+      workshop = recoveredWorkshop;
       revision = Math.max(revision, next.revision || 0);
       push(before, '恢复 AI 制作检查点', undefined, beforeWorkshop);
       updateWorkshopThumbnail();
@@ -6221,6 +6234,7 @@ export const moduleApi = (() => {
       );
     },
   };
+  exposedcardAIHost satisfies AgentUIHost;
   window.cardAIHost = exposedcardAIHost;
   async function openHomeResult(result) {
     if (result.canceled) return false;

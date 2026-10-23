@@ -15,7 +15,7 @@ function harness(){
  const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{id,after(){},add(){},value:'idle',textContent:''});return nodes.get(id);};
  const document={body:{dataset:{appMode:'editor'}},hidden:false,createElement:makeCanvas,getElementById:node,querySelectorAll:()=>[],addEventListener(){}};
  const window={CardRuntime:R,CardBackRenderer:{create:()=>({draw(value,options){componentTimes.push(options.time);componentZooms.push(options.viewportZoom);return {triangles:0,loaded:true};},dispose(){},reset(){}})},addEventListener:(name,fn)=>{if(!listeners.has(name))listeners.set(name,[]);listeners.get(name).push(fn);},dispatchEvent:event=>{events.push(event);for(const fn of listeners.get(event.type)||[])fn(event);}};
- for(const [name,file] of Object.entries({MeshRigidity:'mesh-rigidity',CardFrame:'frame-model',CardParticleBatch:'particle-batch',CardMaskEdit:'mask-edit-model',CardSpatial:'spatial-model',CardCosmetics:'cosmetics-model',CardComponents:'component-model',CardStats:'card-stats',CardTitle:'title-model',CardPreviewUpdate:'preview-update-model',CardInspection:'inspection-model',CardExportProfile:'export-profile',CardAdaptiveTextures:'adaptive-textures'}))window[name]=require('../dist/renderer/'+file+'.js');
+ for(const [name,file] of Object.entries({MeshRigidity:'mesh-rigidity',CardFrame:'frame-model',CardParticleBatch:'particle-batch',CardMaskEdit:'mask-edit-model',CardSpatial:'spatial-model',CardCosmetics:'cosmetics-model',CardComponents:'component-model',CardStats:'card-stats',CardTitle:'title-model',CardPreviewUpdate:'preview-update-model',CardInspection:'inspection-model',CardExportProfile:'export-profile',CardPlayerModel:'player-model',CardAdaptiveTextures:'adaptive-textures'}))window[name]=require('../dist/renderer/'+file+'.js');
  const context={window,bindings:window,document,CardExportProfile:window.CardExportProfile,CardAdaptiveTextures:window.CardAdaptiveTextures,innerWidth:400,innerHeight:700,devicePixelRatio:1,performance:{now:()=>now},ResizeObserver:class{observe(){}},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},requestAnimationFrame:callback=>{frames.set(++sequence,callback);return sequence;},cancelAnimationFrame:id=>frames.delete(id)};
  vm.createContext(context);vm.runInContext(fs.readFileSync(require.resolve('../dist/renderer/author-preview.js'),'utf8'),context);
  const canvas=makeCanvas(),preview=window.CardSurfaceRenderer.create({canvas,gl});window.cardPreview=preview;
@@ -120,7 +120,7 @@ test('enabling preview effects cannot replace a requested seek or restart with f
 
 test('exported player pauses and resumes auto entrance and explicitly selected actions',async()=>{
  const h=harness(),actions=[R.entryPreset('left','arrival'),...h.doc.actions];
- Object.assign(h.context,{CardRuntime:R,CardTitle:h.context.window.CardTitle,Option:class{},fetch:async path=>({json:async()=>path==='manifest.json'?{...h.doc,foregroundMesh:null,masks:[]}:path==='actions.json'?actions:[],text:async()=>''})});
+ Object.assign(h.context,{CardRuntime:R,CardTitle:h.context.window.CardTitle,Option:class{},fetch:async path=>({json:async()=>path==='manifest.json'?{...h.doc,schema:'card-atelier-assets/1',name:'Player test',width:1024,height:1536,layers:h.doc.layers.map(l=>({x:0,y:0,scale:1,opacity:1,name:l.id,...l})),foregroundMesh:null,masks:[]}:path==='actions.json'?actions:[],text:async()=>''})});
  await vm.runInContext(fs.readFileSync(require.resolve('../dist/renderer/player.js'),'utf8'),h.context);assert.equal(h.context.document.body.dataset.error,undefined);
  for(const explicit of [false,true]){
   if(explicit){h.node('player-action').value='idle';h.node('player-play').onclick();}
@@ -132,7 +132,7 @@ test('exported player pauses and resumes auto entrance and explicitly selected a
 
 test('exported one-shot waits for slow image loading and can replay after becoming empty',async()=>{
  const h=harness(),M=require('../dist/renderer/cosmetics-model.js'),images=[];
- const doc={...h.doc,componentScenes:{},particles:M.particlePreset('trails'),foregroundMesh:null,masks:[],layers:[{id:'slow-image',kind:'image',visible:true,asset:'slow.png',x:0,y:0,scale:1,opacity:1}]};
+ const doc={...h.doc,schema:'card-atelier-assets/1',name:'Player reveal',width:1024,height:1536,componentScenes:{},particles:M.particlePreset('trails'),foregroundMesh:null,masks:[],layers:[{id:'slow-image',name:'Slow image',kind:'image',visible:true,asset:'slow.png',x:0,y:0,scale:1,opacity:1}]};
  Object.assign(h.context,{CardRuntime:R,CardTitle:h.context.window.CardTitle,Option:class{},Image:class{constructor(){this.width=4;this.height=4;}set src(value){images.push(()=>this.onload());}},fetch:async path=>({json:async()=>path==='manifest.json'?doc:path==='actions.json'?doc.actions:[],text:async()=>''})});
  const loading=vm.runInContext(fs.readFileSync(require.resolve('../dist/renderer/player.js'),'utf8'),h.context);
  for(let i=0;i<20&&!images.length;i++)await Promise.resolve();
@@ -147,4 +147,21 @@ test('exported one-shot waits for slow image loading and can replay after becomi
 
 test('zoom detail waits for a complete texture batch without rebuilding skin meshes or changing the animation clock',()=>{
  const h=harness(),d=require('./fixtures/character-animation.cjs').fixture(),P=require('../dist/renderer/export-profile.js');d.exportProfile={settings:P.config({preset:'mobile-list'}),textures:{}};h.preview.setDocument(d);h.preview.playAction('idle',.6,true);h.preview.setTextureDetail('small');h.preview.setZoom(.25);const pose=h.canvas.dataset.characterPose,meshes=h.canvas.dataset.resourceMeshes,seconds=h.preview.getView().actionSeconds;h.preview.setZoom(3);assert.equal(h.canvas.dataset.detailRequested,'large');assert.equal(h.canvas.dataset.detailLevel,'small');h.preview.setTextureDetail('large');assert.equal(h.canvas.dataset.detailLevel,'large');assert.equal(h.canvas.dataset.detailMaterials,'true');assert.equal(h.canvas.dataset.characterPose,pose);assert.equal(h.preview.getView().actionSeconds,seconds);assert.equal(h.canvas.dataset.resourceMeshes,meshes);h.preview.dispose();
+});
+
+
+test('remote sprite dependencies load only with a particle-enabled detail tier and keep the clock',async()=>{
+ const h=harness(),M=require('../dist/renderer/cosmetics-model.js'),P=require('../dist/renderer/export-profile.js'),resolved=[];
+ const doc={...h.doc,schema:'card-atelier-assets/1',name:'Remote sprites',width:1024,height:1536,componentScenes:{},layers:h.doc.layers.map(l=>({x:0,y:0,scale:1,opacity:1,name:l.id,...l})),particles:M.particlePreset('trails'),foregroundMesh:null,masks:[],exportProfile:{schema:'card-export-profile/1',settings:P.config({preset:'mobile-list'}),textures:{}}};
+ doc.particles={...doc.particles,visual:'sprite',sprite:'@asset:sprite-id'};
+ h.context.window.CardRemoteAssets={create:()=>({open:async()=>{},close(){},loadCard:async()=>({manifest:doc,actions:doc.actions,slots:[],vertex:'',fragment:''}),resolve:async src=>{resolved.push(src);return 'https://cdn.example/sprite.png';}})};
+ Object.assign(h.context,{URL,URLSearchParams,location:{href:'https://game.example/index.html',search:'?catalog=https://cdn.example/catalog.json&card=card'},Option:class{},Image:class{constructor(){this.width=this.height=4;}set src(value){this.currentSrc=value;queueMicrotask(()=>this.onload());}get src(){return this.currentSrc;}}});
+ await vm.runInContext(fs.readFileSync(require.resolve('../dist/renderer/player.js'),'utf8'),h.context);
+ assert.equal(h.context.document.body.dataset.error,undefined);
+ assert.deepEqual(resolved,[],'small tier must not download a disabled particle asset');
+ h.advance(40);const time=h.preview.getView().time;h.node('player-zoom').value='300';h.node('player-zoom').oninput();
+ for(let i=0;i<60&&h.context.document.body.dataset.textureLevel!=='large';i++)await new Promise(setImmediate);
+ assert.deepEqual(resolved,['@asset:sprite-id']);assert.equal(h.context.document.body.dataset.textureLevel,'large');
+ assert.equal(h.canvas.dataset.particleSpriteState,'ready');assert.equal(h.preview.getView().time,time);assert.equal(h.preview.getView().paused,false);
+ h.preview.dispose();
 });

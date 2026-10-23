@@ -1,3 +1,4 @@
+import type { AgentResults } from './agent-ui';
 import type { CardDocument } from './document';
 
 export interface FileResult {
@@ -41,7 +42,7 @@ export interface HomeResult {
   recovery?: { revision: number; savedRevision: number; view?: unknown };
   recoveryError?: string;
 }
-export interface EditorResults {
+export interface EditorResults extends AgentResults {
   'editor-session-start': { sessionToken: string };
   'editor-session-save': { stale?: boolean };
   'home-activate': { sessionToken: string };

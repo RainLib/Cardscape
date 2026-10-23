@@ -9,6 +9,10 @@ import type { InlineConfig, ViteDevServer } from 'vite';
 import type { CardDocument } from '../shared/document';
 import { smokeCharacterEditing } from './smoke-character.mts';
 import { smokeCharacterPanels } from './smoke-character-panels.mts';
+import { smokeRenderModels } from './smoke-render-models.mts';
+import { smokeWorkshopModels } from './smoke-workshop-models.mts';
+import {smokeAgentWorkspace} from './smoke-agent-workspace.mts';
+import { smokeRuntimeServices } from './smoke-runtime-services.mts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const runtime = await mkdtemp(join(tmpdir(), 'cardscape-smoke-'));
@@ -26,12 +30,12 @@ if (development) {
 }
 const started = performance.now();
 const application = await electron.launch({
-  executablePath: require('electron') as string, args: [root, '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-gpu-watchdog'], timeout: 60000,
+  executablePath: require('electron') as string, args: [root, '--force-device-scale-factor=1', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-gpu-watchdog'], timeout: 60000,
   env: { ...process.env, ATELIER_RUNTIME: runtime, ATELIER_BACKGROUND: '1', ...(developmentURL ? {ELECTRON_RENDERER_URL: developmentURL} : {}) }
 });
 application.process().stdout?.on('data', data => process.stdout.write(data));
 application.process().stderr?.on('data', data => process.stderr.write(data));
-application.on('window', page => page.on('pageerror', error => { errors.push(error.message); console.error('PAGE_ERROR', error.message); }));
+application.on('window', page => page.on('pageerror', error => { errors.push(error.message); console.error('PAGE_ERROR', error.stack); }));
 const deadline = Date.now() + 60000;
 while (!application.windows().some(page => page.url().endsWith('/index.html'))) {
   if (Date.now() > deadline) throw Error('Editor window did not navigate to index.html');
@@ -41,7 +45,7 @@ const page = application.windows().find(page => page.url().endsWith('/index.html
 const requests: string[] = [];
 page.on('request', request => requests.push(request.url()));
 try {
-  page.on('pageerror', error => { errors.push(error.message); console.error('PAGE_ERROR', error.message); });
+  page.on('pageerror', error => { errors.push(error.message); console.error('PAGE_ERROR', error.stack); });
   await page.waitForFunction(() => document.body.dataset.ready === 'true', null, { timeout: 60000, polling: 100 });
   assert.equal(await page.locator('body').getAttribute('data-app-mode'), 'home');
   await application.evaluate(({ BrowserWindow }) => { for (const window of BrowserWindow.getAllWindows()) window.webContents.setBackgroundThrottling(false); });
@@ -121,6 +125,12 @@ try {
   console.log('SMOKE_IK_PANEL_PASSED');
   await smokeCharacterEditing(page);
   await smokeCharacterPanels(page);
+  await smokeRenderModels(page);
+  await smokeWorkshopModels(page);
+  await smokeRuntimeServices(page);
+  const agentFixture = join(runtime,'agent-ui-fixture.cjs');
+  await writeFile(agentFixture, `const fs=require('node:fs');const contract=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));if(!contract.questionAnswer){process.stdout.write('请确认名称。<atelier-question>{"questions":[{"id":"name","title":"图层采用哪个名称？","options":["Gold","Blue"]}]}</atelier-question>');}else{process.stdout.write('根据回答修改图层。<atelier-actions>'+JSON.stringify({commands:[{op:'rename',layerId:contract.context.layer.id,name:contract.questionAnswer.answers.name}]})+'</atelier-actions>');}`);
+  await smokeAgentWorkspace(page,{executable:process.execPath,script:agentFixture});
   await page.locator('[data-inspector-view="shader"]').click({ force: true });
   await page.waitForFunction(() => !!document.querySelector('.cm-editor'), null, { timeout: 30000, polling: 100 });
   await page.locator('#shader-mode-nodes').click({ force: true });
@@ -149,7 +159,39 @@ try {
   assert.deepEqual(errors, []);
   await mkdir(join(root, 'qa'), { recursive: true });
   const output = development ? 'typescript-electron-dev' : 'typescript-electron';
-  await page.screenshot({ path: join(root, 'qa', output + '.png') });
+  // Capture a settled frame after all playback and recovery assertions.
+  await page.evaluate(() => { window.atelierAnimation?.pauseContext(); window.cardPreview.setPaused?.(true); window.cardPreview.setEffectsEnabled?.(false); });
+  const screenshot = await application.evaluate(async ({ BrowserWindow }) => {
+    const current = BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/index.html'));
+    if (!current) throw Error('Screenshot requires the editor window');
+    // Windows does not repaint a hidden native surface. Keep this test window
+    // fully transparent, unfocused and outside the taskbar while capturing it.
+    const visible=current.isVisible(), opacity=current.getOpacity();
+    try {
+      current.setOpacity(0);
+      current.setIgnoreMouseEvents(true);
+      current.setSkipTaskbar(true);
+      current.showInactive();
+      current.webContents.setBackgroundThrottling(false);
+      current.webContents.invalidate();
+      await new Promise(resolve=>setTimeout(resolve,250));
+      const image = await Promise.race([
+        current.webContents.capturePage(undefined, { stayAwake: true }),
+        new Promise<never>((_, reject) => { const timer = setTimeout(() => reject(Error('Native screenshot timed out')), 30000); timer.unref(); })
+      ]);
+      if (image.isEmpty()) throw Error('Native screenshot is empty');
+      const size=image.getSize(), bitmap=image.toBitmap(), colors=new Set<number>();
+      for(let y=100;y<size.height;y+=20) for(let x=0;x<size.width;x+=20) colors.add(bitmap.readUInt32LE((y*size.width+x)*4));
+      if(colors.size<8) throw Error('Native screenshot did not paint the editor');
+      return image.toPNG().toString('base64');
+    } finally {
+      if(!visible) current.hide();
+      current.setOpacity(opacity);
+      current.setIgnoreMouseEvents(false);
+      current.setSkipTaskbar(false);
+    }
+  });
+  await writeFile(join(root, 'qa', output + '.png'), Buffer.from(screenshot, 'base64'));
   const result = { mode: development ? 'development' : 'production', renderer: 'SwiftShader (functional validation, not a hardware benchmark)', homeMs: Math.round(homeMs), openMs: Math.round(openMs), startupRequests: startupRequests.length, errors, ...metrics };
   await writeFile(join(root, 'qa', output + '.json'), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));

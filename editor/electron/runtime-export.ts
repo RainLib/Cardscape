@@ -167,6 +167,7 @@ export async function exportRuntime(
     'author-preview.js',
     'player-bridge.js',
     'remote-assets.js',
+    'player-model.js',
     'player.js',
     'player.css',
   ] as const)

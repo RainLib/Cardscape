@@ -278,5 +278,9 @@
   "renderer/rendering/runtime-validation.ts": {
     "global": "CardRuntimeValidation",
     "exports": ["createRuntimeValidator"]
+  },
+  "renderer/rendering/player-model.ts": {
+    "global": "CardPlayerModel",
+    "default": true
   }
 }

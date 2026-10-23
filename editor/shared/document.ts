@@ -1,3 +1,26 @@
+import type { ExportProfile } from './export';
+import type { MeshGeometry } from './native-protocol';
+import type { ExportSettings } from './export-policy';
+import type {
+  Adjustments,
+  ImageResource,
+  Material,
+  ParticleInput,
+  EmissionRegion,
+  Cosmetics,
+  CosmeticPreview,
+  CardEffects,
+  ShaderSettings,
+  SceneMetadata,
+} from './visual-components';
+import type {
+  LayerSpatial,
+  LayerAttachment,
+  Anatomy,
+  Underpaint,
+  SpatialSettings,
+  FrameStyle,
+} from './render-models';
 import type { CharacterRig, CharacterAction } from './character';
 import type { LayerNode } from './layer-tree';
 export type LayerKind =
@@ -21,6 +44,7 @@ export interface TextStyle {
   stroke: string;
   strokeWidth: number;
   align: 'left' | 'center' | 'right';
+  badgeTheme?: string;
 }
 export type PartialTextStyle = Partial<TextStyle>;
 export interface SweepSettings {
@@ -68,11 +92,21 @@ export interface CardLayer {
   visible?: boolean;
   locked?: boolean;
   rotation?: number;
-  spatial?: Record<string, unknown>;
+  spatial?: LayerSpatial;
   pivot?: { u: number; v: number; [extension: string]: unknown };
   motionAnchor?: unknown;
-  attachment?: unknown;
-  adjustments?: Record<string, unknown>;
+  attachment?: LayerAttachment;
+  anatomy?: Anatomy;
+  underpaint?: Underpaint;
+  badgePreviousTextStyle?: Partial<TextStyle>;
+  adjustments?: Adjustments;
+  componentAdjustments?: Adjustments;
+  componentStyle?: string;
+  asset?: string;
+  ownershipMask?: string;
+  shaderChannel?: number;
+  shaderTransparent?: boolean;
+  blend?: string;
   titleArt?: TitleArtwork;
   [extension: string]: unknown;
 }
@@ -95,6 +129,10 @@ export interface CardSlot extends Record<string, unknown> {
 export interface CardDocument {
   schema: 'card-atelier/1';
   id?: string;
+  revision?: number;
+  exportSettings?: ExportSettings;
+  exportProfile?: ExportProfile;
+  foregroundMesh?: MeshGeometry;
   name: string;
   locale?: string;
   fonts?: EmbeddedFont[];
@@ -103,24 +141,33 @@ export interface CardDocument {
   layers: CardLayer[];
   masks: Record<string, string>;
   back?: string;
-  backScene?: { src?: string; [key: string]: unknown };
-  effects: Record<string, unknown>;
+  backScene?: ImageResource;
+  effects: CardEffects;
   characterRig?: CharacterRig;
-  cosmetics?: Record<string, unknown>;
-  material?: Record<string, unknown>;
-  particles?: unknown;
-  emissionRegions?: unknown;
-  spatial?: Record<string, unknown>;
-  backAdjustments?: Record<string, unknown>;
+  cosmetics?: Partial<Cosmetics>;
+  cosmeticPreview?: Partial<CosmeticPreview>;
+  componentScenes?: Record<string, SceneMetadata>;
+  assetKind?: string;
+  backStyle?: string;
+  material?: Partial<Material>;
+  particles?: ParticleInput;
+  emissionRegions?: EmissionRegion[];
+  spatial?: SpatialSettings;
+  backAdjustments?: Adjustments;
   layerTree?: LayerNode[];
   composition?: Record<string, unknown>;
   armor?: Record<string, unknown>;
-  frameStyle?: Record<string, unknown>;
-  frameStyles?: Array<Record<string, unknown>>;
+  frameStyle?: Partial<FrameStyle>;
+  frameStyles?: Array<Partial<FrameStyle>>;
   meshGuides?: unknown[];
-  deformation?: Record<string, unknown>;
+  deformation?: {
+    bend?: number;
+    wind?: number;
+    speed?: number;
+    [key: string]: unknown;
+  };
   actions?: CharacterAction[];
   slots?: CardSlot[];
-  shader?: Record<string, unknown>;
+  shader?: ShaderSettings;
   [extension: string]: unknown;
 }

@@ -194,7 +194,16 @@ const api = (() => {
   }
   function placement(
     doc: Pick<RuntimeDocument, 'slots'>,
-    l: CardLayer,
+    l:
+      | (Pick<CardLayer, 'id'> &
+          Partial<
+            Pick<
+              CardLayer,
+              'slotId' | 'x' | 'y' | 'scale' | 'rotation' | 'pivot'
+            >
+          >)
+      | null
+      | undefined,
     pose?: CharacterPose | null,
   ) {
     return importedCardCharacterAnimation.placement(

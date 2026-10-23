@@ -6,7 +6,7 @@ import importedCardFrame from '../editing/frame-model.ts';
 
 export interface FinishEntry {
  id: string; kind: 'material' | 'frame' | 'particles'; name: string; group: string;
- recipe: Record<string, string | number | boolean> & { color?: string; accent?: string; backgroundMode?: string; style?: string; finish?: string };
+ recipe: Record<string, unknown> & { color?: string; accent?: string; backgroundMode?: string; style?: string; finish?: string };
  preset?: string; artwork?: boolean; designId?: string; referenceStatus?: string;
 }
 

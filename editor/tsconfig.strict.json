@@ -87,6 +87,8 @@
     "renderer/rendering/space-model.ts",
     "renderer/editing/frame-model.ts",
     "renderer/editing/frame-raster.ts",
+    "renderer/rendering/shader-variants.ts",
+    "renderer/rendering/lazy-preview.ts",
     "renderer/editing/card-stats.ts",
     "renderer/shaders/shader-graph-model.ts",
     "renderer/workshop/component-model.ts",

@@ -257,10 +257,13 @@ export const moduleApi = (() => {
       await window.atelierHome.paint();
       // Compile before replacing the document; a bad imported shader preserves the open project.
       if (document.previewMode === 'authored')
-        window.cardPreview.compileShader({
-          ...importedCardRuntime.defaults.shader,
-          ...document.shader,
-        });
+        window.cardPreview.compileShader(
+          {
+            ...importedCardRuntime.defaults.shader,
+            ...document.shader,
+          },
+          document,
+        );
       // Replace the active document only after every source has decoded correctly.
       window.cardPreview.stopAction?.();
       window.cardPreview.resetAssets?.();
@@ -304,19 +307,27 @@ export const moduleApi = (() => {
       doc.back = backSource.startsWith('data:')
         ? backSource
         : pngFromImage(back);
-      let maskCount = 0;
-      for (const id of Object.keys(maskNames)) {
-        window.atelierHome.progress(
-          '恢复 ' + maskNames[id] + ' Mask',
-          70 + (++maskCount / Object.keys(maskNames).length) * 20,
-        );
-        await window.atelierHome.paint();
-        await registerMask(id, prepared.get('mask:' + id));
-        doc.masks[id] = masks.get(id).canvas.toDataURL('image/png');
+      window.cardPreview.beginUpdate();
+      try {
+        let maskCount = 0;
+        for (const id of Object.keys(maskNames)) {
+          window.atelierHome.progress(
+            '恢复 ' + maskNames[id] + ' Mask',
+            70 + (++maskCount / Object.keys(maskNames).length) * 20,
+          );
+          await window.atelierHome.paint();
+          await registerMask(id, prepared.get('mask:' + id));
+          // Opening an embedded PNG does not change its pixels. Preserve the
+          // immutable source; external/fallback images still need embedding.
+          if (!doc.masks[id]?.startsWith('data:image/png;base64,'))
+            doc.masks[id] = masks.get(id).canvas.toDataURL('image/png');
+        }
+        window.cardPreview.setTexture('art_back', back);
+        images.set('space-back', back);
+        syncTextures();
+      } finally {
+        window.cardPreview.endUpdate();
       }
-      window.cardPreview.setTexture('art_back', back);
-      images.set('space-back', back);
-      syncTextures();
       selected = [
         doc.layers.find((l) => l.kind === 'foreground')?.id || doc.layers[0].id,
       ];
@@ -404,7 +415,7 @@ export const moduleApi = (() => {
         }),
       );
       if (document.previewMode === 'authored')
-        window.cardPreview.compileShader(document.shader);
+        window.cardPreview.compileShader(document.shader, document);
       const next = {
         ...document,
         layers: document.layers.map((l) => ({ ...l })),
@@ -2034,6 +2045,7 @@ export const moduleApi = (() => {
     const layer = active(),
       mask = masks.get(target);
     if (!mask || layer.locked) return;
+    const overlayPixels = mask.overlayPixels;
     const box = layerBox(layer),
       q = localPoint(p, layer),
       radius = Number($('brush-size').value) / 2,
@@ -2084,7 +2096,7 @@ export const moduleApi = (() => {
           mask.pixels.data[i + 1] =
           mask.pixels.data[i + 2] =
             value;
-        mask.overlayPixels.data[i + 3] = value * 0.65;
+        overlayPixels.data[i + 3] = value * 0.65;
       }
     if (x1 >= x0 && y1 >= y0) {
       mask.ctx.putImageData(
@@ -2097,7 +2109,7 @@ export const moduleApi = (() => {
         y1 - y0 + 1,
       );
       mask.overlayCtx.putImageData(
-        mask.overlayPixels,
+        overlayPixels,
         0,
         0,
         x0,

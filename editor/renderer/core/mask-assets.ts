@@ -48,18 +48,44 @@ export function createMaskAssets(
       ctx = canvas.getContext('2d', { willReadFrequently: true })!;
     ctx.drawImage(image, 0, 0);
     const pixels = ctx.getImageData(0, 0, 1024, 1536),
-      overlay = canvasFor(),
-      overlayCtx = overlay.getContext('2d')!,
-      overlayPixels = overlayCtx.createImageData(1024, 1536),
       color = maskColors[id as MaskId];
-    for (let i = 0; i < pixels.data.length; i += 4) {
-      overlayPixels.data[i] = color[0];
-      overlayPixels.data[i + 1] = color[1];
-      overlayPixels.data[i + 2] = color[2];
-      overlayPixels.data[i + 3] = pixels.data[i] * 0.65;
+    let display:
+      | {
+          canvas: HTMLCanvasElement;
+          ctx: CanvasRenderingContext2D;
+          pixels: ImageData;
+        }
+      | undefined;
+    function overlay() {
+      if (!display) {
+        const canvas = canvasFor(),
+          ctx = canvas.getContext('2d')!,
+          data = ctx.createImageData(1024, 1536);
+        for (let i = 0; i < pixels.data.length; i += 4) {
+          data.data[i] = color[0];
+          data.data[i + 1] = color[1];
+          data.data[i + 2] = color[2];
+          data.data[i + 3] = pixels.data[i]! * 0.65;
+        }
+        ctx.putImageData(data, 0, 0);
+        display = { canvas, ctx, pixels: data };
+      }
+      return display;
     }
-    overlayCtx.putImageData(overlayPixels, 0, 0);
-    masks.set(id, { canvas, ctx, pixels, overlay, overlayCtx, overlayPixels });
+    masks.set(id, {
+      canvas,
+      ctx,
+      pixels,
+      get overlay() {
+        return overlay().canvas;
+      },
+      get overlayCtx() {
+        return overlay().ctx;
+      },
+      get overlayPixels() {
+        return overlay().pixels;
+      },
+    });
     maskVersions.set(canvas, 1);
     update(id, pixels);
   }

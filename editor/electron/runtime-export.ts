@@ -164,6 +164,8 @@ export async function exportRuntime(
     'runtime-model.js',
     'mesh-rigidity.js',
     'inspection-model.js',
+    'shader-variants.js',
+    'lazy-preview.js',
     'author-preview.js',
     'player-bridge.js',
     'remote-assets.js',

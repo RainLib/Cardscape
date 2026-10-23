@@ -11,7 +11,7 @@ function harness(){
  class HTMLImageElement{constructor(src){this.src=src;this.currentSrc=src;this.naturalWidth=16;this.naturalHeight=24;}}
  const makeCanvas=()=>({dataset:{},width:16,height:24,setAttribute(){},getContext:type=>type==='webgl'?null:{fillRect(){}}});
  const window={CardRuntime:R,CardFrame:F,CardParticleBatch:B,CardMaskEdit:M,CardSpatial:{},dispatchEvent(){}},document={createElement:makeCanvas,getElementById:()=>({after(){}})};
- vm.runInNewContext(fs.readFileSync(require.resolve('../dist/renderer/author-preview.js'),'utf8'),{window,document,HTMLImageElement});
+ window.CardShaderVariants=require('../dist/renderer/shader-variants.js');window.CardLazyPreview=require('../dist/renderer/lazy-preview.js');vm.runInNewContext(fs.readFileSync(require.resolve('../dist/renderer/author-preview.js'),'utf8'),{window,document,HTMLImageElement});
  const canvas=makeCanvas(),renderer=window.CardSurfaceRenderer.create({canvas,gl,embedded:true,legacy:{addImage(){},updateMask(){}}});
  const add=(id,image)=>renderer.addImage({id,kind:'image'},image),image=src=>new HTMLImageElement(src);
  return {renderer,canvas,uploads,patches,deleted,created,add,image,makeCanvas,last:()=>uploads.at(-1).texture};

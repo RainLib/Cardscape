@@ -1,0 +1,144 @@
+{
+  "date": "2026-10-24",
+  "baseline": "b50c692",
+  "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A78B) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "conditions": {
+    "mode": "production",
+    "deviceScaleFactor": 1,
+    "window": [
+      1560,
+      1020
+    ],
+    "isolatedAppProfiles": true,
+    "systemDiskCachesNotCleared": true,
+    "cpuProfiler": true,
+    "diagnosticOverridesEnabled": false
+  },
+  "before": {
+    "runs": [
+      {
+        "homeMs": 17202.291299999997,
+        "openMs": 18689.817199999998,
+        "pngEncodes": 20
+      },
+      {
+        "homeMs": 23118.830200000004,
+        "openMs": 21833.6339,
+        "pngEncodes": 20
+      },
+      {
+        "homeMs": 20925.74840000001,
+        "openMs": 30720.357000000018,
+        "pngEncodes": 21
+      }
+    ],
+    "renameMs": [
+      25.899999976158142,
+      15.700000047683716,
+      14.400000095367432,
+      16.899999976158142,
+      15.899999976158142,
+      18,
+      16,
+      14.700000047683716,
+      15.299999952316284,
+      20.5,
+      14.300000071525574,
+      20.299999952316284
+    ],
+    "renamePngEncodes": 12,
+    "animation": {
+      "frames": 166,
+      "fps": 27.528905350946665,
+      "intervalMedianMs": 36.300000071525574,
+      "intervalP95Ms": 37.60000002384186,
+      "longTasks": 0
+    }
+  },
+  "after": {
+    "runs": [
+      {
+        "homeMs": 956.9903,
+        "openMs": 3982.128,
+        "pngEncodes": 4
+      },
+      {
+        "homeMs": 875.9075000000012,
+        "openMs": 2516.383600000001,
+        "pngEncodes": 4
+      },
+      {
+        "homeMs": 839.0103000000017,
+        "openMs": 2320.4501999999993,
+        "pngEncodes": 4
+      }
+    ],
+    "renameMs": [
+      9.300000071525574,
+      5.399999976158142,
+      5,
+      4.100000023841858,
+      4.100000023841858,
+      4.199999928474426,
+      3.8000000715255737,
+      4.399999976158142,
+      5.100000023841858,
+      3.8000000715255737,
+      4.100000023841858,
+      4.399999976158142
+    ],
+    "renamePngEncodes": 0,
+    "animation": {
+      "frames": 166,
+      "fps": 27.526609055201266,
+      "intervalMedianMs": 36.39999997615814,
+      "intervalP95Ms": 37.800000071525574,
+      "longTasks": 0
+    },
+    "initialOverlayPixelBytesAvoided": 44040192
+  },
+  "medians": {
+    "homeMs": {
+      "before": 20925.74840000001,
+      "after": 875.9075000000012,
+      "reductionPercent": 95.81421183483215
+    },
+    "openMs": {
+      "before": 21833.6339,
+      "after": 2516.383600000001,
+      "reductionPercent": 88.47473759281087
+    },
+    "renameMs": {
+      "before": 15.949999988079071,
+      "after": 4.299999952316284
+    }
+  },
+  "verification": {
+    "typecheckAndStrict": true,
+    "syntaxFiles": 317,
+    "nodeTests": {
+      "total": 594,
+      "pass": 592,
+      "skip": 2,
+      "fail": 0
+    },
+    "electronCheckpoints": {
+      "production": 11,
+      "development": 11
+    },
+    "exportedPlayer": [
+      "local",
+      "remote",
+      "cached"
+    ],
+    "shaderPixelCases": 175,
+    "maxPixelDifference": 0,
+    "frameRasterContextRestore": {
+      "lost": true,
+      "restored": true,
+      "pixelDifference": 0,
+      "finishSwitch": true,
+      "cleanup": true
+    }
+  }
+}

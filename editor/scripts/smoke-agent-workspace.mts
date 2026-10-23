@@ -117,22 +117,25 @@ export async function smokeAgentWorkspace(
       null,
       { timeout: 30000 },
     );
-    await page.waitForFunction(
-      async () => {
-        const id = window.atelierAgentChat.sessionId();
-        if (!id) return false;
-        const chat = await window.cardAIHost.invoke('agent-chat-status', {
-          id,
-        });
-        return chat.messages.at(-1)?.commandResult?.state === 'applied';
-      },
-      null,
-      { timeout: 30000 },
+    // waitForFunction treats the returned Promise as truthy before it resolves.
+    // Poll IPC outside the browser and assert the actual persisted response.
+    const sessionId = await page.evaluate(() =>
+      window.atelierAgentChat.sessionId(),
     );
-    const chat = await page.evaluate(async () => {
-      const id = window.atelierAgentChat.sessionId();
-      return window.cardAIHost.invoke('agent-chat-status', { id });
-    });
+    if (!sessionId) throw Error('Agent smoke session is missing');
+    const readChat = () =>
+      page.evaluate(
+        (id) => window.cardAIHost.invoke('agent-chat-status', { id }),
+        sessionId,
+      );
+    const deadline = Date.now() + 30000;
+    let chat = await readChat();
+    while (chat.messages.at(-1)?.commandResult?.state !== 'applied') {
+      if (Date.now() >= deadline)
+        throw Error('Agent command result was not persisted');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      chat = await readChat();
+    }
     assert.equal(chat.state, 'idle');
     assert.equal(
       chat.messages.find((message) => message.questions)?.questionResult

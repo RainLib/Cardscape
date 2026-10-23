@@ -174,16 +174,24 @@ try {
       current.showInactive();
       current.webContents.setBackgroundThrottling(false);
       current.webContents.invalidate();
-      await new Promise(resolve=>setTimeout(resolve,250));
-      const image = await Promise.race([
-        current.webContents.capturePage(undefined, { stayAwake: true }),
-        new Promise<never>((_, reject) => { const timer = setTimeout(() => reject(Error('Native screenshot timed out')), 30000); timer.unref(); })
-      ]);
-      if (image.isEmpty()) throw Error('Native screenshot is empty');
-      const size=image.getSize(), bitmap=image.toBitmap(), colors=new Set<number>();
-      for(let y=100;y<size.height;y+=20) for(let x=0;x<size.width;x+=20) colors.add(bitmap.readUInt32LE((y*size.width+x)*4));
-      if(colors.size<8) throw Error('Native screenshot did not paint the editor');
-      return image.toPNG().toString('base64');
+      // A fast restore may complete before Windows has repainted the previously
+      // hidden native surface. Require a painted capture, with a bounded retry.
+      const deadline = Date.now() + 5000;
+      while (true) {
+        await new Promise(resolve => setTimeout(resolve, 250));
+        const image = await Promise.race([
+          current.webContents.capturePage(undefined, { stayAwake: true }),
+          new Promise<never>((_, reject) => { const timer = setTimeout(() => reject(Error('Native screenshot timed out')), 30000); timer.unref(); })
+        ]);
+        if (image.isEmpty()) throw Error('Native screenshot is empty');
+        const size = image.getSize(), bitmap = image.toBitmap(), colors = new Set<number>();
+        for (let y = 100; y < size.height; y += 20)
+          for (let x = 0; x < size.width; x += 20)
+            colors.add(bitmap.readUInt32LE((y * size.width + x) * 4));
+        if (colors.size >= 8) return image.toPNG().toString('base64');
+        if (Date.now() >= deadline) throw Error('Native screenshot did not paint the editor');
+        current.webContents.invalidate();
+      }
     } finally {
       if(!visible) current.hide();
       current.setOpacity(opacity);

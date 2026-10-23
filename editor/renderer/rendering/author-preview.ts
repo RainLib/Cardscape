@@ -49,6 +49,8 @@ import importedCardParticleBatch from './particle-batch.ts';
 import importedCardCosmetics from '../editing/cosmetics-model.ts';
 import importedCardInspection from './inspection-model.ts';
 import importedCardPreviewUpdate from './preview-update-model.ts';
+import shaderVariants from './shader-variants.ts';
+import { createLazyPreview } from './lazy-preview.ts';
 /* Registered artwork uses shared rigid planes or continuous cloth grids. */
 export const moduleApi = (() => {
   'use strict';
@@ -197,6 +199,21 @@ export const moduleApi = (() => {
       region: PreviewRegion = { mode: 'none' },
       regionImage: SurfaceImage | null = null,
       regionVersion: number | null = null;
+    const programs = new Map<
+      string,
+      {
+        program: WebGLProgram;
+        attributes: Record<string, number>;
+        uniforms: Record<string, WebGLUniformLocation | null>;
+      }
+    >();
+    function releaseUncachedProgram() {
+      if (
+        program &&
+        ![...programs.values()].some((entry) => entry.program === program)
+      )
+        gl.deleteProgram(program);
+    }
     function shader(type: number, source: string) {
       const s = required(gl.createShader(type));
       gl.shaderSource(s, source);
@@ -212,17 +229,22 @@ export const moduleApi = (() => {
       }
       return s;
     }
-    function shaderKey(s: {
-      geometryBody: string;
-      fragmentBody: string;
-      fragmentPrelude?: string;
-    }) {
+    function shaderKey(
+      s: {
+        geometryBody: string;
+        fragmentBody: string;
+        fragmentPrelude?: string;
+      },
+      finish = frames.resolve(doc).finish,
+    ) {
       return (
         s.geometryBody +
         '\0' +
         s.fragmentBody +
         '\0' +
-        (s.fragmentPrelude || '')
+        (s.fragmentPrelude || '') +
+        '\0' +
+        finish
       );
     }
     function compile(
@@ -233,21 +255,44 @@ export const moduleApi = (() => {
         true,
         config.fragmentPrelude,
       ),
+      finish = frames.resolve(doc).finish,
+      specialize = true,
     ) {
+      const key = shaderKey(config, finish),
+        cached = specialize ? programs.get(key) : undefined;
+      if (cached) {
+        releaseUncachedProgram();
+        program = cached.program;
+        a = { ...cached.attributes };
+        u = { ...cached.uniforms };
+        compiledKey = key;
+        programs.delete(key);
+        programs.set(key, cached);
+        canvas.dataset.shaderState = 'compiled';
+        return { ok: true, cached: true };
+      }
       let next = required(gl.createProgram()),
         v = null,
         f = null;
       try {
         v = shader(gl.VERTEX_SHADER, vertexSource);
-        f = shader(gl.FRAGMENT_SHADER, fragmentSource);
+        f = shader(
+          gl.FRAGMENT_SHADER,
+          specialize
+            ? shaderVariants.frameFragment(
+                fragmentSource,
+                frames.finishes.indexOf(finish),
+              )
+            : fragmentSource,
+        );
         gl.attachShader(next, v);
         gl.attachShader(next, f);
         gl.linkProgram(next);
         if (!gl.getProgramParameter(next, gl.LINK_STATUS))
           throw Error(gl.getProgramInfoLog(next) || 'Program 链接失败');
-        if (program) gl.deleteProgram(program);
+        releaseUncachedProgram();
         program = next;
-        compiledKey = shaderKey(config);
+        compiledKey = shaderKey(config, finish);
         for (const k of ['p', 'uv', 'fx', 'guard', 'join'] as const)
           a[k] = gl.getAttribLocation(program, k);
         for (const k of [
@@ -314,6 +359,19 @@ export const moduleApi = (() => {
         ] as const)
           u[k] = gl.getUniformLocation(program, k);
         count('compiles');
+        if (specialize) {
+          programs.set(key, {
+            program,
+            attributes: { ...a },
+            uniforms: { ...u },
+          });
+          while (programs.size > 4) {
+            const oldest = programs.entries().next().value;
+            if (!oldest) break;
+            gl.deleteProgram(oldest[1].program);
+            programs.delete(oldest[0]);
+          }
+        }
         canvas.dataset.shaderState = 'compiled';
         return { ok: true };
       } catch (error) {
@@ -324,7 +382,8 @@ export const moduleApi = (() => {
         if (f) gl.deleteShader(f);
       }
     }
-    compile(runtime.defaults.shader);
+    // The home screen does not need a surface program. Compile the requested
+    // document/finish on first use, preserving validation before replacement.
     // Share only the same immutable decode, never mutable canvases, pixels or Masks.
     function forgetSharedTexture(tex: WebGLTexture) {
       const shared = textureShares.get(tex);
@@ -2715,13 +2774,29 @@ export const moduleApi = (() => {
         upload('mask-default', black);
       },
       compileSources(vertexSource, fragmentSource) {
-        return compile(required(doc).shader, vertexSource, fragmentSource);
+        return compile(
+          required(doc).shader,
+          vertexSource,
+          fragmentSource,
+          undefined,
+          false,
+        );
       },
-      compileShader(config) {
+      compileShader(config, document) {
         const next = { ...runtime.defaults.shader, ...config };
-        return shaderKey(next) === compiledKey
+        const finish = document
+          ? frames.resolve(
+              importedCardCosmetics.resolve(document, {
+                level:
+                  document.id === sourceDoc?.id
+                    ? previewLevel || undefined
+                    : undefined,
+              }),
+            ).finish
+          : frames.resolve(doc).finish;
+        return shaderKey(next, finish) === compiledKey
           ? { ok: true, cached: true }
-          : compile(next);
+          : compile(next, undefined, undefined, finish);
       },
       compileGeometry(body) {
         const result = compile({
@@ -2899,6 +2974,8 @@ export const moduleApi = (() => {
       setRenderOverrides: (value) => {
         if (!doc) return;
         doc = runtime.ensure({ ...doc, ...value });
+        if (generic && shaderKey(doc.shader) !== compiledKey)
+          compile(doc.shader);
         if (generic) refreshFrame();
       },
       setEmitterContext: (value) => {
@@ -2970,7 +3047,12 @@ export const moduleApi = (() => {
         for (const c of joinBuffers.values())
           for (const k of ['buffer', 'fx', 'guard'] as const)
             if (c[k]) gl.deleteBuffer(c[k]);
-        gl.deleteProgram(program);
+        for (const p of new Set([
+          program,
+          ...[...programs.values()].map((entry) => entry.program),
+        ]))
+          if (p) gl.deleteProgram(p);
+        programs.clear();
         gl.deleteProgram(particleProgram);
         gl.deleteBuffer(particleBuffer);
       },
@@ -2988,11 +3070,15 @@ export const moduleApi = (() => {
   canvas.hidden = true;
   canvas.setAttribute('aria-label', '新卡 3D 实时预览');
   old.after(canvas);
-  const gl = canvas.getContext('webgl', {
-    alpha: true,
-    antialias: true,
-    preserveDrawingBuffer: true,
+  bindings.cardPreview = createLazyPreview(() => {
+    const gl = canvas.getContext('webgl', {
+      alpha: true,
+      antialias: true,
+      preserveDrawingBuffer: true,
+    });
+    return gl
+      ? create({ canvas, gl, legacy, old, info })
+      : (legacy as PreviewAPI);
   });
-  if (gl) bindings.cardPreview = create({ canvas, gl, legacy, old, info });
   return { CardSurfaceRenderer: exposedCardSurfaceRenderer };
 })();

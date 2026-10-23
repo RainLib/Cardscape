@@ -15,10 +15,17 @@ export async function createBlankDocument(
     ctx = canvas.getContext('2d')!,
     clear = canvas.toDataURL('image/png');
   const masks: Record<string, string> = {};
+  const colors = new Map<string, string>();
   for (const id of Object.keys(maskNames)) {
-    ctx.fillStyle = id === 'coverage' ? 'white' : 'black';
-    ctx.fillRect(0, 0, 1024, 1536);
-    masks[id] = canvas.toDataURL('image/png');
+    const color = id === 'coverage' ? 'white' : 'black';
+    let encoded = colors.get(color);
+    if (!encoded) {
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, 1024, 1536);
+      encoded = canvas.toDataURL('image/png');
+      colors.set(color, encoded);
+    }
+    masks[id] = encoded;
   }
   ctx.fillStyle = '#1c2934';
   ctx.fillRect(0, 0, 1024, 1536);

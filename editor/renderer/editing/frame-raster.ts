@@ -13,6 +13,7 @@ type Uniforms = Record<string, WebGLUniformLocation | null>;
 /* Static 2D artwork uses the live renderer's procedural rim, including its outer band. */
 import importedCardFrame from './frame-model.ts';
 import importedCardRuntime from '../rendering/runtime-core.ts';
+import shaderVariants from '../rendering/shader-variants.ts';
 
 const api = (() => {
   'use strict';
@@ -29,13 +30,13 @@ const api = (() => {
       height: 1536 + pad * 2,
     };
   }
-  function fragmentSource() {
+  function fragmentSource(finish?: number) {
     const start = importedCardRuntime.fragment.indexOf(
         '// Shared procedural finish',
       ),
       end = importedCardRuntime.fragment.indexOf('\nvoid ', start);
     if (start < 0 || end < 0) throw Error('Missing shared rim shader');
-    return `precision highp float;
+    const source = `precision highp float;
 varying vec2 masterUV;uniform vec3 low,hi;uniform vec4 metrics;uniform vec2 animation;uniform float finish;
 ${importedCardRuntime.fragment.slice(start, end)}
 void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metrics.y);
@@ -46,6 +47,9 @@ void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metr
  vec4 body=vec4(rimColor(low,hi,uv,vec2(0.),0.,metrics,finish,animation,shade),rimCoverage(uv,metrics,finish));
  gl_FragColor=body;
 }`;
+    return finish === undefined
+      ? source
+      : shaderVariants.frameFragment(source, finish);
   }
   const vertex =
     'attribute vec2 point;uniform vec4 extent;varying vec2 masterUV;void main(){masterUV=(extent.xy+vec2((point.x+1.)*.5,(1.-point.y)*.5)*extent.zw)/vec2(1024.,1536.);gl_Position=vec4(point,0.,1.);}';
@@ -53,6 +57,7 @@ void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metr
     let surface: HTMLCanvasElement | null = null,
       gl: WebGLRenderingContext | null = null,
       program: WebGLProgram | null = null,
+      programFinish: number | null = null,
       buffer: WebGLBuffer | null = null,
       uniforms: Uniforms | null = null,
       error: string | null = null,
@@ -69,10 +74,12 @@ void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metr
       }
       buffer = null;
       program = null;
+      programFinish = null;
       uniforms = null;
     }
-    function initialize() {
-      if (gl && program && !gl.isContextLost()) return true;
+    function initialize(finish: number) {
+      if (gl && program && programFinish === finish && !gl.isContextLost())
+        return true;
       if (!surface) {
         surface = makeCanvas();
         surface.addEventListener?.('webglcontextlost', (e) => {
@@ -99,11 +106,12 @@ void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metr
       if (gl.isContextLost()) return false;
       const shaders: WebGLShader[] = [];
       try {
+        if (program) gl.deleteProgram(program);
         program = gl.createProgram();
         if (!program) throw Error('Cannot create frame shader program');
         for (const [type, code] of [
           [gl.VERTEX_SHADER, vertex],
-          [gl.FRAGMENT_SHADER, fragmentSource()],
+          [gl.FRAGMENT_SHADER, fragmentSource(finish)],
         ] as const) {
           const shader = gl.createShader(type);
           if (!shader) throw Error('Cannot create frame shader');
@@ -121,7 +129,7 @@ void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metr
           throw Error(
             gl.getProgramInfoLog(program) || 'Frame shader link failed',
           );
-        buffer = gl.createBuffer();
+        buffer ||= gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
         gl.bufferData(
           gl.ARRAY_BUFFER,
@@ -136,6 +144,7 @@ void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metr
           ),
         );
         error = null;
+        programFinish = finish;
         return true;
       } catch (e) {
         error = e instanceof Error ? e.message : String(e);
@@ -166,7 +175,14 @@ void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metr
         hits++;
         return entry;
       }
-      if (error || !initialize() || !surface || !gl || !program || !uniforms)
+      if (
+        error ||
+        !initialize(importedCardFrame.finishes.indexOf(style.finish)) ||
+        !surface ||
+        !gl ||
+        !program ||
+        !uniforms
+      )
         return null;
       const rect = bounds(style);
       surface.width = rect.width;

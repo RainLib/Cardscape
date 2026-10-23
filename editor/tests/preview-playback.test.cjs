@@ -17,13 +17,13 @@ function harness(){
  const window={CardRuntime:R,CardBackRenderer:{create:()=>({draw(value,options){componentTimes.push(options.time);componentZooms.push(options.viewportZoom);return {triangles:0,loaded:true};},dispose(){},reset(){}})},addEventListener:(name,fn)=>{if(!listeners.has(name))listeners.set(name,[]);listeners.get(name).push(fn);},dispatchEvent:event=>{events.push(event);for(const fn of listeners.get(event.type)||[])fn(event);}};
  for(const [name,file] of Object.entries({MeshRigidity:'mesh-rigidity',CardFrame:'frame-model',CardParticleBatch:'particle-batch',CardMaskEdit:'mask-edit-model',CardSpatial:'spatial-model',CardCosmetics:'cosmetics-model',CardComponents:'component-model',CardStats:'card-stats',CardTitle:'title-model',CardPreviewUpdate:'preview-update-model',CardInspection:'inspection-model',CardExportProfile:'export-profile',CardPlayerModel:'player-model',CardAdaptiveTextures:'adaptive-textures'}))window[name]=require('../dist/renderer/'+file+'.js');
  const context={window,bindings:window,document,CardExportProfile:window.CardExportProfile,CardAdaptiveTextures:window.CardAdaptiveTextures,innerWidth:400,innerHeight:700,devicePixelRatio:1,performance:{now:()=>now},ResizeObserver:class{observe(){}},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},requestAnimationFrame:callback=>{frames.set(++sequence,callback);return sequence;},cancelAnimationFrame:id=>frames.delete(id)};
- vm.createContext(context);vm.runInContext(fs.readFileSync(require.resolve('../dist/renderer/author-preview.js'),'utf8'),context);
+ window.CardShaderVariants=require('../dist/renderer/shader-variants.js');window.CardLazyPreview=require('../dist/renderer/lazy-preview.js');vm.createContext(context);vm.runInContext(fs.readFileSync(require.resolve('../dist/renderer/author-preview.js'),'utf8'),context);
  const canvas=makeCanvas(),preview=window.CardSurfaceRenderer.create({canvas,gl});window.cardPreview=preview;
  const component=R.ensure({id:'frame-asset',previewMode:'authored',layers:[],masks:{},shader:{fragmentBody:'return color * (0.9 + 0.1 * sin(time));',fragmentStrength:1}});
  const doc=R.ensure({id:'hero',previewMode:'authored',layers:[{id:'frame',kind:'frame',visible:true}],masks:{},effects:{paused:false},componentScenes:{frame:{document:component}}});
  preview.setDocument(doc);preview.setActive(true);
  const advance=ms=>{now+=ms;const pending=[...frames.values()];frames.clear();for(const callback of pending)callback(now);};
- return {context,preview,doc,canvas,events,componentTimes,componentZooms,viewports,node,frames,advance};
+ return {context,preview,doc,canvas,events,componentTimes,componentZooms,viewports,node,frames,advance,gl};
 }
 
 test('native character idle runs without unrelated effects and freezes the same pose after multiple loops',()=>{
@@ -36,16 +36,42 @@ test('native character idle runs without unrelated effects and freezes the same 
  h.preview.playAction('idle',4,true);const endpoint=JSON.parse(h.canvas.dataset.characterPose).find(b=>b.id==='elbow');assert.ok(Math.abs(endpoint.matrix[1])<1e-10);
 });
 
-test('changing neon aperture coverage updates only its aura; color and clock changes retain every frame mesh',()=>{
+test('finish changes specialize the shader and update the aura; color and clock changes retain the program and meshes',()=>{
  const h=harness(),F=require('../dist/renderer/frame-model.js');
  h.doc.componentScenes={};h.doc.frameStyle={...F.defaults,width:42,finish:'metal'};h.preview.setDocument(h.doc);h.advance(40);
  const before={...h.canvas.dataset},time=h.preview.getView().time;
  h.doc.frameStyle.finish='glow';h.preview.setDocument(h.doc);
  assert.equal(Number(h.canvas.dataset.resourceMeshes)-Number(before.resourceMeshes),1);
- assert.equal(h.canvas.dataset.resourceTextures,before.resourceTextures);assert.equal(h.canvas.dataset.resourceCompiles,before.resourceCompiles);assert.equal(h.preview.getView().time,time);
- const meshes=h.canvas.dataset.resourceMeshes;h.doc.frameStyle.color='#00ffff';h.preview.setDocument(h.doc);h.advance(40);assert.equal(h.canvas.dataset.resourceMeshes,meshes);
+ assert.equal(h.canvas.dataset.resourceTextures,before.resourceTextures);assert.equal(Number(h.canvas.dataset.resourceCompiles),Number(before.resourceCompiles)+1);assert.equal(h.preview.getView().time,time);
+ const meshes=h.canvas.dataset.resourceMeshes,compiles=h.canvas.dataset.resourceCompiles;h.doc.frameStyle.color='#00ffff';h.preview.setDocument(h.doc);h.advance(40);assert.equal(h.canvas.dataset.resourceMeshes,meshes);assert.equal(h.canvas.dataset.resourceCompiles,compiles);
  h.doc.frameStyle.finish='metal';h.preview.setDocument(h.doc);assert.equal(Number(h.canvas.dataset.resourceMeshes)-Number(meshes),1);
+ assert.equal(h.canvas.dataset.resourceCompiles,compiles,'returning to a cached finish must not compile again');
  const restored=h.canvas.dataset.resourceMeshes;h.doc.frameStyle.width=43;h.preview.setDocument(h.doc);assert.equal(Number(h.canvas.dataset.resourceMeshes)-Number(restored),4);h.preview.dispose();
+});
+
+test('document preflight compiles the resolved finish once and a failed preflight preserves the current view',()=>{
+ const h=harness();h.advance(40);
+ const next=structuredClone(h.doc);next.id='next-preview';next.cosmetics={level:'common'};
+ const view=h.preview.getView(),before=h.canvas.dataset.resourceCompiles;
+ h.gl.getShaderParameter=()=>false;
+ assert.throws(()=>h.preview.compileShader(next.shader,next),/Shader/);
+ assert.equal(h.canvas.dataset.resourceCompiles,before);assert.deepEqual(h.preview.getView(),view);
+ h.gl.getShaderParameter=()=>true;
+ h.preview.compileShader(next.shader,next);const compiled=h.canvas.dataset.resourceCompiles;
+ assert.equal(Number(compiled),Number(before)+1);
+ h.preview.setDocument(next);assert.equal(h.canvas.dataset.resourceCompiles,compiled);
+ h.preview.dispose();
+});
+
+test('finish program cache is bounded, reuses recent programs and releases evicted programs once',()=>{
+ const h=harness(),F=require('../dist/renderer/frame-model.js'),deleted=[];
+ h.doc.componentScenes={};h.gl.deleteProgram=program=>deleted.push(program);
+ const set=finish=>{h.doc.frameStyle={...F.defaults,finish};h.preview.setDocument(h.doc);};
+ for(const finish of ['flat','glow','cosmic','distressed','web','candy'])set(finish);
+ assert.equal(deleted.length,3,'seven finish programs retain at most four');
+ const compiled=Number(h.canvas.dataset.resourceCompiles);set('metal');assert.equal(Number(h.canvas.dataset.resourceCompiles),compiled+1);
+ set('candy');assert.equal(Number(h.canvas.dataset.resourceCompiles),compiled+1,'the recent finish is reused');
+ h.preview.dispose();assert.equal(deleted.length,9);assert.equal(new Set(deleted).size,deleted.length);
 });
 
 test('shared pause freezes active action and nested frame clocks, then resumes without resetting time',()=>{

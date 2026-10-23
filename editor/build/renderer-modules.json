@@ -271,6 +271,14 @@
     "global": "CardCharacterImportRegistry",
     "default": true
   },
+  "renderer/rendering/shader-variants.ts": {
+    "global": "CardShaderVariants",
+    "default": true
+  },
+  "renderer/rendering/lazy-preview.ts": {
+    "global": "CardLazyPreview",
+    "exports": ["createLazyPreview"]
+  },
   "renderer/rendering/runtime-core.ts": {
     "global": "CardRuntimeCore",
     "default": true

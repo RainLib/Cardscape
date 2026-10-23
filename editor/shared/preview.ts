@@ -73,7 +73,10 @@ export interface PreviewAPI {
   resetAssets(): void;
   setRegion(value: PreviewRegion | null): void;
   compileSources(vertex: string, fragment: string): ShaderResult;
-  compileShader(config: Partial<RuntimeShader>): ShaderResult;
+  compileShader(
+    config: Partial<RuntimeShader>,
+    document?: CardDocument,
+  ): ShaderResult;
   compileGeometry(body: string): ShaderResult;
   playAction(
     id: string,

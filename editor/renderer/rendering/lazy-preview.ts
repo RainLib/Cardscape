@@ -21,6 +21,17 @@ export function createLazyPreview(factory: () => PreviewAPI): PreviewAPI {
     getView: (): PreviewView =>
       current?.getView() || { yaw: 0, pitch: 0, time: 0, paused: false },
     getZoom: () => current?.getZoom() ?? zoom,
+    getAudioState: () =>
+      current?.getAudioState() || {
+        enabled: false,
+        context: 'uninitialized',
+        voices: 0,
+        sources: 0,
+        decodedBytes: 0,
+        starts: 0,
+        error: '',
+        level: 0,
+      },
     getPreviewLevel: () => current?.getPreviewLevel() || 'authored',
     getCharacterGeometry: () => current?.getCharacterGeometry() || {},
     setActive(value: boolean) {
@@ -63,6 +74,9 @@ export function createLazyPreview(factory: () => PreviewAPI): PreviewAPI {
     'compileGeometry',
     'playAction',
     'stopAction',
+    'setParticleWorldSampler',
+    'setAudioEnabled',
+    'getAudioState',
     'transitionPose',
     'inspect',
     'pauseInspection',

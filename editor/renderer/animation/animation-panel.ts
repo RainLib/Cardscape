@@ -1,4 +1,6 @@
+import { createActionAudioEditor } from './action-audio-editor.ts';
 import { element } from '../core/dom.ts';
+import { createActionParticleEditor } from './action-particle-editor.ts';
 import type { CharacterAction, Ease } from '../../shared/character';
 import type { CardDocument } from '../../shared/document';
 import type { CharacterPanelState } from '../../shared/character-editor';
@@ -96,6 +98,119 @@ export const moduleApi = (() => {
   const selectedAction = () =>
     state.document?.actions?.find((a) => a.id === actionId) || null;
   const currentAction = () => required(selectedAction());
+  const particleEditor = createActionParticleEditor(
+    {
+      current: () => ({
+        document: state.document,
+        action: selectedAction(),
+        seconds,
+        busy: !!state.busy,
+      }),
+      mutate: (label, change) => mutate(label, change),
+      say: (message) => status(message, true),
+    },
+    document,
+  );
+  $('timeline-status').before(particleEditor.element);
+  const audioEditor = createActionAudioEditor(
+    {
+      current: () => ({
+        document: state.document,
+        action: selectedAction(),
+        seconds,
+        busy: !!state.busy,
+      }),
+      mutate: (label, change) => mutate(label, change),
+      say: (message) => status(message, true),
+    },
+    document,
+  );
+  $('timeline-status').before(audioEditor.element);
+  const compositionControls = document.createElement('details');
+  compositionControls.id = 'timeline-composition';
+  const compositionSummary = document.createElement('summary');
+  compositionSummary.textContent = '动画层序与切入过渡';
+  compositionControls.append(compositionSummary);
+  const fadeLabel = document.createElement('label'),
+    fadeInput = document.createElement('input');
+  fadeLabel.textContent = '切入过渡（秒）';
+  fadeInput.type = 'number';
+  fadeInput.min = '0';
+  fadeInput.max = '2';
+  fadeInput.step = '.05';
+  fadeInput.setAttribute('aria-label', '动作切入过渡秒数');
+  fadeLabel.append(fadeInput);
+  const frontButton = document.createElement('button'),
+    backButton = document.createElement('button'),
+    orderReset = document.createElement('button'),
+    orderDelete = document.createElement('button'),
+    orderNote = document.createElement('p');
+  frontButton.textContent = '选中图层移到最前';
+  backButton.textContent = '选中图层移到最后';
+  orderReset.textContent = '记录初始层序';
+  orderDelete.textContent = '删除当前层序帧';
+  for (const button of [frontButton, backButton, orderReset, orderDelete])
+    button.type = 'button';
+  compositionControls.append(
+    fadeLabel,
+    frontButton,
+    backButton,
+    orderReset,
+    orderDelete,
+    orderNote,
+  );
+  $('timeline-status').before(compositionControls);
+  fadeInput.onchange = () => {
+    if (fadeInput.value !== '' && fadeInput.validity.valid)
+      mutate('设置动作切入过渡', (_d, a) => {
+        a.transitionDuration = Number(fadeInput.value);
+      });
+  };
+  function recordOrder(front: boolean) {
+    const layer = state.layer;
+    if (!layer || layer.locked)
+      return status('先选择并解锁要调整遮挡的图层', true);
+    mutate('记录动画层序', (d, a) => {
+      const layers = runtime
+        .orderedLayers([...d.layers].reverse(), a, progress())
+        .filter(
+          (l) =>
+            l.kind !== 'frame' &&
+            l.kind !== 'background' &&
+            !['far', 'mid', 'near'].includes(l.spatial?.role || '') &&
+            !['baseplate', 'background-candidate'].includes(l.role || ''),
+        );
+      if (!layers.some((l) => l.id === layer.id))
+        throw Error('背景与卡框不参与人物层序动画');
+      const ids = layers.filter((l) => l.id !== layer.id).map((l) => l.id);
+      if (front) ids.push(layer.id);
+      else ids.unshift(layer.id);
+      const at = +progress().toFixed(6);
+      a.drawOrder = (a.drawOrder || []).filter(
+        (f) => Math.abs(f.at - at) > 0.000001,
+      );
+      a.drawOrder.push({ at, layers: ids });
+      a.drawOrder.sort((a, b) => a.at - b.at);
+    });
+  }
+  frontButton.onclick = () => recordOrder(true);
+  backButton.onclick = () => recordOrder(false);
+  orderReset.onclick = () =>
+    mutate('记录初始层序', (_d, a) => {
+      const at = +progress().toFixed(6);
+      a.drawOrder = (a.drawOrder || []).filter(
+        (f) => Math.abs(f.at - at) > 0.000001,
+      );
+      a.drawOrder.push({ at, layers: [] });
+      a.drawOrder.sort((a, b) => a.at - b.at);
+    });
+  orderDelete.onclick = () =>
+    mutate('删除动画层序帧', (_d, a) => {
+      a.drawOrder = (a.drawOrder || []).filter(
+        (f) => Math.abs(f.at - progress()) > 0.000001,
+      );
+      if (!a.drawOrder.length) delete a.drawOrder;
+    });
   const documentState = () => required(state.document);
   const progress = () =>
     Math.min(1, seconds / (selectedAction()?.duration || 1));
@@ -185,7 +300,25 @@ export const moduleApi = (() => {
     $('timeline-record').title = error ? '' : text;
   }
   function updateTime() {
+    particleEditor.refresh();
+    audioEditor.refresh();
     const a = selectedAction();
+    for (const control of [
+      fadeInput,
+      frontButton,
+      backButton,
+      orderReset,
+      orderDelete,
+    ])
+      control.disabled = !!state.busy || !a;
+    if (a && document.activeElement !== fadeInput)
+      fadeInput.value = String(a.transitionDuration || 0);
+    orderNote.textContent = a
+      ? '层序帧：' +
+        (a.drawOrder || [])
+          .map((f) => (f.at * a.duration).toFixed(2) + 's')
+          .join(' / ')
+      : '';
     if (!a) return;
     bindings.atelierPreviewPlayer?.sync();
     $('timeline-frame-number').textContent =

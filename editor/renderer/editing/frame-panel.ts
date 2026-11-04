@@ -2,13 +2,16 @@ import importedCardFrame from './frame-model.ts';
 import importedCardWorkshop from '../workshop/workshop-model.ts';
 import importedCardStats from './card-stats.ts';
 import importedCardCosmetics from './cosmetics-model.ts';
+import { createFrameContourEditor } from './frame-contour-editor.ts';
 export const moduleApi=(() => {
 'use strict';
-const $=id=>(document.getElementById(id) as any),host=window.cardEditorHost,model=importedCardFrame;
+const $=id=>(document.getElementById(id) as any),host=window.cardEditorHost;
+const model:typeof importedCardFrame=importedCardFrame;
 let state=null;
 let themeRequest=0;
 let animationArtwork=null;
 const styleKeys=['width','corner','depth','bevel','color','accent','finish','animation','animationSpeed'];
+const contourEditor=createFrameContourEditor({edit,setContour:(doc,contour)=>changeStyle(doc,'contour',contour),say:message=>host.say(message),status:message=>$('frame-status').textContent=message,refresh:()=>refresh(host.state())},document);$('frame-status').before(contourEditor.element);
 const fieldTitles=new Map<any, any>(styleKeys.map(key=>[key,$('frame-'+key).title]));
 const componentEdit=document.createElement('button');componentEdit.id='frame-component-edit';componentEdit.type='button';componentEdit.textContent='编辑边框组件…';componentEdit.hidden=true;$('frame-library-open').after(componentEdit);
 const playback=document.createElement('button'),replay=document.createElement('button');
@@ -30,19 +33,20 @@ playback.onclick=()=>playFrame();replay.onclick=()=>playFrame(true);
 window.addEventListener('atelier-preview-frame',()=>refreshPlayback());
 function styleSource(doc){return artworkDocument(doc)||doc;}
 function changeStyle(doc,key,value){
- const artwork=artworkDocument(doc);if(artwork&&key!=='depth')throw Error('图片边框的外形与流光请在边框组件中编辑');
- const style={...model.resolve(artwork||doc),[key]:value};doc.frameStyle=style;
+ const artwork=artworkDocument(doc);if(artwork&&!['depth','contour'].includes(key))throw Error('图片边框的外形与流光请在边框组件中编辑');
+ const style={...model.resolve(artwork||doc),[key]:value};if(key==='contour'&&value===undefined)delete style.contour;doc.frameStyle=style;
  if(artwork&&artwork!==doc){const frame=doc.componentScenes.frame;doc.componentScenes={...doc.componentScenes,frame:{...frame,style:{...style},document:{...frame.document,frameStyle:{...style}}}};}
 }
 componentEdit.onclick=()=>{const next=host.state();if(next.busy||!next.workshop||next.document?.assetKind==='frame'||!artworkDocument(next.document))return;
  try{const current=importedCardWorkshop.commit(next.workshop,next.document),binding=importedCardWorkshop.card(current).bindings.frame;return window.atelierComponentEditor.open('frame',binding?.resourceId||'',binding?.version||0);}catch(e){host.say(e.message);}
 };
 $('frame-finish').replaceChildren(...model.finishes.map((v,i)=>new Option(['哑光','金属','霓虹','宇宙闪晶','磨损金属','蛛网纹','糖果条纹','冰晶','雪花纹','包装纸','火焰','银白幻彩火焰','金属链环','翡翠符文','幻彩折光','Overdrive 充能','Neon Nights 字牌','铜绿磨损','幻彩磨损','星轨银环 · 原创','双生极光 · 原创','Penny Arcade 彩绘喷溅','Brains 银白脑回','Halloween 紫橙糖果','Halloween 绿光贴纸'][i],v)));
-function refresh(next){state=next;refreshPlayback(next);if(!next.document){componentEdit.hidden=true;return;}const doc=next.document,artwork=artworkDocument(doc),layer=doc.layers.find(l=>l.kind==='frame'),style=model.resolve(styleSource(doc)),selected=next.layer?.id===layer?.id,disabled=!selected||!!layer?.locked||next.busy;
+function refresh(next){state=next;refreshPlayback(next);if(!next.document){contourEditor.refresh(null,'',true);componentEdit.hidden=true;return;}const doc=next.document,artwork=artworkDocument(doc),layer=doc.layers.find(l=>l.kind==='frame'),style=model.resolve(styleSource(doc)),selected=next.layer?.id===layer?.id,disabled=!selected||!!layer?.locked||next.busy;
+ contourEditor.refresh(style,next.documentToken||doc.id||'',disabled);
  $('frame-owner').textContent=layer?.name||'无边框层';$('frame-edit-state').textContent=!layer?'工程没有边框层':!selected?'定位边框层后编辑；2D 与 3D 实时同步':layer.locked?'边框已锁定，先解锁再编辑样式':artwork?'图片决定框体外形；可调整承载厚度，图层与流光在组件内编辑。':'正在编辑边框 · 修改即时预览 · 可撤销';
  componentEdit.hidden=!artwork||doc.assetKind==='frame';componentEdit.disabled=next.busy||!next.workshop;componentEdit.title=next.workshop?'在主编辑区调整边框图层、Mask 与流光':'先打开工坊再编辑边框组件';
  $('frame-level-preset').disabled=disabled||!!artwork;$('frame-level-preset').title=artwork?'等级样式不能改变图片边框；可从边框配方切换':'';$('frame-select').disabled=!layer||next.busy;$('frame-unlock').hidden=!selected||!layer?.locked;$('frame-unlock').disabled=next.busy;
- for(const key of styleKeys){const el=$('frame-'+key);if(document.activeElement!==el)el.value=style[key];el.disabled=disabled||!!artwork&&key!=='depth';el.title=artwork?(key==='depth'?'调整承载厚度，保留边框图片与裁剪窗对齐':'此参数不能改变边框图片；请在组件内编辑素材或效果'):fieldTitles.get(key);}
+ for(const key of styleKeys){const el=$('frame-'+key);if(document.activeElement!==el)el.value=style[key];el.disabled=disabled||!!artwork&&key!=='depth'||!!style.contour&&['width','corner','bevel'].includes(key);el.title=style.contour&&['width','corner','bevel'].includes(key)?'异形框的大小与窗口由轮廓点决定':artwork?(key==='depth'?'调整承载厚度，保留边框图片与裁剪窗对齐':'此参数不能改变边框图片；请在组件内编辑素材或效果'):fieldTitles.get(key);}
  if(animationArtwork!==!!artwork){animationArtwork=!!artwork;$('frame-animation').replaceChildren(...(artwork?[new Option('组件图层 / Shader','component')]:model.animations.map((value,i)=>new Option(['静态','呼吸光','沿框流光','幻彩流光'][i],value))));}
  if(artwork){$('frame-animation').value='component';$('frame-animation').title='流光由边框组件的图层与 Shader 驱动；点击编辑边框组件，在效果预览中播放。';}else if(document.activeElement!==$('frame-animation'))$('frame-animation').value=style.animation;
  $('frame-animationSpeed').closest('label').hidden=!!artwork;

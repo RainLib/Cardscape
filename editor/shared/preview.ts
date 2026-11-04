@@ -1,4 +1,8 @@
-import type { CharacterAction } from './character';
+import type {
+  CharacterAction,
+  ParticleWorldSampler,
+  ActionAudioState,
+} from './character';
 import type { RuntimeShader } from './runtime';
 import type {
   ExternalView,
@@ -85,6 +89,9 @@ export interface PreviewAPI {
     draft?: CharacterAction | null,
   ): void;
   stopAction(): void;
+  setAudioEnabled(value: boolean): Promise<boolean>;
+  getAudioState(): ActionAudioState;
+  setParticleWorldSampler(sampler: ParticleWorldSampler | null): void;
   transitionPose(yaw: number, pitch?: number, duration?: number): void;
   inspect(
     value?: InspectionOptions,

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { audioBytes } from './audio-assets';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type {
@@ -11,6 +13,7 @@ import type {
 import { exportTextures } from './export-textures';
 import { runtimeModel, frameModel } from './export-models';
 import { exportRuntime } from './runtime-export';
+import { contourFieldPNG } from './contour-field-export';
 export function framePreviewBytes(
   preview: CardOutput['framePreview'] | null | undefined,
   pngBytes: ExportIO['pngBytes'],
@@ -45,6 +48,9 @@ export async function exportCard(
   { atomicWrite, pngBytes }: Pick<ExportIO, 'atomicWrite' | 'pngBytes'>,
 ) {
   await fs.mkdir(dir, { recursive: true });
+  const contourField = contourFieldPNG(frameModel.resolve(doc));
+  if (contourField)
+    await fs.writeFile(path.join(dir, 'contour-field.png'), contourField);
   const framePreview = framePreviewBytes(args.framePreview, pngBytes);
   if (framePreview) {
     await fs.mkdir(path.join(dir, 'previews'), { recursive: true });
@@ -90,6 +96,33 @@ export async function exportCard(
     await fs.writeFile(path.join(dir, 'masks', id + '.png'), pngBytes(png));
   }
   let particles = doc.particles;
+  const actions = structuredClone(doc.actions || runtimeModel.defaults.actions);
+  const audioFiles = new Set<string>();
+  for (let ai = 0; ai < actions.length; ai++)
+    for (let ei = 0; ei < (actions[ai].audioEvents || []).length; ei++) {
+      const event = actions[ai].audioEvents![ei];
+      await fs.mkdir(path.join(dir, 'audio'), { recursive: true });
+      const bytes = audioBytes(event);
+      const file =
+        'audio/' + createHash('sha256').update(bytes).digest('hex') + '.wav';
+      if (!audioFiles.has(file)) {
+        await fs.writeFile(path.join(dir, file), bytes);
+        audioFiles.add(file);
+      }
+      event.src = file;
+    }
+  for (let ai = 0; ai < actions.length; ai++)
+    for (let ei = 0; ei < (actions[ai].particleEvents || []).length; ei++) {
+      const event = actions[ai].particleEvents![ei];
+      if (!event.particles.sprite) continue;
+      await fs.mkdir(path.join(dir, 'particles'), { recursive: true });
+      const file = `particles/action-${ai}-${ei}.png`;
+      await fs.writeFile(
+        path.join(dir, file),
+        pngBytes(event.particles.sprite),
+      );
+      event.particles.sprite = file;
+    }
   if (particles?.sprite) {
     await fs.mkdir(path.join(dir, 'particles'), { recursive: true });
     await fs.writeFile(
@@ -148,6 +181,12 @@ export async function exportCard(
     JSON.stringify(
       {
         schema: 'card-atelier-assets/1',
+        ...(contourField
+          ? {
+              contourFieldAsset: 'contour-field.png',
+              contourFieldFormat: 'card-contour-field-atlas/2' as const,
+            }
+          : {}),
         layerTree: doc.layerTree,
         characterRig: doc.characterRig,
         componentScenes: doc.componentScenes,
@@ -226,7 +265,7 @@ export async function exportCard(
           id: s.id,
         })),
         deformation: doc.deformation || runtimeModel.defaults.deformation,
-        actions: doc.actions || runtimeModel.defaults.actions,
+        actions,
         slots: doc.slots || [],
         shader: doc.shader || runtimeModel.defaults.shader,
         runtime:
@@ -240,6 +279,6 @@ export async function exportCard(
     path.join(dir, 'README.txt'),
     'PNG 与 Mask 可导入 Godot。front.png 是当前 2D 合成；card.cardproj 保留源图、参数与可编辑 Mask。区域网格为编辑引导，未新增独立护腕表面。当前不包含完整 Godot 动态材质与场景适配。\n',
   );
-  await exportRuntime(dir, doc, worker);
+  await exportRuntime(dir, { ...doc, actions }, worker);
   await exportTextures(dir, doc, worker);
 }

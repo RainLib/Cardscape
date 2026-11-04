@@ -57,6 +57,175 @@ const api = (() => {
     }
     return k;
   }
+  /** Miter joins share exactly the same edge vertices on both incident quads.
+   * A 2.5-width cap prevents spikes at a sharp reversal. */
+  const trailEdges = new Float64Array(256 * 4),
+    trailWorldEdges = new Float64Array(256 * 6),
+    trailSides = new Float64Array(6),
+    trailCorners = [0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1];
+  function packTrail(
+    samples: ArrayLike<number>,
+    count: number,
+    target: Float32Array,
+    worldFrames?: ArrayLike<number>,
+  ) {
+    if (
+      !Number.isInteger(count) ||
+      count < 0 ||
+      count > 256 ||
+      samples.length < count * 7
+    )
+      throw Error('剑痕截面数据无效');
+    if (target.length < Math.max(0, count - 1) * 6 * stride)
+      throw Error('剑痕批次缓冲区不足');
+    if (worldFrames && worldFrames.length < count * 6)
+      throw Error('世界剑痕朝向缓冲区不足');
+    for (let i = 0; i < count; i++) {
+      const at = i * 7,
+        previous = Math.max(0, i - 1) * 7,
+        next = Math.min(count - 1, i + 1) * 7;
+      if (worldFrames) {
+        const f = i * 6;
+        let ax = samples[at] - samples[previous],
+          ay = samples[at + 1] - samples[previous + 1],
+          az = samples[at + 2] - samples[previous + 2];
+        let bx = samples[next] - samples[at],
+          by = samples[next + 1] - samples[at + 1],
+          bz = samples[next + 2] - samples[at + 2];
+        if (Math.hypot(ax, ay, az) < 1e-9) {
+          ax = bx;
+          ay = by;
+          az = bz;
+        }
+        if (Math.hypot(bx, by, bz) < 1e-9) {
+          bx = ax;
+          by = ay;
+          bz = az;
+        }
+        for (let side = 0; side < 2; side++) {
+          const x = side ? bx : ax,
+            y = side ? by : ay,
+            z = side ? bz : az;
+          let nx = worldFrames[f + 1] * z - worldFrames[f + 2] * y;
+          let ny = worldFrames[f + 2] * x - worldFrames[f] * z;
+          let nz = worldFrames[f] * y - worldFrames[f + 1] * x;
+          let length = Math.hypot(nx, ny, nz);
+          if (length < 1e-9) {
+            nx = worldFrames[f + 3];
+            ny = worldFrames[f + 4];
+            nz = worldFrames[f + 5];
+            length = Math.hypot(nx, ny, nz);
+          }
+          if (length < 1e-9) {
+            nx = 0;
+            ny = 1;
+            nz = 0;
+            length = 1;
+          }
+          trailSides[side * 3] = nx / length;
+          trailSides[side * 3 + 1] = ny / length;
+          trailSides[side * 3 + 2] = nz / length;
+        }
+        let nx = trailSides[0] + trailSides[3],
+          ny = trailSides[1] + trailSides[4],
+          nz = trailSides[2] + trailSides[5];
+        let length = Math.hypot(nx, ny, nz);
+        if (length < 1e-9) {
+          nx = trailSides[3];
+          ny = trailSides[4];
+          nz = trailSides[5];
+          length = 1;
+        }
+        nx /= length;
+        ny /= length;
+        nz /= length;
+        const width =
+          samples[at + 3] /
+          Math.max(
+            0.4,
+            Math.abs(
+              nx * trailSides[3] + ny * trailSides[4] + nz * trailSides[5],
+            ),
+          );
+        for (let side = 0; side < 2; side++) {
+          const sign = side ? -1 : 1,
+            e = i * 6 + side * 3;
+          trailWorldEdges[e] = samples[at] + sign * nx * width;
+          trailWorldEdges[e + 1] = samples[at + 1] + sign * ny * width;
+          trailWorldEdges[e + 2] = samples[at + 2] + sign * nz * width;
+        }
+        continue;
+      }
+      let ax = samples[at] - samples[previous],
+        ay = samples[at + 1] - samples[previous + 1],
+        bx = samples[next] - samples[at],
+        by = samples[next + 1] - samples[at + 1];
+      const al = Math.hypot(ax, ay),
+        bl = Math.hypot(bx, by);
+      if (al > 1e-9) {
+        ax /= al;
+        ay /= al;
+      }
+      if (bl > 1e-9) {
+        bx /= bl;
+        by /= bl;
+      }
+      if (al <= 1e-9) {
+        ax = bx;
+        ay = by;
+      }
+      if (bl <= 1e-9) {
+        bx = ax;
+        by = ay;
+      }
+      let nx = -ay - by,
+        ny = ax + bx,
+        l = Math.hypot(nx, ny);
+      if (l < 1e-9) {
+        nx = -by;
+        ny = bx;
+        l = Math.hypot(nx, ny);
+      }
+      if (l < 1e-9) {
+        nx = 0;
+        ny = 1;
+        l = 1;
+      }
+      nx /= l;
+      ny /= l;
+      const width =
+        samples[at + 3] / Math.max(0.4, Math.abs(nx * -by + ny * bx));
+      trailEdges[i * 4] = samples[at] + nx * width;
+      trailEdges[i * 4 + 1] = samples[at + 1] + ny * width;
+      trailEdges[i * 4 + 2] = samples[at] - nx * width;
+      trailEdges[i * 4 + 3] = samples[at + 1] - ny * width;
+    }
+    let k = 0;
+    for (let i = 0; i < count - 1; i++)
+      for (let corner = 0; corner < 6; corner++) {
+        const section = i + trailCorners[corner * 2],
+          side = trailCorners[corner * 2 + 1],
+          at = section * 7,
+          e = section * 4 + side * 2;
+        target[k++] = worldFrames
+          ? trailWorldEdges[section * 6 + side * 3]
+          : trailEdges[e];
+        target[k++] = worldFrames
+          ? trailWorldEdges[section * 6 + side * 3 + 1]
+          : trailEdges[e + 1];
+        target[k++] = worldFrames
+          ? trailWorldEdges[section * 6 + side * 3 + 2]
+          : samples[at + 2];
+        target[k++] = 0;
+        target[k++] = samples[at + 4];
+        target[k++] = 0;
+        target[k++] = 0;
+        target[k++] = 3;
+        target[k++] = samples[at + 5];
+        target[k++] = side === 0 ? 1 : -1;
+      }
+    return k;
+  }
   const vertex = `attribute vec4 point;attribute vec4 style;attribute vec2 corner;uniform vec2 angle;uniform vec4 rootTransform;uniform float aspect,cameraDistance,stretch,particleTime,revealStretch,layerOffset;uniform mediump float visual;varying vec2 uv;varying float opacity,hue;varying mediump float particleKind;
 void main(){vec3 q=point.xyz+vec3(0.,0.,layerOffset);float c=cos(angle.x),s=sin(angle.x);q=vec3(c*q.x+s*q.z,q.y,-s*q.x+c*q.z);c=cos(angle.y);s=sin(angle.y);q=vec3(q.x,c*q.y-s*q.z,s*q.y+c*q.z);q=q*rootTransform.w+rootTransform.xyz;float a=style.y;float kind=style.w>=0.?style.w:visual;float flutter=kind>15.5&&kind<16.5?.18+.82*abs(cos(particleTime*1.1+style.z*6.283)):1.;float cometStretch=kind>18.5&&kind<19.5&&style.z>.78?8.:1.;vec2 v=corner*vec2((style.w>=0.?revealStretch:stretch)*flutter*cometStretch,kind>19.5&&kind<20.5&&style.z>=.58&&style.z<.82?8.:1.)*point.w*rootTransform.w;q.xy+=mat2(cos(a),sin(a),-sin(a),cos(a))*v;float fit=min(1.,aspect/.85);gl_Position=vec4(q.x*2.9*fit/aspect,q.y*2.9*fit,-q.z*.3,max(.15,cameraDistance-q.z));uv=corner;opacity=style.x;hue=style.z;particleKind=kind;}`;
   const fragment = `precision mediump float;uniform sampler2D spriteTex;uniform vec3 color;uniform float rootOpacity,visual,rainbow,spriteTint,cosmicPass;uniform highp float particleTime;uniform float particleSpeed;varying vec2 uv;varying float opacity,hue;varying mediump float particleKind;
@@ -240,7 +409,7 @@ else if(kind<24.5){vec4 effect=starcoreSurface(uv,hue,color);a=effect.a;rgb=effe
 else{vec4 effect=adamantiumSurface(uv,color);a=effect.a;rgb=effect.rgb;}
 if(cosmicPass>.5&&kind<18.5&&kind>3.5)discard;if(cosmicPass<-.5&&kind>2.5&&kind<3.5)discard;
 vec3 spectral=.55+.45*cos(6.283*(hue+vec3(0.,.33,.67)));if(kind>20.5&&kind<22.5)spectral=.5+.5*cos(6.283*(hue+particleTime*.12+vec3(0.,.33,.67)));rgb=mix(rgb,spectral,(kind>2.5&&kind<3.5||kind>6.5&&kind<7.5)?0.:rainbow)*shade;if(a<.01)discard;gl_FragColor=vec4(rgb,a*opacity*rootOpacity);}`;
-  return { stride, corners, visuals, pack, vertex, fragment };
+  return { stride, corners, visuals, pack, packTrail, vertex, fragment };
 })();
 
 export default api;

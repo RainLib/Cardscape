@@ -181,15 +181,32 @@ try {
             ?.dataset.locale === 'en' &&
           document.body.dataset.textureLoading !== 'true',
       );
-      await page.locator('#player-zoom').evaluate((input: HTMLInputElement) => {
-        input.value = '300';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      });
-      await page.waitForFunction(
-        () => document.body.dataset.textureLevel === 'large',
-        null,
-        { timeout: 30000 },
+      const pausedView = await page.evaluate(() =>
+        window.cardPreview.getView(),
       );
+      const tierSwaps = [];
+      for (const zoom of [300, 25, 300, 25, 300]) {
+        const tier = zoom === 25 ? 'small' : 'large';
+        await page
+          .locator('#player-zoom')
+          .evaluate((input: HTMLInputElement, zoom: number) => {
+            input.value = String(zoom);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          }, zoom);
+        await page.waitForFunction(
+          (tier) =>
+            document.body.dataset.textureLevel === tier &&
+            document.body.dataset.textureLoading !== 'true',
+          tier,
+          { timeout: 30000 },
+        );
+        assert.deepEqual(
+          await page.evaluate(() => window.cardPreview.getView()),
+          pausedView,
+          'zoom and complete texture batches preserve the paused action clock',
+        );
+        tierSwaps.push({ zoom, tier });
+      }
       await page.locator('[data-pose="180"]').click();
       await page.waitForFunction(
         () =>
@@ -222,7 +239,7 @@ try {
       assert.equal(snapshot.preview.backReady, 'true');
       if (mode !== 'local') assert.ok(Number(snapshot.remoteRequests) > 0);
       if (mode === 'cached') assert.ok(Number(snapshot.remoteCacheHits) > 0);
-      results.push({ ...snapshot, mode });
+      results.push({ ...snapshot, mode, tierSwaps });
       console.log(`SMOKE_EXPORTED_PLAYER_${mode.toUpperCase()}_PASSED`);
     }
     assert.deepEqual(errors, []);

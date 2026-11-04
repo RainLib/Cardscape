@@ -136,6 +136,42 @@ export function createRuntimeValidator(validators: RuntimeValidators) {
         )
           throw Error('动作属性无效');
         ids.add(a.id);
+        if (
+          a.transitionDuration !== undefined &&
+          !range(a.transitionDuration, 0, 2)
+        )
+          throw Error('动作过渡时长无效');
+        if (a.drawOrder !== undefined) {
+          if (!Array.isArray(a.drawOrder) || a.drawOrder.length > 64)
+            throw Error('动画层序关键帧无效');
+          let previous = -1;
+          for (const frame of a.drawOrder) {
+            if (
+              !frame ||
+              !range(frame.at, 0, 1) ||
+              frame.at <= previous ||
+              !Array.isArray(frame.layers) ||
+              frame.layers.length > 64 ||
+              new Set(frame.layers).size !== frame.layers.length ||
+              frame.layers.some(
+                (id) =>
+                  typeof id !== 'string' ||
+                  !doc.layers.some(
+                    (l) =>
+                      l.id === id &&
+                      l.kind !== 'frame' &&
+                      l.kind !== 'background' &&
+                      !['far', 'mid', 'near'].includes(l.spatial?.role || '') &&
+                      !['baseplate', 'background-candidate'].includes(
+                        l.role || '',
+                      ),
+                  ),
+              )
+            )
+              throw Error('动画层序引用或时间无效');
+            previous = frame.at;
+          }
+        }
         if (a.tracks !== undefined) {
           if (
             !a.tracks ||

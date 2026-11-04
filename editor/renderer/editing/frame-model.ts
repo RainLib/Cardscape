@@ -1,6 +1,15 @@
-import type { FrameStyle, FrameMesh, Vec2 } from '../../shared/render-models';
+import type {
+  CardContour,
+  FrameStyle,
+  FrameMesh,
+  Vec2,
+} from '../../shared/render-models';
 /* Shared outline, aperture and bevel geometry for 2D, WebGL and exported cards. */
 import importedCardFrameRaster from './frame-raster.ts';
+import contourPaths from './contour-path-model.ts';
+import contours from './contour-geometry.ts';
+import fields from './contour-field-model.ts';
+import contourBevel from './contour-bevel-model.ts';
 
 const api = (() => {
   'use strict';
@@ -46,15 +55,79 @@ const api = (() => {
       'halloween-stickers',
     ],
     animations = ['none', 'pulse', 'flow', 'infinity'];
-  // Read earlier projects without rewriting their source; every active frame is rectangular.
+  // Legacy style names remain readable; custom geometry is independent of this enum.
   const legacyShapes = ['rect', 'rounded', 'cut', 'arch', 'oval', 'circle'];
   const resolve = (
     doc?: { frameStyle?: Partial<FrameStyle> } | null,
   ): FrameStyle => ({ ...defaults, ...doc?.frameStyle, shape: 'rect' });
+  function validateContour(value: unknown): CardContour {
+    const typed = contours.validate(value);
+    if (typed.paths) {
+      const baked = contourPaths.compile(typed.paths);
+      const a = contours.rings(baked),
+        b = contours.rings(typed);
+      if (
+        a.length !== b.length ||
+        JSON.stringify(contours.regions(typed).map((r) => r.windows.length)) !==
+          JSON.stringify(
+            contours.regions(baked).map((r) => r.windows.length),
+          ) ||
+        a.some(
+          (r, i) =>
+            r.length !== b[i].length ||
+            r.some(
+              (p, j) => Math.hypot(p[0] - b[i][j][0], p[1] - b[i][j][1]) > 1e-6,
+            ),
+        )
+      )
+        throw Error('曲线与采样轮廓不一致，请重新应用轮廓');
+    }
+    return typed;
+  }
+  function contourUniforms(style: FrameStyle) {
+    const edges = new Float32Array(64 * 4);
+    let count = 0;
+    if (style.contour && !contours.complex(style.contour))
+      for (const ring of contours.rings(style.contour))
+        for (let i = 0; i < ring.length; i++) {
+          const a = ring[i],
+            b = ring[(i + 1) % ring.length];
+          edges.set(
+            [
+              a[0] / 1024 - 0.5,
+              0.75 - a[1] / 1024,
+              b[0] / 1024 - 0.5,
+              0.75 - b[1] / 1024,
+            ],
+            count++ * 4,
+          );
+        }
+    return {
+      edges,
+      counts: [
+        style.contour?.outline.length || 0,
+        style.contour ? Math.max(1, count) : 0,
+      ],
+    };
+  }
+  function windowPath(
+    ctx: CanvasRenderingContext2D,
+    style: FrameStyle,
+    append = false,
+  ) {
+    if (!append) ctx.beginPath();
+    for (const ring of (style.contour
+      ? contours.apertures(style.contour)
+      : undefined) || [contour(style, style.width)]) {
+      ring.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+    }
+  }
   function validateStyle(value: unknown): asserts value is Partial<FrameStyle> {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw Error('边框样式参数无效');
     const s = value as Record<string, unknown>;
+    if (s.contour !== undefined) validateContour(s.contour);
     if (
       !s ||
       typeof s !== 'object' ||
@@ -95,7 +168,14 @@ const api = (() => {
       throw Error('边框动画无效');
   }
   function validate(doc: { frameStyle?: unknown; frameStyles?: unknown }) {
-    if (doc.frameStyle !== undefined) validateStyle(doc.frameStyle);
+    if (doc.frameStyle !== undefined) {
+      validateStyle(doc.frameStyle);
+      const style = { ...defaults, ...doc.frameStyle },
+        edge = bevel(style);
+      // Reject an over-budget bevel before the document transaction is applied.
+      if (style.contour && edge > 0)
+        contourBevel.create(style.contour, edge, depths(style).front);
+    }
     if (doc.frameStyles !== undefined) {
       if (!Array.isArray(doc.frameStyles) || doc.frameStyles.length > 24)
         throw Error('边框样式数量超限');
@@ -114,6 +194,10 @@ const api = (() => {
   }
   // Coordinates are master-image pixels. Inner apertures are inset from the same outline.
   function contains(style: FrameStyle, x: number, y: number, inset = 0) {
+    if (style.contour)
+      return inset > 0
+        ? contours.contains(style.contour, [x, y], true)
+        : contours.contains(style.contour, [x, y]);
     const cut = Math.max(0, style.corner - (2 - Math.SQRT2) * inset),
       epsilon = 1e-7;
     return (
@@ -126,6 +210,10 @@ const api = (() => {
     );
   }
   function contour(style: FrameStyle, inset = 0): Vec2[] {
+    if (style.contour)
+      return (
+        (inset > 0 ? style.contour.windows[0] : style.contour.outline) || []
+      ).map((p) => [...p]);
     const cut = Math.max(0, style.corner - (2 - Math.SQRT2) * inset),
       l = inset,
       r = 1024 - inset,
@@ -152,12 +240,34 @@ const api = (() => {
     style: FrameStyle,
     inset = style.width,
   ) {
-    path(ctx, contour(style, inset));
-    ctx.clip();
+    if (style.contour && inset > 0) windowPath(ctx, style);
+    else if (style.contour) {
+      ctx.beginPath();
+      for (const ring of contours.silhouette(style.contour)) {
+        ring.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+      }
+    } else path(ctx, contour(style, inset));
+    ctx.clip('evenodd');
   }
   function draw(ctx: CanvasRenderingContext2D, style: FrameStyle) {
     if (typeof window === 'object' && importedCardFrameRaster?.draw(ctx, style))
       return;
+    if (style.contour) {
+      ctx.save();
+      ctx.beginPath();
+      for (const ring of contours.rings(style.contour)) {
+        ring.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+      }
+      const gradient = ctx.createLinearGradient(0, 0, 1024, 1536);
+      gradient.addColorStop(0, style.accent);
+      gradient.addColorStop(1, style.color);
+      ctx.fillStyle = gradient;
+      ctx.fill('evenodd');
+      ctx.restore();
+      return;
+    }
     const outer = contour(style),
       inner = contour(style, style.width);
     ctx.save();
@@ -246,11 +356,88 @@ const api = (() => {
     return { front, back, inset, background: back + (inset - back) * 0.2 };
   }
   function geometry(style: FrameStyle) {
-    const bevel = Math.min(style.bevel, style.width * 0.4),
+    if (style.contour) {
+      const { front, back } = depths(style),
+        b = bevel(style),
+        quad = (z: number, pad = 0): FrameMesh => ({
+          positions: [
+            -0.5,
+            -0.75,
+            z,
+            0.5,
+            -0.75,
+            z,
+            -0.5,
+            0.75,
+            z,
+            0.5,
+            0.75,
+            z,
+          ],
+          uv: [
+            -pad / 1024,
+            1 + pad / 1536,
+            1 + pad / 1024,
+            1 + pad / 1536,
+            -pad / 1024,
+            -pad / 1536,
+            1 + pad / 1024,
+            -pad / 1536,
+          ],
+          weights: [0, 0, 0.75, 0, 0, 0, 0.75, 0, 0, 0, 0.75, 0, 0, 0, 0.75, 0],
+          indices: [0, 1, 2, 2, 1, 3],
+        }),
+        sides: FrameMesh = { positions: [], uv: [], weights: [], indices: [] };
+      const rim =
+          b > 0 ? contourBevel.create(style.contour, b, front) : quad(front),
+        rear = {
+          ...rim,
+          positions: rim.positions.map((v, i) =>
+            i % 3 === 2 ? front + back - v : v,
+          ),
+          indices: rim.indices.map(
+            (_, i, a) => a[i % 3 === 1 ? i + 1 : i % 3 === 2 ? i - 1 : i],
+          ),
+        },
+        aura = quad(front - b / 1024 - 0.001, auraPadding(style));
+      // Padding belongs to actual geometry as well as its registered UVs.
+      aura.positions = aura.positions.map((v, i) =>
+        i % 3 === 2 ? v : v + (Math.sign(v) * auraPadding(style)) / 1024,
+      );
+      const walls = contours.regions(style.contour).flatMap((region) =>
+        [region.outline, ...region.windows].map((ring, index) => {
+          const area = ring.reduce((n, p, i) => {
+            const q = ring[(i + 1) % ring.length];
+            return n + p[0] * q[1] - q[0] * p[1];
+          }, 0);
+          return area > 0 === (index === 0) ? ring : ring.slice().reverse();
+        }),
+      );
+      for (const ring of walls)
+        for (let i = 0; i < ring.length; i++) {
+          const n = sides.positions.length / 3;
+          for (const p of [ring[i], ring[(i + 1) % ring.length]])
+            for (const z of [back + b / 1024, front - b / 1024]) {
+              sides.positions.push(p[0] / 1024 - 0.5, 0.75 - p[1] / 1024, z);
+              sides.uv.push(p[0] / 1024, p[1] / 1536);
+              sides.weights.push(0, 0, 0.5, 0);
+            }
+          sides.indices.push(n, n + 1, n + 2, n + 1, n + 3, n + 2);
+        }
+      return {
+        rim,
+        rear,
+        sides,
+        aura,
+        front,
+        back,
+      };
+    }
+    const edgeBevel = bevel(style),
       { front, back } = depths(style),
       outer = contour(style),
-      top = contour(style, bevel),
-      bottom = contour(style, style.width - bevel),
+      top = contour(style, edgeBevel),
+      bottom = contour(style, style.width - edgeBevel),
       inner = contour(style, style.width),
       rim: FrameMesh = { positions: [], uv: [], weights: [], indices: [] },
       sides: FrameMesh = { positions: [], uv: [], weights: [], indices: [] };
@@ -280,11 +467,27 @@ const api = (() => {
         g.indices.push(a, b, a + 1, a + 1, b, b + 1);
       }
     }
-    band(rim, outer, top, front - bevel / 1024, front, 0.3, 1);
+    band(rim, outer, top, front - edgeBevel / 1024, front, 0.3, 1);
     band(rim, top, bottom, front, front, 0.75, 0.75);
-    band(rim, bottom, inner, front, front - bevel / 1024, 1, 0.3);
-    band(sides, outer, outer, back, front - bevel / 1024, 0.22, 0.5);
-    band(sides, inner, inner, back, front - bevel / 1024, 0.22, 0.5);
+    band(rim, bottom, inner, front, front - edgeBevel / 1024, 1, 0.3);
+    band(
+      sides,
+      outer,
+      outer,
+      back + edgeBevel / 1024,
+      front - edgeBevel / 1024,
+      0.22,
+      0.5,
+    );
+    band(
+      sides,
+      inner,
+      inner,
+      back + edgeBevel / 1024,
+      front - edgeBevel / 1024,
+      0.22,
+      0.5,
+    );
     const rear = {
       ...rim,
       positions: rim.positions.map((v, i) =>
@@ -323,6 +526,14 @@ const api = (() => {
       'candy-halloween',
       'halloween-stickers',
     ].includes(style.finish);
+  function bevel(style: FrameStyle) {
+    const value = Math.min(
+      style.bevel,
+      style.depth * 0.45,
+      style.contour ? 16 : style.width * 0.4,
+    );
+    return value < 0.01 ? 0 : value;
+  }
   const rgb = (hex: string) =>
     [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
   return {
@@ -332,6 +543,11 @@ const api = (() => {
     animations,
     resolve,
     validate,
+    validateContour,
+    contourUniforms,
+    distanceField: (style: FrameStyle) =>
+      style.contour ? fields.create(style.contour) : null,
+    windowPath,
     contains,
     contour,
     path,
@@ -342,6 +558,7 @@ const api = (() => {
     rgb,
     hasAura,
     auraPadding,
+    bevel,
     auraInset,
   };
 })();

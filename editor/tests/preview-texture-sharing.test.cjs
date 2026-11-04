@@ -10,12 +10,37 @@ function harness(){
  },{get:(target,key)=>key in target?target[key]:()=>{}});
  class HTMLImageElement{constructor(src){this.src=src;this.currentSrc=src;this.naturalWidth=16;this.naturalHeight=24;}}
  const makeCanvas=()=>({dataset:{},width:16,height:24,setAttribute(){},getContext:type=>type==='webgl'?null:{fillRect(){}}});
- const window={CardRuntime:R,CardFrame:F,CardParticleBatch:B,CardMaskEdit:M,CardSpatial:{},dispatchEvent(){}},document={createElement:makeCanvas,getElementById:()=>({after(){}})};
- window.CardShaderVariants=require('../dist/renderer/shader-variants.js');window.CardLazyPreview=require('../dist/renderer/lazy-preview.js');vm.runInNewContext(fs.readFileSync(require.resolve('../dist/renderer/author-preview.js'),'utf8'),{window,document,HTMLImageElement});
+ const window={CardRuntime:R,CardContourFieldRenderer:require('../dist/renderer/contour-field-renderer.js'),CardFrame:F,CardParticleWorld:require('../dist/renderer/particle-world-model.js'),CardParticleBatch:B,CardMaskEdit:M,CardSpatial:{},dispatchEvent(){}},document={createElement:makeCanvas,getElementById:()=>({after(){}})};
+ window.CardSourceAlphaBounds=require('../dist/renderer/source-alpha-bounds.js');window.CardActionAudioRuntime=require('../dist/renderer/action-audio-runtime.js');window.CardShaderVariants=require('../dist/renderer/shader-variants.js');window.CardLazyPreview=require('../dist/renderer/lazy-preview.js');vm.runInNewContext(fs.readFileSync(require.resolve('../dist/renderer/author-preview.js'),'utf8'),{window,document,HTMLImageElement});
  const canvas=makeCanvas(),renderer=window.CardSurfaceRenderer.create({canvas,gl,embedded:true,legacy:{addImage(){},updateMask(){}}});
  const add=(id,image)=>renderer.addImage({id,kind:'image'},image),image=src=>new HTMLImageElement(src);
- return {renderer,canvas,uploads,patches,deleted,created,add,image,makeCanvas,last:()=>uploads.at(-1).texture};
+ const createRenderer=(context=gl)=>window.CardSurfaceRenderer.create({canvas:makeCanvas(),gl:context,embedded:true,legacy:{addImage(){},updateMask(){}}});
+ return {renderer,canvas,uploads,patches,deleted,created,add,image,makeCanvas,gl,createRenderer,last:()=>uploads.at(-1).texture};
 }
+
+test('surfaces on one GL context share immutable artwork until its final owner releases it',()=>{
+ const h=harness(),second=h.createRenderer(),art=h.image('same-decode.png');
+ h.add('first-card',art);const texture=h.last(),count=h.uploads.length;
+ second.addImage({id:'second-card',kind:'image'},art);
+ assert.equal(h.uploads.length,count,'same context and decoded image upload only once');
+ h.renderer.resetAssets();assert.ok(!h.deleted.includes(texture),'another card still owns the image');
+ const afterReset=h.uploads.length;h.add('reopened-card',art);assert.equal(h.uploads.length,afterReset,'reopening reuses the surviving owner');
+ h.renderer.dispose();assert.ok(!h.deleted.includes(texture));
+ second.dispose();assert.equal(h.deleted.filter(t=>t===texture).length,1);
+ const next=h.createRenderer();next.addImage({id:'fresh',kind:'image'},art);
+ assert.notEqual(h.last(),texture,'released texture is not reused');next.dispose();
+});
+
+test('cross-surface writes detach their owner and GL contexts never share handles',()=>{
+ const h=harness(),second=h.createRenderer(),art=h.image('shared.png');
+ h.add('first',art);const shared=h.last();second.addImage({id:'second',kind:'image'},art);
+ h.add('first',h.makeCanvas());const writable=h.last();assert.notEqual(writable,shared);
+ assert.ok(!h.deleted.includes(shared));
+ const other=h.createRenderer(new Proxy(h.gl,{}));other.addImage({id:'other-context',kind:'image'},art);
+ assert.notEqual(h.last(),shared);
+ h.renderer.dispose();assert.ok(!h.deleted.includes(shared));second.dispose();other.dispose();
+ assert.equal(h.deleted.filter(t=>t===shared).length,1);
+});
 
 test('two layers share one immutable decoded image without duplicate GPU uploads',()=>{
  const h=harness(),flow=h.image('flow.png');h.add('front',flow);const shared=h.last(),count=h.uploads.length;

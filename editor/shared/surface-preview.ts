@@ -1,4 +1,5 @@
 import type { CardDocument } from './document';
+import type { ParticleWorldSampler } from './character';
 import type { CharacterAction, CharacterPose, SkinMesh } from './character';
 import type {
   Material,
@@ -101,6 +102,7 @@ export interface RenderDetail {
   decorations: boolean;
 }
 export interface ExternalView {
+  sampleParticleWorld?: ParticleWorldSampler;
   angle: number[];
   root: number[];
   visibleCards?: number;

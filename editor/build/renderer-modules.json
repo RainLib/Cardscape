@@ -103,6 +103,30 @@
     "global": "CardFrameRaster",
     "default": true
   },
+  "renderer/editing/frame-contour-editor.ts": {
+    "global": "CardFrameContourEditor",
+    "exports": ["createFrameContourEditor"]
+  },
+  "renderer/editing/contour-path-model.ts": {
+    "global": "CardContourPaths",
+    "default": true
+  },
+  "renderer/editing/contour-svg-model.ts": {
+    "global": "CardContourSVG",
+    "default": true
+  },
+  "renderer/editing/contour-canvas.ts": {
+    "global": "CardContourCanvas",
+    "exports": ["createContourCanvas"]
+  },
+  "renderer/animation/action-audio-editor.ts": {
+    "global": "CardActionAudioEditor",
+    "exports": ["createActionAudioEditor"]
+  },
+  "renderer/animation/action-particle-editor.ts": {
+    "global": "CardActionParticleEditor",
+    "exports": ["createActionParticleEditor"]
+  },
   "renderer/editing/layer-tree.ts": {
     "global": "CardLayers",
     "default": true
@@ -149,6 +173,26 @@
   },
   "renderer/rendering/particle-batch.ts": {
     "global": "CardParticleBatch",
+    "default": true
+  },
+  "renderer/animation/action-audio-model.ts": {
+    "global": "CardActionAudio",
+    "default": true
+  },
+  "renderer/rendering/action-audio-runtime.ts": {
+    "global": "CardActionAudioRuntime",
+    "default": true
+  },
+  "renderer/rendering/source-alpha-bounds.ts": {
+    "global": "CardSourceAlphaBounds",
+    "default": true
+  },
+  "renderer/rendering/particle-world-model.ts": {
+    "global": "CardParticleWorld",
+    "default": true
+  },
+  "renderer/rendering/particle-physics-model.ts": {
+    "global": "CardParticlePhysics",
     "default": true
   },
   "renderer/rendering/preview-region.ts": {
@@ -289,6 +333,50 @@
   },
   "renderer/rendering/player-model.ts": {
     "global": "CardPlayerModel",
+    "default": true
+  },
+  "renderer/editing/contour-geometry.ts": {
+    "global": "CardContourGeometry",
+    "default": true
+  },
+  "renderer/editing/contour-field-model.ts": {
+    "global": "CardContourField",
+    "default": true
+  },
+  "renderer/rendering/contour-field-renderer.ts": {
+    "global": "CardContourFieldRenderer",
+    "default": true
+  },
+  "renderer/editing/contour-boolean-engine.ts": {
+    "global": "CardContourBooleanEngine",
+    "exports": ["union", "difference", "intersection", "xor"]
+  },
+  "renderer/editing/contour-boolean-model.ts": {
+    "global": "CardContourBoolean",
+    "default": true
+  },
+  "renderer/editing/contour-distance-transform.ts": {
+    "global": "CardContourDistance",
+    "default": true
+  },
+  "renderer/editing/contour-coordinate-model.ts": {
+    "global": "CardContourCoordinates",
+    "default": true
+  },
+  "renderer/editing/contour-bevel-engine.ts": {
+    "global": "CardContourBevelEngine",
+    "exports": ["plan", "triangulate"]
+  },
+  "renderer/editing/contour-bevel-model.ts": {
+    "global": "CardContourBevel",
+    "default": true
+  },
+  "renderer/rendering/player-textures.ts": {
+    "global": "CardPlayerTextures",
+    "default": true
+  },
+  "renderer/rendering/contour-material-glsl.ts": {
+    "global": "CardContourMaterialGLSL",
     "default": true
   }
 }

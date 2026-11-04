@@ -13,6 +13,7 @@ import { smokeRenderModels } from './smoke-render-models.mts';
 import { smokeWorkshopModels } from './smoke-workshop-models.mts';
 import {smokeAgentWorkspace} from './smoke-agent-workspace.mts';
 import { smokeRuntimeServices } from './smoke-runtime-services.mts';
+import { smokeIrregularEditing } from './smoke-irregular-editing.mts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const runtime = await mkdtemp(join(tmpdir(), 'cardscape-smoke-'));
@@ -69,6 +70,7 @@ try {
   console.log('SMOKE_EDITOR_READY');
   await page.waitForFunction(() => document.querySelector<HTMLCanvasElement>('#author-model-canvas')?.dataset.mode === 'authored-grid', null, { timeout: 30000, polling: 100 });
   await page.waitForFunction(() => !!window.atelierIKPanel && !window.cardEditorHost.state().busy, null, { timeout: 30000, polling: 100 });
+  await smokeIrregularEditing(page);
   await page.evaluate(() => {
     const host = window.cardEditorHost, panel = window.atelierIKPanel;
     const original = host.state().document;

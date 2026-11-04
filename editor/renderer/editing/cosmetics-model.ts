@@ -498,7 +498,7 @@ const api = (() => {
   function budget(quality = 'balanced', visibleCards = 1) {
     const q = qualities[quality] || qualities.balanced,
       n = Math.max(1, Math.floor(visibleCards) || 1);
-    return { ...q, particles: Math.max(8, Math.floor(q.particles / n)) };
+    return { ...q, particles: Math.max(0, Math.floor(q.particles / n)) };
   }
   function validate(value: unknown): void {
     if (!value || typeof value !== 'object' || Array.isArray(value))

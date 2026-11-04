@@ -101,6 +101,9 @@ export default defineConfig({
   },
   renderer: {
     root: resolve('renderer'), base: './', publicDir: false,
+    // poly2tri's CommonJS entry captures Node's `global` even in browsers.
+    // Match the standalone runtime bundle in both Vite dev and production.
+    define: { global: 'globalThis' },
     resolve: { alias: {
       '@cardscape/shader-editor': resolve('renderer/shaders/shader-editor-source.ts'),
       '@cardscape/shader-nodes': resolve('renderer/shaders/shader-nodes-source.ts')
@@ -113,7 +116,8 @@ export default defineConfig({
       '@codemirror/state', '@codemirror/view', '@codemirror/language',
       '@codemirror/legacy-modes/mode/clike', '@codemirror/autocomplete',
       '@codemirror/commands', '@codemirror/search', '@codemirror/lint',
-      '@codemirror/theme-one-dark', 'litegraph.js/build/litegraph.core.js'
+      '@codemirror/theme-one-dark', 'litegraph.js/build/litegraph.core.js',
+      'polyclip-ts', 'clipper2-ts', 'poly2tri'
     ] },
     server: { host: '127.0.0.1', port: 8770, strictPort: true },
     build: {

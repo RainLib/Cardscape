@@ -516,7 +516,15 @@ const api = (() => {
         throw Error('Spine 动画格式无效');
       for (const key of Object.keys(animation))
         if (
-          !['bones', 'ik', 'deform', 'attachments', 'slots'].includes(key) &&
+          ![
+            'bones',
+            'ik',
+            'deform',
+            'attachments',
+            'slots',
+            'drawOrder',
+            'draworder',
+          ].includes(key) &&
           Object.keys(animation[key] || {}).length
         )
           fail('动画 ' + name + ' / ' + key + ' 尚不支持');
@@ -554,6 +562,51 @@ const api = (() => {
         boneTracks: {},
         ikTracks: {},
       };
+      const drawOrder = animation.drawOrder ?? animation.draworder;
+      if (animation.drawOrder && animation.draworder)
+        throw Error('Spine 绘制顺序重复');
+      if (drawOrder !== undefined) {
+        if (!Array.isArray(drawOrder) || drawOrder.length > 64)
+          throw Error('Spine 绘制顺序帧无效');
+        let previous = -1;
+        action.drawOrder = drawOrder.map((frame) => {
+          const time = num(frame.time),
+            slots = source.slots || [],
+            order = Array<number>(slots.length).fill(-1),
+            unchanged: number[] = [];
+          if (
+            !record(frame) ||
+            time < 0 ||
+            !Number.isFinite(time) ||
+            time <= previous ||
+            (frame.offsets !== undefined && !Array.isArray(frame.offsets))
+          )
+            throw Error('Spine 绘制顺序时间无效');
+          previous = time;
+          let original = 0;
+          for (const offset of frame.offsets || []) {
+            const slotIndex = slots.findIndex((s) => s.name === offset.slot);
+            if (slotIndex < original || !Number.isInteger(offset.offset))
+              throw Error('Spine 绘制顺序偏移无效');
+            while (original < slotIndex) unchanged.push(original++);
+            const target = original + offset.offset;
+            if (target < 0 || target >= slots.length || order[target] !== -1)
+              throw Error('Spine 绘制顺序偏移冲突');
+            order[target] = original++;
+          }
+          while (original < slots.length) unchanged.push(original++);
+          for (let i = slots.length - 1; i >= 0; i--)
+            if (order[i] === -1) order[i] = unchanged.pop()!;
+          return {
+            at: time / duration,
+            layers: order.flatMap((i) =>
+              mapping
+                .filter((m) => m.sourceSlot === slots[i].name && m.layerId)
+                .map((m) => m.layerId),
+            ),
+          };
+        });
+      }
       for (const [name, tracks] of Object.entries(animation.bones || {})) {
         if (!record(tracks)) throw Error('Spine 骨骼轨道格式无效');
         if (!boneNames.has(name)) throw Error('Spine 动画引用不存在的骨骼');

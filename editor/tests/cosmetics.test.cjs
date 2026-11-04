@@ -1,6 +1,17 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const M=require('../dist/renderer/cosmetics-model.js'),C=require('../dist/renderer/component-model.js'),F=require('../dist/renderer/frame-model.js'),R=require('../dist/renderer/runtime-model.js'),B=require('../dist/renderer/particle-batch.js');
 const fixture=()=>R.ensure({schema:'card-atelier/1',id:'a',previewMode:'authored',frameStyle:{...F.defaults},spatial:{schema:'card-spatial/1',enabled:true,cameraDistance:2.7},effects:{depth:1,background:1,cape:true,flow:true},masks:{inset:'mask',motion:'mask',emission:'mask',phase:'mask',foil:'mask'},layers:[{id:'body',kind:'foreground',visible:true,spatial:{role:'body',z:.075}},{id:'far',kind:'background',visible:true,spatial:{role:'far',z:-.18}},{id:'rim',kind:'frame',visible:true}],cosmetics:M.config()});
+
+test('concurrent cards never exceed the scene particle budget, including low quality and saturated scenes',()=>{
+ for(const [quality,total] of [['low',48],['balanced',128],['high',256]])
+  for(const cards of [1,4,8,16,64,257]){
+   const budget=M.budget(quality,cards).particles;
+   assert.ok(Number.isInteger(budget)&&budget>=0);
+   assert.ok(budget*cards<=total,quality+' '+cards+' cards');
+  }
+ assert.equal(M.budget('low',16).particles,3);
+ assert.equal(M.budget('balanced',257).particles,0);
+});
 test('seven levels accumulate capabilities without changing authored layers or shared frame assets',()=>{const source=fixture();source.componentScenes={frame:{document:{layers:[{id:'rim',kind:'frame'}],frameStyle:{...F.defaults}}}};const before=JSON.stringify(source);for(const l of M.levels.slice(1)){const view=M.resolve(source,{level:l.id});assert.equal(view.frameStyle.shape,'rect');assert.equal(view.cosmeticPreview.motion,l.rank>=3);assert.equal(view.cosmeticPreview.title,l.rank>=4);assert.equal(view.cosmeticPreview.parallax,l.rank>=2);assert.equal(view.composition.bottom,false);if(l.rank<2)assert.equal(view.layers[0].spatial.z,view.layers[1].spatial.z);assert.equal(view.componentScenes.frame.document.frameStyle.color,view.frameStyle.color);}assert.equal(JSON.stringify(source),before);assert.equal(M.resolve(source).layers,source.layers);});
 test('level and split finish/flare stay independent and downgrade does not discard authoring data',()=>{const d=fixture();d.cosmetics={...M.defaults,level:'common',finish:'gold',flare:'krackle'};const v=M.resolve(d);assert.equal(v.material.style,'gold');assert.equal(v.particles.visual,'krackle');assert.equal(v.particles.enabled,true);assert.equal(v.effects.cape,false);assert.equal(d.effects.cape,true);assert.equal(M.resolve(d,{level:'epic'}).effects.cape,true);assert.equal(M.resolve(d,{level:'legendary'}).cosmeticPreview.title,true);});
 test('custom border can override grade and temporary preview can still inspect grade presets',()=>{const d=fixture();d.cosmetics={...M.defaults,level:'infinity',border:'custom'};assert.equal(M.resolve(d).frameStyle.color,F.defaults.color);assert.equal(M.resolve(d,{level:'rare'}).frameStyle.color,M.borders.rare[0]);assert.equal(M.resolve(d,{level:'rare'}).frameStyle.animation,'none');});

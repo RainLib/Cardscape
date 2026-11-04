@@ -1,6 +1,8 @@
 import type { CardLayer, CardSlot } from '../../shared/document';
 import type {
   CharacterAction,
+  CharacterDocument,
+  NumericTracks,
   CharacterPose,
   Keyframe,
 } from '../../shared/character';
@@ -13,6 +15,33 @@ import type {
   RuntimeShader,
 } from '../../shared/runtime';
 import importedCardCharacterAnimation from '../character/character-animation-model.ts';
+import contourMaterial from './contour-material-glsl.ts';
+// Shared with static raster and back renderer. Simple legacy contours keep the edge path.
+const contourGLSL = `uniform vec4 contourEdges[64];uniform vec2 contourCounts;
+uniform sampler2D contourField;uniform float contourTexture;uniform vec4 contourFieldInfo;
+vec2 contourPixel(vec2 p){return (vec2(p.x+.5,.75-p.y)*1024.+contourFieldInfo.w)/contourFieldInfo.z;}
+vec2 contourDecode(vec2 pixel){vec2 size=contourFieldInfo.xy,domain=vec2(size.x*(contourFieldInfo.w>.5?1./1.5:1.),size.y);vec3 c=floor(texture2D(contourField,clamp(pixel,vec2(.5),domain-.5)/size).rgb*255.+.5);return vec2(c.r*16.+floor(c.g/16.),mod(c.g,16.)*256.+c.b)*((contourFieldInfo.w>.5?384.:128.)/4095.)-(contourFieldInfo.w>.5?192.:64.);}
+vec2 contourRead(vec2 p,out vec2 gradient){vec2 pixel=contourPixel(p),domain=vec2(contourFieldInfo.x*(contourFieldInfo.w>.5?1./1.5:1.),contourFieldInfo.y);gradient=vec2(0.);
+ if(any(lessThan(pixel,vec2(0.)))||any(greaterThan(pixel,domain)))return vec2(-192.);
+ vec2 q=pixel-.5,base=floor(q),f=fract(q),a=contourDecode(base+.5),b=contourDecode(base+vec2(1.5,.5)),c=contourDecode(base+vec2(.5,1.5)),d=contourDecode(base+1.5);
+ vec2 distance=mix(mix(a,b,f.x),mix(c,d,f.x),f.y),dx=mix(b-a,d-c,f.y)/contourFieldInfo.z,dy=mix(c-a,d-b,f.x)/contourFieldInfo.z;
+ gradient=distance.x< -distance.y?vec2(dx.x,dy.x):-vec2(dx.y,dy.y);return distance;}
+vec2 contourDistance(vec2 p){vec2 gradient;return contourRead(p,gradient);}
+vec2 contourArcDecode(vec2 pixel){vec2 size=contourFieldInfo.xy,domain=vec2(size.x/3.,size.y);vec3 c=floor(texture2D(contourField,(vec2(size.x/1.5,0.)+clamp(pixel,vec2(.5),domain-.5))/size).rgb*255.+.5);return vec2((c.r*256.+c.g)/65536.,c.b);}
+float contourArc(vec2 p,out float window){vec2 q=contourPixel(p)*vec2(.5,1.)-.5,base=floor(q),f=fract(q),
+ a=contourArcDecode(base+.5),b=contourArcDecode(base+vec2(1.5,.5)),c=contourArcDecode(base+vec2(.5,1.5)),d=contourArcDecode(base+1.5),anchor=mix(mix(a,b,step(.5,f.x)),mix(c,d,step(.5,f.x)),step(.5,f.y));
+ if(abs(a.y-anchor.y)>.5)a=anchor;if(abs(b.y-anchor.y)>.5)b=anchor;if(abs(c.y-anchor.y)>.5)c=anchor;if(abs(d.y-anchor.y)>.5)d=anchor;
+ vec4 phase=vec4(a.x,b.x,c.x,d.x);phase+=floor(vec4(anchor.x)-phase+.5);window=mod(anchor.y,2.);return fract(mix(mix(phase.x,phase.y,f.x),mix(phase.z,phase.w,f.x),f.y));}
+bool contourHasMaterial(){return contourFieldInfo.w>.5;}
+vec2 contourAt(vec2 p){bool outer=false;bool inner=false;
+ if(contourTexture>.5)return step(vec2(0.),contourDistance(p));
+ for(int i=0;i<64;i++){if(float(i)>=contourCounts.y)break;
+  vec4 edge=contourEdges[i];vec2 a=edge.xy,b=edge.zw;
+  bool hit=(a.y>p.y)!=(b.y>p.y);
+  if(hit){float x=a.x+(b.x-a.x)*(p.y-a.y)/(b.y-a.y);if(p.x<x){if(float(i)<contourCounts.x)outer=!outer;else inner=!inner;}}
+ }
+ return vec2(outer?1.:0.,inner?1.:0.);
+}`;
 const api = (() => {
   'use strict';
 
@@ -279,6 +308,194 @@ const api = (() => {
       opacity: sampleTrack(a.tracks?.opacity, progress, 1),
     };
   }
+  function orderedLayers<T extends { id: string }>(
+    layers: readonly T[],
+    clip: CharacterAction | null | undefined,
+    progress: number,
+  ): T[] {
+    const frame = clip?.drawOrder
+      ?.slice()
+      .reverse()
+      .find((f) => f.at <= progress);
+    if (!frame) return [...layers];
+    const selected = new Set(frame.layers),
+      byId = new Map(layers.map((l) => [l.id, l]));
+    const order = frame.layers.filter((id) => byId.has(id));
+    let index = 0;
+    return layers.map((l) =>
+      selected.has(l.id) ? byId.get(order[index++])! : l,
+    );
+  }
+  /** Freeze a sampled source pose. Mixing local channels preserves bone lengths. */
+  function snapshotAction(
+    doc: CharacterDocument,
+    clip: CharacterAction,
+    seconds: number,
+    seek = false,
+  ): CharacterAction {
+    const root = action({ actions: [clip] }, clip.id, seconds, { seek }),
+      t = root.progress,
+      constant = (v: number) => [{ at: 0, value: v }],
+      sample = importedCardCharacterAnimation.sampleTrack;
+    const result: CharacterAction = {
+      id: clip.id,
+      name: clip.name,
+      event: clip.event,
+      duration: 1,
+      loop: false,
+      motion: 1,
+      emission: 1,
+      bend: 0,
+      tracks: Object.fromEntries(
+        Object.keys(animationTracks).map((k) => [
+          k,
+          constant(
+            k === 'yaw'
+              ? (root.rotation * 180) / Math.PI
+              : k === 'pitch'
+                ? (root.pitch * 180) / Math.PI
+                : (Reflect.get(root, k) as number),
+          ),
+        ]),
+      ),
+      boneTracks: {},
+      ikTracks: {},
+      expressionTracks: {},
+      layerTracks: {},
+      deformTracks: {},
+    };
+    for (const bone of doc.characterRig?.bones || []) {
+      const v = importedCardCharacterAnimation.local(clip, bone.id, t);
+      result.boneTracks![bone.id] = Object.fromEntries(
+        Object.entries(v).map(([k, n]) => [k, constant(n)]),
+      );
+    }
+    for (const c of doc.characterRig?.constraints || []) {
+      const tracks = clip.ikTracks?.[c.id];
+      result.ikTracks![c.id] = {
+        x: constant(sample(tracks?.x, t, c.target[0])),
+        y: constant(sample(tracks?.y, t, c.target[1])),
+        mix: constant(sample(tracks?.mix, t, c.mix)),
+      };
+    }
+    for (const e of doc.characterRig?.expressions || [])
+      result.expressionTracks![e.id] = {
+        value: constant(
+          sample(clip.expressionTracks?.[e.id]?.value, t, e.value),
+        ),
+      };
+    for (const b of doc.characterRig?.bindings || [])
+      result.layerTracks![b.layerId] = {
+        opacity: constant(
+          sample(clip.layerTracks?.[b.layerId]?.opacity, t, b.opacity ?? 1),
+        ),
+      };
+    if (doc.characterRig)
+      for (const [
+        id,
+        tracks,
+      ] of importedCardCharacterAnimation.advanced.deform.sample(
+        doc.characterRig,
+        clip,
+        t,
+      ))
+        result.deformTracks![id] = Object.fromEntries(
+          [...tracks].map(([bone, deltas]) => [
+            bone,
+            [
+              {
+                at: 0,
+                deltas: Array.from({ length: deltas.length / 2 }, (_, i) => [
+                  i,
+                  deltas[i * 2],
+                  deltas[i * 2 + 1],
+                ]).flat(),
+              },
+            ],
+          ]),
+        );
+    const order = clip.drawOrder
+      ?.slice()
+      .reverse()
+      .find((f) => f.at <= t);
+    if (order) result.drawOrder = [{ at: 0, layers: [...order.layers] }];
+    return result;
+  }
+  function blendActions(
+    from: CharacterAction,
+    to: CharacterAction,
+    weight: number,
+  ): CharacterAction {
+    const w = Math.max(0, Math.min(1, weight)),
+      blend = (a: number, b: number) => a + (b - a) * w,
+      tracks = (a: NumericTracks = {}, b: NumericTracks = {}): NumericTracks =>
+        Object.fromEntries(
+          [...new Set([...Object.keys(a), ...Object.keys(b)])].map((k) => [
+            k,
+            [
+              {
+                at: 0,
+                value: blend(a[k]?.[0]?.value ?? 0, b[k]?.[0]?.value ?? 0),
+              },
+            ],
+          ]),
+        ),
+      result: CharacterAction = {
+        ...to,
+        tracks: tracks(from.tracks, to.tracks),
+      };
+    for (const field of [
+      'boneTracks',
+      'ikTracks',
+      'expressionTracks',
+      'layerTracks',
+    ] as const) {
+      const a = from[field] || {},
+        b = to[field] || {};
+      result[field] = Object.fromEntries(
+        [...new Set([...Object.keys(a), ...Object.keys(b)])].map((id) => [
+          id,
+          tracks(a[id], b[id]),
+        ]),
+      );
+    }
+    result.deformTracks = {};
+    for (const id of new Set([
+      ...Object.keys(from.deformTracks || {}),
+      ...Object.keys(to.deformTracks || {}),
+    ])) {
+      const a = from.deformTracks?.[id] || {},
+        b = to.deformTracks?.[id] || {};
+      result.deformTracks[id] = {};
+      for (const bone of new Set([...Object.keys(a), ...Object.keys(b)])) {
+        const left = a[bone]?.[0]?.deltas || [],
+          right = b[bone]?.[0]?.deltas || [];
+        const offsets = (v: number[]) =>
+            new Map(
+              Array.from(
+                { length: v.length / 3 },
+                (_, i) => [v[i * 3], [v[i * 3 + 1], v[i * 3 + 2]]] as const,
+              ),
+            ),
+          l = offsets(left),
+          r = offsets(right);
+        result.deformTracks[id][bone] = [
+          {
+            at: 0,
+            deltas: [...new Set([...l.keys(), ...r.keys()])]
+              .sort((a, b) => a - b)
+              .flatMap((i) => [
+                i,
+                blend(l.get(i)?.[0] || 0, r.get(i)?.[0] || 0),
+                blend(l.get(i)?.[1] || 0, r.get(i)?.[1] || 0),
+              ]),
+          },
+        ];
+      }
+    }
+    result.drawOrder = w < 0.5 ? from.drawOrder : to.drawOrder;
+    return result;
+  }
   function color(p: ArrayLike<number>, a: RuntimeAdjustments = {}) {
     const brightness = (a.brightness || 0) / 100,
       contrast = 1 + (a.contrast || 0) / 100,
@@ -361,8 +578,10 @@ float connected=attachmentParams.x,weight=connected>.5?join:1.;${diagnostic ? 'c
     diagnostic = false,
     prelude = '',
   ) {
+    // Empty artwork pixels skip contour/mask work, except procedural frames,
+    // replacement backgrounds and hooks allowed to create transparent coverage.
     return `precision highp float;uniform sampler2D tex,emissionTex,phaseTex,insetTex,customMaskTex,foilTex;uniform float opacity,rootOpacity,frame,flow,flowSpeed,t,fg,bg,back,clip,customEffect,customStrength,customMasked,foregroundPass,surfaceChannel,surfaceTransparent;uniform vec3 surfaceEye;${diagnostic ? 'uniform sampler2D regionTex;uniform float regionMode;varying float connectionWeight;' : ''}
-uniform float materialStyle,materialReplace;uniform vec4 componentMaterial;uniform vec3 materialColor,materialAccent;uniform vec2 shift,angle,titleBounds;uniform vec3 frameColor,frameAccent,cardEye,armorColor,titleColor;uniform vec4 frameMetrics,popOutSides,armorSweep,titleSweep;uniform float frameFinish;uniform vec2 frameAnimation;uniform vec4 sourceRect,adjustment;uniform vec3 slotEffect;varying vec2 v;varying vec4 effects;varying vec3 local;
+uniform float materialStyle,materialReplace;uniform vec4 componentMaterial;uniform vec3 materialColor,materialAccent;uniform vec2 shift,angle,titleBounds;uniform vec3 frameColor,frameAccent,cardEye,armorColor,titleColor;uniform vec4 frameMetrics,popOutSides,armorSweep,titleSweep;uniform float frameFinish;uniform vec2 frameAnimation;uniform vec4 sourceRect,_cardscapeSourceAlphaBounds,adjustment;uniform vec3 slotEffect;varying vec2 v;varying vec4 effects;varying vec3 local;
 // Portable fragment hook: sample raw source RGBA using the hook's UV space.
 vec4 sampleSource(vec2 uv){vec2 coord=sourceRect.xy+(uv+shift)*sourceRect.zw;if(back>.5)coord.x=1.-coord.x;return texture2D(tex,coord);}
 ${prelude}
@@ -371,7 +590,8 @@ vec4 surfaceEffect(vec4 color,vec2 uv,float time,vec4 mask){
 ${body}
 #line 1001
 }
-bool inOutline(vec2 p,float inset){vec2 a=abs(p);float cut=max(0.,frameMetrics.y-(2.-sqrt(2.))*inset);return all(lessThanEqual(a,vec2(.5,.75)-inset))&&a.x+a.y<=1.25-2.*inset-cut+0.000001;}
+${contourGLSL}
+bool inOutline(vec2 p,float inset){if(contourCounts.y>.5){vec2 c=contourAt(p);return inset>0.?c.y>.5:c.x>.5;}vec2 a=abs(p);float cut=max(0.,frameMetrics.y-(2.-sqrt(2.))*inset);return all(lessThanEqual(a,vec2(.5,.75)-inset))&&a.x+a.y<=1.25-2.*inset-cut+0.000001;}
 vec2 atPlane(vec3 point,float z){float d=point.z-cardEye.z;return cardEye.xy+(point.xy-cardEye.xy)*(z-cardEye.z)/(abs(d)<.00001?-.00001:d);}
 float sweepLight(float position,vec4 settings){float cycle=mod(t,max(settings.z,.3));float head=-.25+1.6*clamp(cycle/max(settings.y,.3),0.,1.);return exp2(-3.*pow((position-head)/max(settings.w,.02),2.))*step(cycle,settings.y)*settings.x;}
 
@@ -1361,9 +1581,20 @@ vec4 rimAura(vec3 low,vec3 hi,vec2 uv,vec2 view,float finish_time,vec4 rimMetric
  return vec4(clamp(rgb,0.,1.),clamp(a,0.,1.));
 }
 
-void main(){vec2 aperture=atPlane(local,.045-frameMetrics.w);bool inside=inOutline(aperture,frameMetrics.x);if((bg>.5||clip>.5)&&!inside)discard;if(back>.5&&!inOutline(atPlane(local,.045-frameMetrics.z+frameMetrics.w),frameMetrics.x))discard;
+${contourMaterial}
+void main(){
+vec2 coord=sourceRect.xy+(v+shift)*sourceRect.zw;if(back>.5)coord.x=1.-coord.x;
+bool replaceCoverage=bg>.5&&materialReplace>.5&&componentMaterial.x>0.&&abs(materialStyle-5.)>.1&&(componentMaterial.w<1.5||componentMaterial.w>2.5);
+bool sourceCoverage=frame<.5&&!(customEffect>.5&&surfaceTransparent>.5)&&!replaceCoverage;
+vec2 supportCoord=clamp(coord,vec2(0.),vec2(1.));
+if(sourceCoverage&&(_cardscapeSourceAlphaBounds.z!=0.||_cardscapeSourceAlphaBounds.w!=0.)&&(any(lessThan(supportCoord,_cardscapeSourceAlphaBounds.xy))||any(greaterThan(supportCoord,_cardscapeSourceAlphaBounds.zw))))discard;
+vec4 c=texture2D(tex,coord);
+if(frame<.5&&c.a<.015&&!(customEffect>.5&&surfaceTransparent>.5)&&!replaceCoverage)discard;
+// Aperture reads are only required by clipped/foreground surfaces and the editor's aperture inspection.
+vec2 aperture=vec2(0.);bool inside=true;
+if(bg>.5||clip>.5||fg>.5${diagnostic ? '||regionMode>3.5' : ''}){aperture=atPlane(local,.045-frameMetrics.w);inside=inOutline(aperture,frameMetrics.x);}
+if((bg>.5||clip>.5)&&!inside)discard;if(back>.5&&!inOutline(atPlane(local,.045-frameMetrics.z+frameMetrics.w),contourCounts.y>.5?0.:frameMetrics.x))discard;
 if(fg>.5){if(foregroundPass<1.5&&!inside)discard;if(foregroundPass>1.5){if(inside)discard;vec2 edge=vec2(.5,.75)-frameMetrics.x;if((aperture.y>edge.y&&popOutSides.x<.5)||(aperture.x>edge.x&&popOutSides.y<.5)||(aperture.y< -edge.y&&popOutSides.z<.5)||(aperture.x< -edge.x&&popOutSides.w<.5))discard;}}
-vec2 coord=sourceRect.xy+(v+shift)*sourceRect.zw;if(back>.5)coord.x=1.-coord.x;vec4 c=texture2D(tex,coord);
 // Five-tap frost diffusion. Coverage remains the source alpha.
 if(materialStyle>25.5&&materialStyle<26.5&&componentMaterial.x>0.&&((bg>.5&&(componentMaterial.w<1.5||componentMaterial.w>2.5))||(back>.5&&(componentMaterial.w<.5||(componentMaterial.w>1.5&&componentMaterial.w<2.5)||componentMaterial.w>4.5))||(frame<.5&&back<.5&&componentMaterial.w>2.5))){
  float frost=finishFrost(v*vec2(1.,1.5));vec2 radius=(.006+.014*frost)*sourceRect.zw;
@@ -1375,12 +1606,14 @@ if(materialStyle>25.5&&materialStyle<26.5&&componentMaterial.x>0.&&((bg>.5&&(com
 }
 
 vec2 viewAngle=vec2(atan(-cardEye.x,cardEye.z),atan(cardEye.y,length(cardEye.xz)));
-if(frame>2.5){c=rimAura(frameColor,frameAccent,v,viewAngle,t,frameMetrics,frameFinish,frameAnimation);if(c.a<.001)discard;gl_FragColor=vec4(c.rgb,c.a*opacity*rootOpacity);return;}
-if(frame>.5)c=vec4(rimColor(frameColor,frameAccent,v,viewAngle,t,frameMetrics,frameFinish,frameAnimation,effects.z),rimCoverage(v,frameMetrics,frameFinish));
+if(frame>2.5){c=contourTexture>.5?contourGlow(frameColor,frameAccent,v,viewAngle,t,frameMetrics,frameFinish,frameAnimation):rimAura(frameColor,frameAccent,v,viewAngle,t,frameMetrics,frameFinish,frameAnimation);if(c.a<.001)discard;gl_FragColor=vec4(c.rgb,c.a*opacity*rootOpacity);return;}
+if(frame>.5)c=contourTexture>.5?contourRim(frameColor,frameAccent,v,viewAngle,t,frameMetrics,frameFinish,frameAnimation,effects.z):vec4(rimColor(frameColor,frameAccent,v,viewAngle,t,frameMetrics,frameFinish,frameAnimation,effects.z),rimCoverage(v,frameMetrics,frameFinish));
+if(contourCounts.y>.5&&frame>.5&&frame<1.5){vec2 shape=contourAt(vec2(v.x-.5,.75-v.y*1.5));c.a*=shape.x*(1.-shape.y);}
+if(contourCounts.y>.5&&frame>1.5&&frame<2.5)c.a=1.;
 // Generated masks intersect the visible alpha; restore the semantic weight so
 // partially covered edges of an inset limb do not leave ghosts outside the rim.
 if(fg>.5&&foregroundPass>1.5)c.a*=1.-smoothstep(.02,.5,texture2D(insetTex,v).r/max(c.a,.001));
-if(bg>.5&&materialReplace>.5&&componentMaterial.x>0.&&abs(materialStyle-5.)>.1&&(componentMaterial.w<1.5||componentMaterial.w>2.5))c.a=1.;if(c.a<.015&&!(customEffect>.5&&surfaceTransparent>.5))discard;c.rgb=pow(clamp((c.rgb-.5)*adjustment.y+.5+adjustment.x,0.,1.),vec3(1./adjustment.w));float luminance=dot(c.rgb,vec3(.2126,.7152,.0722));c.rgb=clamp(mix(vec3(luminance),c.rgb,adjustment.z),0.,1.);
+if(replaceCoverage)c.a=1.;if(c.a<.015&&!(customEffect>.5&&surfaceTransparent>.5))discard;c.rgb=pow(clamp((c.rgb-.5)*adjustment.y+.5+adjustment.x,0.,1.),vec3(1./adjustment.w));float luminance=dot(c.rgb,vec3(.2126,.7152,.0722));c.rgb=clamp(mix(vec3(luminance),c.rgb,adjustment.z),0.,1.);
 bool materialApplies=componentMaterial.x>0.&&(componentMaterial.w>4.5||(componentMaterial.w>3.5&&frame<.5&&back<.5)||(componentMaterial.w>2.5&&componentMaterial.w<3.5&&back<.5)||(componentMaterial.w<.5&&(bg>.5||back>.5))||(componentMaterial.w>.5&&componentMaterial.w<1.5&&bg>.5)||(componentMaterial.w>1.5&&componentMaterial.w<2.5&&back>.5));if(materialApplies&&abs(materialStyle-5.)>.1){bool replaceArt=materialReplace>.5&&bg>.5;vec2 finishUV=replaceArt?vec2(local.x+.5,.5-local.y/1.5):v;vec3 result=finishColor(c.rgb,finishUV,t*componentMaterial.y,viewAngle,materialStyle,componentMaterial.z,materialColor,materialAccent,replaceArt);c.rgb=finishComposite(c.rgb,result,materialColor,componentMaterial.x,replaceArt);}
 if(fg>.5){float emission=texture2D(emissionTex,v).r,phase=texture2D(phaseTex,v).r;float stream=pow(.5+.5*sin(phase*30.-t*3.1*flowSpeed+v.y*11.),3.);c.rgb+=vec3(.45,.77,1.)*emission*stream*flow;}
 if(fg>.5&&armorSweep.x>0.)c.rgb+=armorColor*texture2D(foilTex,v).r*sweepLight(v.x+v.y*.18,armorSweep);
@@ -1412,6 +1645,10 @@ gl_FragColor=vec4(c.rgb,c.a*opacity*rootOpacity);}`;
     action,
     sampleTrack,
     animationTracks,
+    orderedLayers,
+    snapshotAction,
+    blendActions,
+    contourGLSL,
     entryPreset,
     color,
     cameraInCard,

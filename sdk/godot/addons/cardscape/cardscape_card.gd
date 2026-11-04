@@ -1,7 +1,13 @@
 @tool
 class_name CardscapeCard
 extends Node3D
+const ActionAudio = preload("res://addons/cardscape/action_audio.gd")
 const CharacterAnimation = preload("res://addons/cardscape/character_animation.gd")
+const ActionTrail = preload("res://addons/cardscape/action_trail.gd")
+const ParticleWorldHistory = preload("res://addons/cardscape/particle_world.gd")
+const ParticlePhysics = preload("res://addons/cardscape/particle_physics.gd")
+const FRAME_FINISHES: Array[String] = ["flat","metal","glow","cosmic","distressed","web","candy","ice","snow","wrapping","fire","fire-iridescent","chains","glyphs","refraction","overloaded","neonnights","distressed-copper","distressed-rainbow","orbit-silver","twin-aurora","pax","brains","candy-halloween","halloween-stickers"]
+const MATERIAL_STYLES: Array[String] = ["iridescent","holographic","foil","prism","gold","ink","copper","steel","goldprism","blackprism","cosmic","glass","fire","water","rays","refraction","psychedelic","foilmetallic","goldmetallic","gildedprism","glasscircuits","wakandanglass","galacticstorm","bananas","symbiote","circuits","frosted","raysrainbow","caustics","rayspurple"]
 ## Game owns placement/state; each instance owns its materials and overrides.
 signal action_finished(id: String)
 @export var library: CardscapeLibrary:
@@ -27,6 +33,15 @@ signal action_finished(id: String)
 			return
 		gameplay_stats = value.duplicate(true)
 		_queue_rebuild()
+@export var audio_enabled: bool = false:
+	set(value):
+		audio_enabled=value
+		if _action_audio:_action_audio.set_enabled(value)
+var _action_audio: ActionAudio
+
+func audio_state() -> Dictionary:
+	return _action_audio.state() if _action_audio else {"enabled":audio_enabled,"voices":[],"starts":0,"error":"","globalVoices":ActionAudio.total_voices}
+
 @export var effects_playing: bool = true
 @export var effects_paused: bool = false
 @export var material_settings: Dictionary = {}
@@ -50,10 +65,37 @@ var _particle_reveal_started: float = 0.0
 var _particle_reveal_count: int = 0
 var _action: Dictionary = {}
 var _action_time: float = 0.0
+var _contour_edges := PackedVector4Array()
+var _contour_counts := Vector2.ZERO
+var _contour_field: Texture2D
+var _transition: Dictionary = {}
+var _rendered_action: Dictionary = {}
+var _rendered_progress: float = 0.0
 var _paused: bool = false
 var _particle_node: MultiMeshInstance3D
 var _particle_front_node: MultiMeshInstance3D
 var _particle_count: int = 0
+var _particle_event_states: Dictionary = {}
+var _particle_event_config: Dictionary = {}
+var _particle_event_count: int = 0
+var _particle_births := PackedFloat64Array()
+var _particle_birth_cache: Dictionary = {}
+var _particle_birth_source: int = 0
+var _particle_world_history: ParticleWorldHistory
+var _particle_world_source: int = 0
+var _particle_world_cycle: float = 0.0
+var _particle_world_time_offset: float = 0.0
+var _particle_world_sampling: bool = false
+var _particle_color_sampling: bool = false
+var _particle_physics: ParticlePhysics
+var _particle_world_alphas:=PackedFloat64Array()
+var _particle_world_sampler: Callable
+
+## sampler(action_id, unwrapped_action_seconds, fallback) returns
+## {transform: Transform3D, opacity: float} for the complete visual root at birth.
+func set_particle_world_sampler(sampler: Callable) -> void:
+	_particle_world_sampler=sampler
+var _particle_sample_births: bool = false
 var _stats_root: Node3D
 var _base_pose: Vector3 = Vector3.ZERO
 var _embedded_definition: Dictionary = {}
@@ -113,12 +155,36 @@ func set_layer_transform(id: String, offset: Vector2, layer_scale: float = 1.0, 
 func set_effect_parameter(name: String, value: Variant) -> void:
 	for surface in _surfaces:
 		if name=="opacity":surface.set_meta("character_opacity",float(value))
-		(surface.material_override as ShaderMaterial).set_shader_parameter(name, value)
+		var mat:=surface.material_override as ShaderMaterial
+		if name=="frame_finish" and (value is int or value is float):_refresh_surface_shader(surface,mat,int(value))
+		mat.set_shader_parameter(name, value)
 
 func set_custom_shader(shader: Shader, layer_id: String = "") -> void:
 	for surface in _surfaces:
 		if layer_id.is_empty() or surface.get_meta("layer_id", "") == layer_id:
+			surface.set_meta("custom_shader_override",true)
 			(surface.material_override as ShaderMaterial).shader = shader
+
+func _finish_index(style: Dictionary) -> int:
+	var finish: String=str(style.get("finish","metal"))
+	return FRAME_FINISHES.find(finish if _detail_effects.materials else "flat" if finish=="flat" else "metal")
+
+func _refresh_surface_shader(surface: MeshInstance3D, mat: ShaderMaterial, finish: int) -> void:
+	# Direct assignments and in-place user edits remain owned by the game.
+	if surface.get_meta("custom_shader_override",false) or not mat.shader:return
+	if mat.shader!=surface.get_meta("library_shader") or mat.shader.code!=surface.get_meta("library_shader_code",""):return
+	var next:=library.surface_shader(str(surface.get_meta("shader_source_key")),bool(surface.get_meta("shader_painter_order")),bool(surface.get_meta("shader_additive")),finish)
+	if not next or next==mat.shader:return
+	# Preserve game overrides, textures and per-instance values across a variant
+	# switch. All generated variants retain the same uniform declarations.
+	var parameters: Dictionary={}
+	for uniform in mat.shader.get_shader_uniform_list():
+		var value: Variant=mat.get_shader_parameter(uniform.name)
+		if value!=null:parameters[uniform.name]=value
+	mat.shader=next
+	for name in parameters:mat.set_shader_parameter(name,parameters[name])
+	surface.set_meta("library_shader",next)
+	surface.set_meta("library_shader_code",next.code)
 
 func inspect(yaw_degrees: float, pitch_degrees: float = 0.0) -> void:
 	_base_pose = Vector3(deg_to_rad(pitch_degrees), deg_to_rad(yaw_degrees), 0.0)
@@ -131,11 +197,17 @@ func inspect(yaw_degrees: float, pitch_degrees: float = 0.0) -> void:
 func flip_to_back() -> void:
 	inspect(180.0, 0.0)
 
-func play_action(id_or_event: String) -> bool:
+func play_action(id_or_event: String, transition_seconds: float = -1.0) -> bool:
 	for action in _definition.get("actions", []):
 		if action.id == id_or_event or action.event == id_or_event:
+			var duration: float=float(action.get("transitionDuration",0)) if transition_seconds<0 else transition_seconds
+			if not is_finite(duration) or duration<0 or duration>2:return false
+			_transition={"from":CharacterAnimation.snapshot(_character_compiled,_rendered_action,_rendered_progress),"duration":duration,"seconds":0.0} if duration>0 and _action.get("id","")!=action.id and not _rendered_action.is_empty() else {}
+			if _action_audio:_action_audio.stop()
 			_action = action
 			_action_time = 0.0
+			_particle_world_time_offset=0.0
+			if _particle_world_history:_particle_world_history.clear()
 			_paused = false
 			if action.get("event","")=="enter":
 				play_particle_reveal()
@@ -143,12 +215,16 @@ func play_action(id_or_event: String) -> bool:
 	return false
 
 func seek_action(seconds: float, paused: bool = true) -> void:
+	if _action_audio:_action_audio.stop()
+	_transition.clear()
+	_particle_world_time_offset=0.0
 	_action_time = maxf(0.0, seconds)
 	_paused = paused
 	_update(0.0)
 
 func pause_action(paused: bool = true) -> void:
 	if paused and not _paused and _action.get("loop",false):
+		_particle_world_time_offset+=floorf(_action_time/float(_action.duration))*float(_action.duration)
 		_action_time=fmod(_action_time,float(_action.duration))
 	_paused = paused
 	_update(0.0)
@@ -167,7 +243,12 @@ func seek_particle_reveal(seconds: float) -> void:
 	_update(0.0)
 
 func _exit_tree() -> void:
+	if _action_audio:_action_audio.dispose()
 	if library:library.release_prepared([],get_instance_id(),true)
+
+func _set_surface_art(material: ShaderMaterial, texture_value: Texture2D) -> void:
+	material.set_shader_parameter("art",texture_value)
+	material.set_shader_parameter("_cardscape_source_alpha_bounds",library.alpha_bounds(texture_value) if library else Vector4(0,0,1,1))
 
 func _texture(key: String) -> Texture2D:
 	var variant: Dictionary=_definition.get("exportProfile",{}).get("textures",{}).get(key,{})
@@ -200,18 +281,18 @@ func _update_detail() -> void:
 	var threshold := float(settings.get("threshold",420))*(.85 if _detail_level=="large" else 1.0)
 	var desired := "large" if _detail_pixels>=threshold else "small"
 	if not settings.get("adaptive",false):desired="small" if settings.get("preset","")=="mobile-list" else "large"
-	var keys: Array=[]
-	for surface in _surfaces:
-		var key: String=surface.get_meta("texture_asset","")
-		var variant: Dictionary=_definition.get("exportProfile",{}).get("textures",{}).get(key,{})
-		if not variant.is_empty():keys.append(str(variant.get(desired,variant.large).asset))
-	if desired==_detail_level and library:library.release_prepared([],get_instance_id())
-	if desired!=_detail_level and library and not library.prepare_textures(keys,get_instance_id()):return
 	if desired!=_detail_level:
+		var keys: Array=[]
+		for surface in _surfaces:
+			var key: String=surface.get_meta("texture_asset","")
+			var variant: Dictionary=_definition.get("exportProfile",{}).get("textures",{}).get(key,{})
+			if not variant.is_empty():keys.append(str(variant.get(desired,variant.large).asset))
+		if library and not library.prepare_textures(keys,get_instance_id()):return
 		_detail_level=desired
 		for surface in _surfaces:
-			if surface.has_meta("texture_asset"):(surface.material_override as ShaderMaterial).set_shader_parameter("art",_texture(surface.get_meta("texture_asset")))
+			if surface.has_meta("texture_asset"):_set_surface_art(surface.material_override as ShaderMaterial,_texture(surface.get_meta("texture_asset")))
 		if library:library.release_prepared(keys,get_instance_id())
+	elif library:library.release_prepared([],get_instance_id())
 	_detail_effects={"particles":_detail_level=="large" or settings.get("smallParticles",false),"materials":_detail_level=="large" or settings.get("smallMaterials",false),"decorations":_detail_level=="large" or settings.get("smallDecorations",false)}
 
 func export_detail_state() -> Dictionary:
@@ -275,6 +356,11 @@ func _resolve_definition() -> Dictionary:
 	return result
 
 func rebuild() -> void:
+	if _action_audio:
+		_action_audio.dispose()
+		_action_audio=null
+	_transition.clear()
+	_rendered_action.clear()
 	_queued = false
 	if _visual:
 		remove_child(_visual)
@@ -284,6 +370,15 @@ func rebuild() -> void:
 	_particle_node = null
 	_particle_front_node = null
 	_particle_count = 0
+	_particle_event_count=0
+	_particle_event_states.clear()
+	_particle_birth_cache.clear()
+	if _particle_world_history:_particle_world_history.clear()
+	_particle_world_source=0
+	_particle_world_alphas=PackedFloat64Array()
+	if _particle_physics:_particle_physics.clear()
+	_particle_births.resize(256)
+	_particle_event_config.clear()
 	_stats_root = null
 	if not library:
 		return
@@ -312,6 +407,21 @@ func rebuild() -> void:
 	var frame: Dictionary = _definition.frameGeometry
 	var order := 0
 	var layers: Array = _definition.layers.duplicate()
+	_contour_edges.clear()
+	_contour_counts=Vector2.ZERO
+	_contour_field=_texture(str(_definition.get("contourFieldAsset",""))) if _definition.has("contourFieldAsset") else null
+	var contour: Dictionary=_definition.get("frameStyle",{}).get("contour",{})
+	if not contour.is_empty():
+		var rings: Array=[contour.outline]
+		rings.append_array(contour.windows)
+		for ring in rings:
+			for i in range(ring.size()):
+				var a: Array=ring[i]
+				var b: Array=ring[(i+1)%ring.size()]
+				_contour_edges.append(Vector4(float(a[0])/1024.0-.5,.75-float(a[1])/1024.0,float(b[0])/1024.0-.5,.75-float(b[1])/1024.0))
+		_contour_counts=Vector2(contour.outline.size(),_contour_edges.size())
+		if _contour_field:_contour_counts.y=maxf(1.0,_contour_counts.y)
+		_contour_edges.resize(64)
 	var finish: Dictionary = _definition.get("material",{})
 	if finish.get("enabled",false) and finish.get("target","background")!="back":
 		for item in finish.get("document",{}).get("layers",[]):
@@ -374,7 +484,7 @@ func rebuild() -> void:
 		frame_node.set_meta("binding_opacity",float(frame_layer.get("opacity",1)))
 	if frame_visible:
 		for part in ["rim", "sides", "rear", "aura"]:
-			if not frame.has(part):
+			if not frame.has(part) or frame[part].get("indices",[]).is_empty():
 				continue
 			if (part == "rear" and authored_back) or (authored_frame and part != "rear" and part != "sides"):
 				continue
@@ -383,6 +493,7 @@ func rebuild() -> void:
 				node.set_meta("reverse_only",true)
 			var mat := node.material_override as ShaderMaterial
 			mat.set_shader_parameter("frame_part", 2.0 if part=="aura" else 1.0)
+			mat.set_shader_parameter("contour_wall",part=="sides")
 			mat.set_shader_parameter("face_mode", 1 if part == "rear" else 2 if part == "sides" else 0)
 	if authored_back:
 		_embed_component("back",_definition.backScene.document,Vector3(0,0,float(frame.back)))
@@ -630,8 +741,22 @@ func _surface(layer: Dictionary, mesh: Mesh, z: float, priority: int, pass_id: f
 	node.set_meta("depth_override",registered)
 	_visual.add_child(node)
 	var mat := ShaderMaterial.new()
-	mat.shader = library.surface_shader(_definition.shader_key,not bg and layer.kind!="frame" and layer.id!="back",layer.get("blend", "normal") == "add")
+	var painter_order: bool=not bg and layer.kind!="frame" and layer.id!="back"
+	var additive: bool=layer.get("blend","normal")=="add"
+	mat.shader = library.surface_shader(_definition.shader_key,painter_order,additive,_finish_index(_definition.frameStyle))
+	node.set_meta("shader_source_key",_definition.shader_key)
+	node.set_meta("shader_painter_order",painter_order)
+	node.set_meta("shader_additive",additive)
+	node.set_meta("library_shader",mat.shader)
+	node.set_meta("library_shader_code",mat.shader.code if mat.shader else "")
 	mat.render_priority = clampi(priority,-128,127)
+	mat.set_shader_parameter("contour_counts",_contour_counts)
+	mat.set_shader_parameter("contour_texture",1.0 if _contour_field else 0.0)
+	if _contour_field:
+		mat.set_shader_parameter("contour_field",_contour_field)
+		var legacy_field: bool=_contour_field.get_width()==1024 and _contour_field.get_height()==1536
+		mat.set_shader_parameter("contour_field_info",Vector4(1024,1536,1,0) if legacy_field else Vector4(_contour_field.get_width(),_contour_field.get_height(),2016.0/_contour_field.get_width(),160.0))
+	if not _contour_edges.is_empty():mat.set_shader_parameter("contour_edges",_contour_edges)
 	node.material_override = mat
 	_surfaces.append(node)
 	var asset: String = str(layer.get("asset", ""))
@@ -646,7 +771,7 @@ func _surface(layer: Dictionary, mesh: Mesh, z: float, priority: int, pass_id: f
 		mat.set_shader_parameter("title_color",Color(sweep.color))
 		mat.set_shader_parameter("title_bounds",Vector2(float(variant.get("bounds",[0,1])[0]),float(variant.get("bounds",[0,1])[1])))
 	node.set_meta("texture_asset",asset)
-	mat.set_shader_parameter("art",_texture(asset))
+	_set_surface_art(mat,_texture(asset))
 	node.set_meta("title_sweep_default",mat.get_shader_parameter("title_sweep") if mat.get_shader_parameter("title_sweep") is Vector4 else Vector4.ZERO)
 	mat.set_shader_parameter("surfaceChannel",float(clampi(int(layer.get("shaderChannel",0)),0,255)))
 	mat.set_shader_parameter("surfaceTransparent",bool(layer.get("shaderTransparent",false)))
@@ -715,9 +840,14 @@ func _process(delta: float) -> void:
 		_clock += delta
 	if not _paused:
 		_action_time += delta
+		if not _transition.is_empty():_transition.seconds+=delta
 	_update(delta)
 
 func _update(_delta: float) -> void:
+	if audio_enabled and not _action_audio:
+		_action_audio=ActionAudio.new(self,library)
+		_action_audio.set_enabled(true)
+	if _action_audio:_action_audio.sync(_action,_action_time,audio_enabled and not _paused and not effects_paused and effects_playing and is_visible_in_tree() and is_instance_valid(_visual))
 	if not _visual or _definition.is_empty():
 		return
 	var progress := 0.0
@@ -737,10 +867,9 @@ func _update(_delta: float) -> void:
 		motion = _sample(tracks.get("motion",[]),progress,1+(float(_action.motion)-1)*envelope)
 		flow = _sample(tracks.get("emission",[]),progress,1+(float(_action.emission)-1)*envelope)
 		extra_bend = _sample(tracks.get("bend",[]),progress,float(_action.bend)*envelope)
-		if not _action.loop and progress >= 1 and not _paused:
+		if not _action.loop and progress >= 1 and not _paused and (_transition.is_empty() or float(_transition.seconds)>=float(_transition.duration)):
 			_paused = true
 			action_finished.emit(str(_action.id))
-	_update_detail()
 	var character_action := _action
 	var character_progress := progress
 	if character_action.is_empty():
@@ -750,7 +879,28 @@ func _update(_delta: float) -> void:
 		if not idle.is_empty():
 			character_action=idle[0]
 			character_progress=fmod(_clock,float(character_action.duration))/float(character_action.duration) if character_action.loop else minf(1.0,_clock/float(character_action.duration))
+	if not _transition.is_empty():
+		var weight := clampf(float(_transition.seconds)/float(_transition.duration),0.0,1.0)
+		character_action=CharacterAnimation.blend_actions(_transition.from,CharacterAnimation.snapshot(_character_compiled,character_action,character_progress),weight*weight*(3.0-2.0*weight))
+		character_progress=0.0
+		var tracks: Dictionary=character_action.tracks
+		_visual.position=Vector3(float(tracks.x[0].value)/1024.0,-float(tracks.y[0].value)/1024.0,float(tracks.z[0].value))
+		_visual.scale=Vector3.ONE*float(tracks.scale[0].value)
+		_visual.rotation=_base_pose+Vector3(deg_to_rad(float(tracks.pitch[0].value)),deg_to_rad(float(tracks.yaw[0].value)),0.0)
+		root_alpha=_inherited_opacity*float(tracks.opacity[0].value)
+		motion=float(tracks.motion[0].value)
+		flow=float(tracks.emission[0].value)
+		extra_bend=float(tracks.bend[0].value)
+		if weight>=1.0:_transition.clear()
+	_rendered_action=character_action
+	_rendered_progress=character_progress
+	_update_detail()
 	var pose: Dictionary = CharacterAnimation.pose(_character_compiled,character_action,character_progress,_definition.layers) if effects_playing else CharacterAnimation.rest(_character_compiled,_definition.layers)
+	var paint_layers: Array=_definition.layers.duplicate()
+	paint_layers.reverse()
+	paint_layers=CharacterAnimation.ordered_layers(paint_layers,character_action,character_progress)
+	var paint_order: Dictionary={}
+	for i in range(paint_layers.size()):paint_order[paint_layers[i].id]=-60+i*2
 	var character_pose: Dictionary = pose.layers if effects_playing and _definition.get("cosmeticPreview",{}).get("motion",true) else {}
 	var skin_pose_key := [effects_playing,character_action.hash(),character_progress,_camera_distance()]
 	var updated: Dictionary={}
@@ -790,6 +940,24 @@ func _update(_delta: float) -> void:
 		material.enabled=false
 		material.backgroundMode="overlay"
 	var replacement_owner := _replacement_background(material)
+	var finish_index:=_finish_index(style)
+	# Compute card-wide values once, while still writing every frame so gameplay
+	# uniform overrides retain their existing next-update semantics.
+	var deformation: Dictionary=_definition.get("deformation",{})
+	var common_parameters: Dictionary={
+		&"card_eye":eye,&"surfaceEye":eye,&"front_visible":front,&"clock":_clock,&"root_opacity":root_alpha,&"depth":depth_strength,
+		&"geometry_bend":float(deformation.get("bend",0))+(extra_bend if _definition.get("cosmeticPreview",{}).get("motion",true) else 0.0),
+		&"motion_gain":motion*float(deformation.get("wind",1)) if effects_playing and effects.get("cape",false) else 0.0,
+		&"flow_speed":float(effects.get("flowSpeed",1)),&"flow_gain":flow if effects_playing and _detail_effects.materials and effects.get("flow",false) else 0.0,
+		&"wind_speed":float(deformation.get("speed",1)),
+		&"metrics":Vector4(float(style.width)/1024.0,float(style.corner)/1024.0,float(style.depth)/1024.0,minf(float(style.bevel),minf(float(style.depth)*.45,16.0 if style.has("contour") else float(style.width)*.4))/1024.0),
+		&"pop_sides":Vector4(float(composition.get("top",true)),float(composition.get("right",true)),float(composition.get("bottom",false)),float(composition.get("left",true))),
+		&"frame_color":Color(style.color),&"frame_accent":Color(style.accent),&"frame_finish":finish_index,
+		&"frame_animation":Vector2(["none","pulse","flow","infinity"].find(style.get("animation","none")) if effects_playing and _detail_effects.materials else 0,float(style.get("animationSpeed",.6))),
+		&"armor_sweep":_sweep(armor) if _detail_effects.materials else Vector4.ZERO,&"armor_color":Color(armor.get("color","#badfff"))
+	}
+	var front_material := _material_parameters(material,false)
+	var back_material := _material_parameters(_definition.get("backScene",{}).get("material",material),true)
 	for surface in _surfaces:
 		surface.visible=true
 		if surface.get_meta("background_art",false):surface.visible=replacement_owner.is_empty() or surface.get_meta("layer_id","")==replacement_owner
@@ -799,6 +967,8 @@ func _update(_delta: float) -> void:
 			surface.visible = not front
 		surface.visible=surface.visible and _detail_visible(surface.get_meta("layer_id",""))
 		var mat := surface.material_override as ShaderMaterial
+		_refresh_surface_shader(surface,mat,finish_index)
+		if paint_order.has(surface.get_meta("layer_id","")) and not surface.get_meta("background_art",false) and not surface.get_meta("reverse",false) and not surface.get_meta("material_overlay",false):mat.render_priority=clampi(int(paint_order[surface.get_meta("layer_id","")]),-128,127)
 		mat.set_shader_parameter("custom_effect",_detail_effects.materials and surface.get_meta("custom_effect_default",false))
 		mat.set_shader_parameter("title_sweep",surface.get_meta("title_sweep_default",Vector4.ZERO) if _detail_effects.materials else Vector4.ZERO)
 		var slot_effect: Vector3=surface.get_meta("slot_effect_default",Vector3.ZERO)
@@ -814,40 +984,30 @@ func _update(_delta: float) -> void:
 				if parent.get_meta("layer_id","")==surface.get_meta("attachment_parent"):
 					mat.set_shader_parameter("attachment_transform",parent.transform)
 					break
-		mat.set_shader_parameter("card_eye",eye)
-		mat.set_shader_parameter("surfaceEye",eye)
-		mat.set_shader_parameter("front_visible",front)
-		mat.set_shader_parameter("clock",_clock)
-		mat.set_shader_parameter("root_opacity",root_alpha)
-		mat.set_shader_parameter("depth",depth_strength)
-		mat.set_shader_parameter("geometry_bend",float(_definition.get("deformation",{}).get("bend",0))+(extra_bend if _definition.get("cosmeticPreview",{}).get("motion",true) else 0.0))
-		mat.set_shader_parameter("motion_gain",motion*float(_definition.get("deformation",{}).get("wind",1)) if effects_playing and effects.get("cape",false) else 0.0)
-		mat.set_shader_parameter("flow_speed",float(effects.get("flowSpeed",1)))
-		mat.set_shader_parameter("flow_gain",flow if effects_playing and _detail_effects.materials and effects.get("flow",false) else 0.0)
-		mat.set_shader_parameter("wind_speed",float(_definition.get("deformation",{}).get("speed",1)))
-		mat.set_shader_parameter("metrics",Vector4(float(style.width)/1024.0,float(style.corner)/1024.0,float(style.depth)/1024.0,minf(float(style.bevel),float(style.width)*.4)/1024.0))
-		mat.set_shader_parameter("pop_sides",Vector4(float(composition.get("top",true)),float(composition.get("right",true)),float(composition.get("bottom",false)),float(composition.get("left",true))))
-		mat.set_shader_parameter("frame_color",Color(style.color))
-		mat.set_shader_parameter("frame_accent",Color(style.accent))
-		mat.set_shader_parameter("frame_finish",["flat","metal","glow","cosmic","distressed","web","candy","ice","snow","wrapping","fire","fire-iridescent","chains","glyphs","refraction","overloaded","neonnights","distressed-copper","distressed-rainbow","orbit-silver","twin-aurora","pax","brains","candy-halloween","halloween-stickers"].find(style.finish if _detail_effects.materials else "flat" if style.finish=="flat" else "metal"))
-		mat.set_shader_parameter("frame_animation",Vector2(["none","pulse","flow","infinity"].find(style.get("animation","none")) if effects_playing and _detail_effects.materials else 0,float(style.get("animationSpeed",.6))))
-		mat.set_shader_parameter("armor_sweep",_sweep(armor) if _detail_effects.materials else Vector4.ZERO)
-		mat.set_shader_parameter("armor_color",Color(armor.get("color","#badfff")))
-		var surface_material: Dictionary = _definition.get("backScene",{}).get("material",material) if surface.get_meta("reverse",false) else material
-		mat.set_shader_parameter("component_material",Vector4(float(surface_material.get("strength",.3)) if effects_playing and _detail_effects.materials and surface_material.get("enabled",false) else 0,float(surface_material.get("speed",.25)),float(surface_material.get("frequency",4)),5 if surface.get_meta("reverse",false) else 1 if surface_material.get("target","both")=="background" else 2 if surface_material.get("target","both")=="back" else 3 if surface_material.get("target","")=="front" else 4 if surface_material.get("target","")=="artwork" else 0))
-		mat.set_shader_parameter("material_color",Color(surface_material.get("color","#78cfff")))
-		mat.set_shader_parameter("material_accent",Color(surface_material.get("accent","#fa8dde")))
-		mat.set_shader_parameter("holographic",surface_material.get("style","")=="holographic")
-		mat.set_shader_parameter("material_replace",1.0 if _detail_effects.materials and surface_material.get("backgroundMode","overlay")=="replace" and not surface.get_meta("material_overlay",false) else 0.0)
-		mat.set_shader_parameter("material_style",["iridescent","holographic","foil","prism","gold","ink","copper","steel","goldprism","blackprism","cosmic","glass","fire","water","rays","refraction","psychedelic","foilmetallic","goldmetallic","gildedprism","glasscircuits","wakandanglass","galacticstorm","bananas","symbiote","circuits","frosted","raysrainbow","caustics","rayspurple"].find(surface_material.get("style","iridescent")))
+		for name in common_parameters:mat.set_shader_parameter(name,common_parameters[name])
+		var surface_material: Dictionary=back_material if surface.get_meta("reverse",false) else front_material
+		for name in surface_material.parameters:mat.set_shader_parameter(name,surface_material.parameters[name])
+		mat.set_shader_parameter("material_replace",1.0 if surface_material.replace and not surface.get_meta("material_overlay",false) else 0.0)
+		mat.set_shader_parameter("material_style",surface_material.style_index)
+	var event_action: Dictionary = _action if not _action.is_empty() else character_action
+	var event_progress: float = progress if not _action.is_empty() else character_progress
+	var events: Array = []
+	for event in event_action.get("particleEvents",[]):
+		var age: float = event_progress*float(event_action.duration)-float(event.at)*float(event_action.duration)
+		if event.particles.get("enabled",false) and age>=0.0 and age<float(event.duration): events.append({"event":event,"age":age})
+	var saved_budget := particle_budget
+	particle_budget = floori(float(saved_budget)/(1+events.size()))
 	_update_particles(root_alpha,front)
-	var available_particles := maxi(0,particle_budget-_particle_count)
+	_update_action_particles(events,event_action,pose if _definition.get("cosmeticPreview",{}).get("motion",true) else CharacterAnimation.rest(_character_compiled,_definition.layers),root_alpha,front)
+	particle_budget = saved_budget
+	var available_particles := maxi(0,particle_budget-_particle_count-_particle_event_count)
 	for kind in _component_nodes:
 		var child: CardscapeCard = _component_nodes[kind]
 		child._detail_parent={"level":_detail_level,"effects":_detail_effects}
 		child.visible = (not front if kind == "back" else front) and (kind!="particles" or _detail_effects.particles) and (not kind in ["material","effect"] or _detail_effects.materials)
 		child.effects_playing = effects_playing and child.visible
 		child.effects_paused = effects_paused
+		child.audio_enabled = audio_enabled
 		child._clock = _clock
 		child._particle_reveal_started = _particle_reveal_started
 		child._inherited_opacity = root_alpha*float(child.get_meta("binding_opacity",1.0))
@@ -857,12 +1017,339 @@ func _update(_delta: float) -> void:
 		if not child._paused:
 			child._action_time += _delta
 		if child.visible:child._update(_delta)
-		available_particles = maxi(0,available_particles-child._particle_count)
+		available_particles = maxi(0,available_particles-child._particle_count-child._particle_event_count)
+
+func _material_parameters(value: Dictionary, reverse: bool) -> Dictionary:
+	return {&"replace":_detail_effects.materials and value.get("backgroundMode","overlay")=="replace",&"style_index":MATERIAL_STYLES.find(value.get("style","iridescent")),&"parameters":{
+		&"component_material":Vector4(float(value.get("strength",.3)) if effects_playing and _detail_effects.materials and value.get("enabled",false) else 0,float(value.get("speed",.25)),float(value.get("frequency",4)),5 if reverse else 1 if value.get("target","both")=="background" else 2 if value.get("target","both")=="back" else 3 if value.get("target","")=="front" else 4 if value.get("target","")=="artwork" else 0),
+		&"material_color":Color(value.get("color","#78cfff")),&"material_accent":Color(value.get("accent","#fa8dde")),&"holographic":value.get("style","")=="holographic"}}
 
 func _particle_config() -> Dictionary:
+	if not _particle_event_config.is_empty(): return _particle_event_config
 	var result: Dictionary = _definition.get("particles",{}).duplicate()
 	result.merge(particle_settings,true)
 	return result
+
+func _update_action_particles(events: Array, action: Dictionary, pose: Dictionary, root_alpha: float, front: bool) -> void:
+	_record_particle_world(action)
+	# PNG payloads and FFD are irrelevant to a bone birth transform.
+	var birth_action := {"boneTracks":action.get("boneTracks",{}),"ikTracks":action.get("ikTracks",{})}
+	var source: int=[action.get("duration",1),birth_action].hash()
+	if source!=_particle_birth_source:
+		_particle_birth_source=source
+		_particle_birth_cache.clear()
+	var saved := {"node":_particle_node,"front":_particle_front_node,"count":_particle_count,"reveal":_particle_reveal_count,"clock":_clock,"start":_particle_reveal_started}
+	_particle_event_count=0
+	for state in _particle_event_states.values():
+		state.node.visible=false
+		if state.front:state.front.visible=false
+		if state.has("trail"):state.trail.visible=false
+	if not _detail_effects.particles or particle_budget<1 or not effects_playing:return
+	var active_keys: Array=events.map(func(entry):return str(_action.get("id","idle"))+":"+str(entry.event.id))
+	for entry in events:
+		var event: Dictionary=entry.event
+		var world: bool=event.get("simulationSpace","bone")=="world"
+		var key: String=str(_action.get("id","idle"))+":"+str(event.id)
+		if not _particle_event_states.has(key):
+			# A bounded pool survives replay and seeking. Rebuild releases the pool
+			# with the old visual tree, alongside ordinary particle resources.
+			if _particle_event_states.size()>=16:
+				var victim: String=str(_particle_event_states.keys().filter(func(id):return not active_keys.has(id))[0])
+				var old: Dictionary=_particle_event_states[victim]
+				old.node.queue_free()
+				if old.front:old.front.queue_free()
+				if old.has("trail"):old.trail.queue_free()
+				_particle_event_states.erase(victim)
+			_particle_front_node=null
+			_setup_particles()
+			_particle_event_states[key]={"node":_particle_node,"front":null}
+		var state: Dictionary=_particle_event_states[key]
+		if event.has("trail"):
+			var samples: Array=_sample_action_trail(event,float(entry.age),action,pose,front)
+			ActionTrail.update(state,samples,_visual,Color(event.particles.get("color","#91deff")),event.particles.get("blend","add"),120 if front== (event.particles.get("placement","behind") in ["surface","front"]) else -120,1.0 if world else root_alpha)
+			if state.has("trail"):
+				state.trail.top_level=world
+				state.trail.transform=Transform3D.IDENTITY
+			state.count=maxi(0,samples.size()-1)
+			_particle_event_count+=state.count
+			continue
+		_particle_node=state.node
+		_particle_front_node=state.front
+		_particle_node.top_level=world
+		_particle_node.transform=Transform3D.IDENTITY
+		_particle_node.visible=true
+		_particle_event_config=event.particles
+		var physical: bool=event.has("physics")
+		_particle_color_sampling=world or physical
+		if _particle_color_sampling:
+			if not state.has("world_alphas"):
+				state.world_alphas=PackedFloat64Array()
+				state.world_alphas.resize(256)
+			_particle_world_alphas=state.world_alphas
+		_particle_sample_births=world or physical or (event.get("simulationSpace","bone")=="card" and event.has("boneId")) or event.has("emissionDuration")
+		_particle_world_sampling=world
+		_clock=float(entry.age)
+		_particle_reveal_started=0.0
+		_update_particles(1.0 if world else root_alpha,front)
+		var fade: float=minf(.12,float(event.duration)*.2)
+		var edge: float=clampf(minf(float(entry.age)/fade,(float(event.duration)-float(entry.age))/fade),0.0,1.0)
+		for i in _particle_count:
+			var color: Color=_particle_node.multimesh.get_instance_color(i)
+			if _particle_color_sampling:color.a=_particle_world_alphas[i]
+			color.a*=edge*edge*(3-2*edge)
+			if event.has("emissionDuration") and _particle_births[i]>=float(event.emissionDuration):color.a=0.0
+			if event.has("emissionDuration") and event.particles.get("trajectory","outward") in ["float","field"]:
+				color.a*=1-clampf((float(entry.age)-float(event.emissionDuration))/float(event.particles.lifetime),0.0,1.0)
+			if _particle_color_sampling:_particle_world_alphas[i]=color.a
+			else:_particle_node.multimesh.set_instance_color(i,color)
+		if event.has("boneId"):
+			var bone: Dictionary=pose.bones.get(event.boneId,{})
+			if bone.is_empty():_particle_node.multimesh.visible_instance_count=0;_particle_count=0
+			else:
+				var registration: float=1.0
+				var emitter: Dictionary=event.particles.get("emitter",{})
+				for layer in _definition.layers:
+					if layer.id==emitter.get("layerId","") and _definition.get("spatial",{}).get("enabled",false):
+						var z: float=float(layer.get("spatial",{}).get("z",.075))+.045
+						registration=(_camera_distance()-z)/(_camera_distance()-.045)
+				for i in _particle_count:
+					var birth_bone: Dictionary=bone
+					if event.get("simulationSpace","bone") in ["card","world"] and _definition.get("cosmeticPreview",{}).get("motion",true):
+						var seconds: float=float(event.at)*float(action.duration)+_particle_births[i]
+						var birth_key := str(event.boneId)+":"+String.num(seconds,14)
+						if not _particle_birth_cache.has(birth_key):
+							if _particle_birth_cache.size()>=512:_particle_birth_cache.erase(_particle_birth_cache.keys()[0])
+							var birth_pose: Dictionary=CharacterAnimation.pose(_character_compiled,birth_action,clampf(seconds/float(action.duration),0.0,1.0),_definition.layers)
+							_particle_birth_cache[birth_key]=birth_pose.bones.get(event.boneId,{"matrix":Transform2D.IDENTITY,"opacity":0.0})
+						birth_bone=_particle_birth_cache[birth_key]
+					var matrix: Transform2D=birth_bone.matrix
+					var transform: Transform3D=_particle_node.multimesh.get_instance_transform(i)
+					var pixel:=Vector2(transform.origin.x/registration*1024+512,768-transform.origin.y/registration*1024)
+					var moved: Vector2=matrix*pixel
+					transform.origin.x=(moved.x-512)/1024*registration
+					transform.origin.y=-(moved.y-768)/1024*registration
+					transform.basis=transform.basis.scaled(Vector3.ONE*sqrt(absf(matrix.determinant())))
+					_particle_node.multimesh.set_instance_transform(i,transform)
+					var data: Color=_particle_node.multimesh.get_instance_custom_data(i)
+					data.g-=matrix.x.angle()
+					_particle_node.multimesh.set_instance_custom_data(i,data)
+					if _particle_color_sampling:_particle_world_alphas[i]*=float(birth_bone.opacity)
+					else:
+						var color: Color=_particle_node.multimesh.get_instance_color(i)
+						color.a*=float(birth_bone.opacity)
+						_particle_node.multimesh.set_instance_color(i,color)
+		if world:
+			var e: Dictionary=_event_world_emitter(event)
+			for i in _particle_count:
+				var root_pose:=_sample_particle_world(float(event.at)*float(action.duration)+_particle_births[i],action)
+				var transform: Transform3D=root_pose.transform
+				_particle_node.multimesh.set_instance_transform(i,transform*_particle_node.multimesh.get_instance_transform(i))
+				var color: Color=_particle_node.multimesh.get_instance_color(i)
+				_particle_world_alphas[i]*=float(root_pose.opacity) if _world_emitter_visible(e,transform) else 0.0
+				color.a=_particle_world_alphas[i]
+				_particle_node.multimesh.set_instance_color(i,color)
+				var data: Color=_particle_node.multimesh.get_instance_custom_data(i)
+				data.a=transform.basis.z.length()
+				_particle_node.multimesh.set_instance_custom_data(i,data)
+			(_particle_node.material_override as ShaderMaterial).render_priority=120 if event.particles.get("placement","behind") in ["surface","front"] else -120
+		if physical:_apply_particle_physics(event,float(entry.age),action,pose,world)
+		if _particle_front_node:
+			_particle_front_node.top_level=world
+			_particle_front_node.transform=Transform3D.IDENTITY
+			var front_mat:=_particle_front_node.material_override as ShaderMaterial
+			front_mat.set_shader_parameter("world_space",world)
+			if world:
+				front_mat.render_priority=120
+				front_mat.set_shader_parameter("layer_offset_z",-.2 if _event_world_emitter(event).get("target","")=="back" and _definition.get("assetKind","")!="back" else .2)
+		state.front=_particle_front_node
+		state.count=_particle_count
+		_particle_event_count+=_particle_count
+	_particle_node=saved.node
+	_particle_front_node=saved.front
+	_particle_count=saved.count
+	_particle_reveal_count=saved.reveal
+	_clock=saved.clock
+	_particle_reveal_started=saved.start
+	_particle_event_config={}
+	_particle_sample_births=false
+	_particle_world_sampling=false
+	_particle_color_sampling=false
+
+func _apply_particle_physics(event: Dictionary,age: float,action: Dictionary,pose: Dictionary,world: bool) -> void:
+	if not event.get("simulationSpace","bone") in ["card","world"] or event.has("trail"):
+		push_error("Particle physics requires a card/world ordinary particle event")
+		return
+	if not _particle_physics:_particle_physics=ParticlePhysics.new()
+	var config: Dictionary=event.physics
+	var signature:=_particle_physics.prepare(config)
+	if signature.is_empty():return
+	var p: Dictionary=event.particles
+	var e: Dictionary={"shape":"perimeter","u":.5,"v":.5,"width":1.0,"height":1.0,"target":"card","layerId":"","regionId":""}
+	e.merge(p.get("emitter",{}),true)
+	var target: String=e.target
+	var src: Dictionary=_definition
+	if target=="back" and _definition.get("assetKind","")!="back":src=_definition.get("backScene",{}).get("document",_definition.get("backScene",{}))
+	elif target=="frame":src=_definition.get("componentScenes",{}).get("frame",{}).get("document",_definition)
+	for region in src.get("emissionRegions",[]):
+		if region.id==e.regionId:e.merge(region,true)
+	var layer: Dictionary={}
+	for item in src.get("layers",[]):
+		if item.id==e.layerId:layer=item;break
+	var z: float=.045 if target in ["frame","back"] else 0.0
+	var registration:=1.0
+	var scale2d:=1.0
+	var rotation2d:=0.0
+	var translation:=Vector2.ZERO
+	if not layer.is_empty():
+		z=.045+float(layer.get("spatial",{}).get("z",0))
+		registration=(_camera_distance()-z)/(_camera_distance()-.045) if src.get("spatial",{}).get("enabled",false) else 1.0
+		scale2d=float(layer.get("scale",1))
+		rotation2d=-deg_to_rad(float(layer.get("rotation",0)))
+		translation=Vector2(float(layer.get("x",0))/1024.0,-float(layer.get("y",0))/1024.0)*registration
+	var offset: float=absf(float(p.z)) if p.get("placement","behind") in ["surface","front"] else float(p.z)
+	var reverse: bool=target=="back" and _definition.get("assetKind","")!="back"
+	var mapping:=Transform3D(Basis.from_euler(Vector3(0,0,rotation2d)).scaled(Vector3(scale2d*registration,scale2d*registration,1)),Vector3(translation.x,translation.y,z+(absf(offset) if reverse else offset)))
+	if reverse:mapping=Transform3D(Basis.from_scale(Vector3(-1,1,-1)),Vector3(0,0,.045-float(_definition.frameStyle.depth)/1024.0))*mapping
+	var idle: int=_particle_count-_particle_reveal_count
+	var cut: float=float(src.get("frameStyle",{}).get("corner",48))/1024.0 if target=="frame" and e.shape=="perimeter" and e.width==1.0 and e.height==1.0 else 0.0
+	for i in _particle_count:
+		var born: float=_particle_births[i]
+		var seed_id: int=i if i<idle else 1024+i-idle
+		var launch:=ParticlePhysics.launch(int(p.seed),seed_id,e,config,cut)
+		var first: Vector3=mapping*launch.position
+		var last: Vector3=mapping*(launch.position+launch.velocity)
+		if event.has("boneId"):
+			var bone: Dictionary=pose.bones.get(event.boneId,{})
+			if _definition.get("cosmeticPreview",{}).get("motion",true):
+				var key:=str(event.boneId)+":"+String.num(float(event.at)*float(action.duration)+born,14)
+				bone=_particle_birth_cache.get(key,bone)
+			if not bone.is_empty():
+				var matrix: Transform2D=bone.matrix
+				var a: Vector2=matrix*Vector2(first.x/registration*1024+512,768-first.y/registration*1024)
+				var b: Vector2=matrix*Vector2(last.x/registration*1024+512,768-last.y/registration*1024)
+				first=Vector3((a.x-512)/1024*registration,-(a.y-768)/1024*registration,first.z)
+				last=Vector3((b.x-512)/1024*registration,-(b.y-768)/1024*registration,last.z)
+		if world:
+			var root_pose:=_sample_particle_world(float(event.at)*float(action.duration)+born,action)
+			first=root_pose.transform*first
+			last=root_pose.transform*last
+		var state:=_particle_physics.sample(config,first,last-first,maxf(0,age-born),maxf(0,float(event.duration)-born),signature)
+		var transform: Transform3D=_particle_node.multimesh.get_instance_transform(i)
+		transform.origin=state.position
+		_particle_node.multimesh.set_instance_transform(i,transform)
+		var velocity: Vector3=state.velocity
+		if Vector2(velocity.x,velocity.y).length()>1e-7:
+			var data: Color=_particle_node.multimesh.get_instance_custom_data(i)
+			data.g=atan2(velocity.y,velocity.x)
+			_particle_node.multimesh.set_instance_custom_data(i,data)
+		if not state.alive:_particle_world_alphas[i]=0.0
+		var color: Color=_particle_node.multimesh.get_instance_color(i)
+		color.a=_particle_world_alphas[i]
+		_particle_node.multimesh.set_instance_color(i,color)
+
+func _record_particle_world(action: Dictionary) -> void:
+	if not action.get("particleEvents",[]).any(func(event):return event.get("simulationSpace","bone")=="world"):return
+	if not _particle_world_history:_particle_world_history=ParticleWorldHistory.new()
+	var source: int=[action.get("id",""),action.get("duration",1),action.get("tracks",{})].hash()
+	if source!=_particle_world_source:
+		_particle_world_source=source
+		_particle_world_history.clear()
+	var elapsed: float=_clock if _action.is_empty() else _action_time+_particle_world_time_offset
+	var duration: float=float(action.duration)
+	var action_seconds: float=_clock if _action.is_empty() else _action_time
+	var progress: float=fmod(action_seconds,duration)/duration if action.get("loop",false) and not _paused else minf(1.0,action_seconds/duration)
+	_particle_world_cycle=elapsed-progress*duration
+	_particle_world_history.record(elapsed,global_transform,_base_pose,_inherited_opacity)
+
+func _sample_particle_world(seconds: float, action: Dictionary) -> Dictionary:
+	var absolute: float=_particle_world_cycle+seconds
+	var placement: Dictionary=_particle_world_history.sample(absolute)
+	var progress: float=clampf(seconds/float(action.duration),0.0,1.0)
+	var tracks: Dictionary=action.get("tracks",{})
+	var base: Vector3=placement.pose
+	var rotation_pose:=base+Vector3(deg_to_rad(_sample(tracks.get("pitch",[]),progress,0)),deg_to_rad(_sample(tracks.get("yaw",[]),progress,progress*180 if action.get("event","")=="flip" else 0)),0)
+	var local:=Transform3D(Basis.from_euler(rotation_pose,EULER_ORDER_XYZ).scaled(Vector3.ONE*_sample(tracks.get("scale",[]),progress,1)),Vector3(_sample(tracks.get("x",[]),progress,0)/1024.0,-_sample(tracks.get("y",[]),progress,0)/1024.0,_sample(tracks.get("z",[]),progress,0)))
+	var result: Dictionary={"transform":placement.transform*local,"opacity":float(placement.opacity)*_sample(tracks.get("opacity",[]),progress,1)}
+	if _particle_world_sampler.is_valid():
+		var sampled: Variant=_particle_world_sampler.call(str(action.id),absolute,result.duplicate())
+		if sampled is Dictionary and sampled.get("transform") is Transform3D and (sampled.transform as Transform3D).is_finite() and typeof(sampled.get("opacity")) in [TYPE_INT,TYPE_FLOAT] and is_finite(float(sampled.opacity)):
+			result=sampled
+		else:push_error("Invalid world particle sampler result; using recorded placement")
+	result.opacity=clampf(float(result.opacity),0.0,1.0)
+	return result
+
+func _event_world_emitter(event: Dictionary) -> Dictionary:
+	var e: Dictionary=event.particles.get("emitter",{}).duplicate()
+	for region in _definition.get("emissionRegions",[]):
+		if region.id==e.get("regionId",""):e.merge(region,true)
+	return e
+
+func _world_emitter_visible(emitter: Dictionary, transform: Transform3D) -> bool:
+	var camera:=get_viewport().get_camera_3d()
+	var front: bool=transform.basis.z.dot((camera.global_position if camera else Vector3(0,0,2.7))-transform.origin)>=0.0
+	return not (emitter.get("side","both")=="front" and not front or emitter.get("side","both")=="back" and front)
+
+func _sample_action_trail(event: Dictionary, age: float, action: Dictionary, pose: Dictionary, front: bool) -> Array:
+	if not effects_playing or particle_budget<1:return []
+	var p: Dictionary=event.particles
+	var e: Dictionary={"u":.5,"v":.5,"layerId":"","regionId":"","side":"both"}
+	e.merge(p.get("emitter",{}),true)
+	if not e.regionId.is_empty():
+		var regions: Array=_definition.get("emissionRegions",[]).filter(func(r):return r.id==e.regionId)
+		if regions.is_empty():return []
+		e.merge(regions[0],true)
+	if event.get("simulationSpace","bone")!="world" and (e.side=="front" and not front or e.side=="back" and front):return []
+	var layer: Dictionary={}
+	if not e.layerId.is_empty():
+		var layers: Array=_definition.layers.filter(func(l):return l.id==e.layerId)
+		if layers.is_empty() or not layers[0].get("visible",true):return []
+		layer=layers[0]
+	var z: float=.045+float(layer.get("spatial",{}).get("z",0)) if not layer.is_empty() else 0.0
+	var registration: float=(_camera_distance()-z)/(_camera_distance()-.045) if not layer.is_empty() and _definition.get("spatial",{}).get("enabled",false) else 1.0
+	var layer_scale: float=float(layer.get("scale",1))
+	var base := Vector2(float(e.u)-.5,(.5-float(e.v))*1.5).rotated(-deg_to_rad(float(layer.get("rotation",0))))*layer_scale+Vector2(float(layer.get("x",0))/1024,-float(layer.get("y",0))/1024)
+	var offset: float=float(p.get("z",-.08))
+	z+=absf(offset) if p.get("placement","behind") in ["surface","front"] else offset
+	var pixel := Vector2(base.x*1024+512,768-base.y*1024)
+	var head: float=minf(age,float(event.get("emissionDuration",event.duration)))
+	var tail: float=maxf(0.0,age-float(event.trail.duration))
+	if head<=tail:return []
+	var sections: int=mini(int(event.trail.segments),particle_budget)+1
+	var fade: float=minf(.12,float(event.duration)*.2)
+	var edge: float=clampf(minf(age/fade,(float(event.duration)-age)/fade),0.0,1.0)
+	var samples: Array=[]
+	for i in sections:
+		var t: float=tail+(head-tail)*i/(sections-1)
+		var bone: Dictionary=pose.bones.get(event.boneId,{})
+		if _definition.get("cosmeticPreview",{}).get("motion",true):
+			var seconds: float=float(event.at)*float(action.duration)+t
+			var key := str(event.boneId)+":"+String.num(seconds,14)
+			if not _particle_birth_cache.has(key):
+				if _particle_birth_cache.size()>=512:_particle_birth_cache.erase(_particle_birth_cache.keys()[0])
+				var historical: Dictionary=CharacterAnimation.pose(_character_compiled,action,clampf(seconds/float(action.duration),0.0,1.0),_definition.layers)
+				_particle_birth_cache[key]=historical.bones.get(event.boneId,{})
+			bone=_particle_birth_cache[key]
+		if bone.is_empty():return []
+		var matrix: Transform2D=bone.matrix
+		var moved: Vector2=matrix*pixel
+		var freshness: float=maxf(0.0,1-(age-t)/float(event.trail.duration))
+		var width: float=float(p.size)*layer_scale*registration*sqrt(absf(matrix.determinant()))*(.15+.85*freshness)
+		var alpha: float=float(p.opacity)*float(bone.opacity)*freshness*edge*edge*(3-2*edge)
+		samples.append([(moved.x-512)/1024*registration,-(moved.y-768)/1024*registration,z,width,alpha,freshness*2-1,0])
+		if event.get("simulationSpace","bone")=="world":
+			var root_pose:=_sample_particle_world(float(event.at)*float(action.duration)+t,action)
+			var transform: Transform3D=root_pose.transform
+			var sample: Array=samples[-1]
+			var center: Vector3=transform*Vector3(sample[0],sample[1],sample[2])
+			sample[0]=center.x
+			sample[1]=center.y
+			sample[2]=center.z
+			sample[3]*=sqrt(transform.basis.x.length()*transform.basis.y.length())
+			sample[4]*=float(root_pose.opacity) if _world_emitter_visible(e,transform) else 0.0
+			var normal:=transform.basis.z.normalized()
+			var up:=transform.basis.y.normalized()
+			sample.append_array([normal.x,normal.y,normal.z,up.x,up.y,up.z])
+	return samples
 
 func _setup_particles() -> void:
 	_particle_node = MultiMeshInstance3D.new()
@@ -887,6 +1374,26 @@ func _setup_particles() -> void:
 func _hash(i: int, seed: int) -> float:
 	var x := sin((i+1)*127.1+seed*311.7)*43758.5453
 	return x-floor(x)
+
+## Analytic births agree with the JS sampler, including halo groups and reveal delays.
+func _particle_birth(p: Dictionary, index: int, seconds: float, reveal_index: int=-1) -> float:
+	var seed: int=int(p.get("seed",1))
+	if reveal_index>=0:
+		var reveal: Dictionary=p.get("reveal",{})
+		if reveal.get("profile","burst")!="trails":return 0.0
+		var late: bool=reveal_index%5==0
+		return float(reveal.get("duration",.24))*minf(.8,float(reveal.get("stagger",0))*(.8+.4*_hash(reveal_index+751,seed) if late else .12*_hash(reveal_index+751,seed)))
+	if p.get("trajectory","outward") in ["float","field"]:return 0.0
+	var life: float=float(p.get("lifetime",3))
+	var phase_seed: float=_hash(index,seed)
+	var delay: float=0.0
+	if p.get("trajectory","outward")=="halo":
+		if p.get("visual","")=="adamantium":life*=.8+.4*_hash(index+467,seed)
+		if p.get("visual","") in ["krackle","starcore"]:
+			var group_size: int=3 if p.visual=="krackle" else 4
+			phase_seed=_hash(floori(float(index)/group_size)+201,seed)
+			delay=(index%group_size)*(.1 if group_size==3 else .07)
+	return maxf(0.0,(floor(maxf(0.0,seconds)/life+phase_seed)-phase_seed+delay)*life)
 
 func _halo_path(e: Dictionary, cut: float, radius: float) -> Dictionary:
 	var hx: float = 0.0 if e.shape=="point" else float(e.width)*.5
@@ -977,7 +1484,7 @@ func _update_particles(root_alpha: float, front: bool) -> void:
 				break
 		if not found:
 			_particle_count=0
-	if e.side=="front" and not front or e.side=="back" and front:
+	if not _particle_world_sampling and (e.side=="front" and not front or e.side=="back" and front):
 		_particle_count=0
 	var source_layer: Dictionary = {}
 	if not e.layerId.is_empty():
@@ -1042,6 +1549,7 @@ func _update_particles(root_alpha: float, front: bool) -> void:
 	var cut := float(src.get("frameStyle",{}).get("corner",48))/1024.0 if target in ["card","frame"] and e.shape=="perimeter" and e.width==1.0 and e.height==1.0 and e.u==.5 and e.v==.5 else 0.0
 	var path := _halo_path(e,cut,radius) if halo else {}
 	for i in _particle_count:
+		if _particle_sample_births:_particle_births[i]=_particle_birth(p,i,_clock,i-idle_count if i>=idle_count else -1)
 		var seed := int(p.get("seed",1))
 		var r := _hash(i,seed)
 		var life := maxf(.3,float(p.get("lifetime",3)))
@@ -1275,15 +1783,16 @@ func _update_particles(root_alpha: float, front: bool) -> void:
 		_particle_node.multimesh.set_instance_custom_data(i,Color(r,sprite_angle,shape_override,0))
 		var color := Color("#ffcb79" if p.get("palette","solid")=="gold" else p.get("color","#ffcb79"))
 		color.a = alpha*float(p.get("opacity",1.0))*root_alpha
+		if _particle_color_sampling:_particle_world_alphas[i]=color.a
 		_particle_node.multimesh.set_instance_color(i,color)
 
 func diagnostics() -> Dictionary:
 	var components: Dictionary = {}
-	var particle_total := _particle_count
+	var particle_total := _particle_count+_particle_event_count
 	for kind in _component_nodes:
 		var child: CardscapeCard = _component_nodes[kind]
 		components[kind] = {"visible":child.visible,"surfaces":child._surfaces.size(),"particles":child._particle_count,"shader_key":child._definition.get("shader_key","")}
-		particle_total += child._particle_count
+		particle_total += child._particle_count+child._particle_event_count
 	return {"card_id":card_id,"locale":locale,"surfaces":_surfaces.size(),"particles":particle_total,"components":components,"frame_planar":true,"action":_action.get("id",""),"action_seconds":_action_time,"overrides":component_overrides.duplicate(true)}
 
 ## Gameplay numbers are independent from decorative raster wordmarks.

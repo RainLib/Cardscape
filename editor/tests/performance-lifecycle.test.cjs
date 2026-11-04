@@ -9,11 +9,16 @@ const {createBlankDocument}=require('../dist/renderer/document-factory.js');
 test('finish variants remove unreachable effects and preserve user hook code and non-frame helpers',()=>{
  const prelude='vec4 userHook(vec2 uv){return sampleSource(uv);}',body='return userHook(uv) * color;';
  const full=Runtime.fragmentSource(body,true,prelude);
+ const sharedStart=full.lastIndexOf('// Shared procedural finish'),sharedEnd=full.indexOf('\nvoid main',sharedStart);
+ const commonLength=full.length-(sharedEnd-sharedStart);
  for(let finish=0;finish<25;finish++){
   const variant=Variants.frameFragment(full,finish);
   assert.ok(variant.includes(prelude));assert.ok(variant.includes(body));
   assert.ok(variant.includes('vec4 sampleSource('));
-  assert.ok(variant.length<full.length*.65);
+  // Measure the specialized built-ins independently of growing common UV/coverage code.
+  assert.ok(variant.startsWith(full.slice(0,sharedStart)));
+  assert.ok(variant.endsWith(full.slice(sharedEnd)));
+  assert.ok(variant.length-commonLength<(sharedEnd-sharedStart)*.65);
   assert.ok(Raster.fragmentSource(finish).length<Raster.fragmentSource().length);
  }
  const flat=Variants.frameFragment(full,0);

@@ -287,6 +287,15 @@ func _prefetch(ids: Array) -> bool:
 	return state.ok and not _closed
 
 func _resources(record: Dictionary, library: CardscapeLibrary, ids: Array) -> bool:
+	var audio_bytes: int=0
+	for key in record.get("audioObjects",{}):
+		var bytes: PackedByteArray=await object(record.audioObjects[key])
+		if bytes.is_empty() or bytes.size()>8*1024*1024:return false
+		var stream:=AudioStreamWAV.load_from_buffer(bytes)
+		if not stream or stream.get_length()>30.01:return false
+		audio_bytes+=stream.data.size()
+		if audio_bytes>64*1024*1024:return false
+		library.audio_streams[key]=stream
 	for key in record.textureObjects:_texture_objects[key]=record.textureObjects[key]
 	for key in record.shaders:
 		var bytes := await object(record.shaders[key])

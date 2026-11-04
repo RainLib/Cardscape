@@ -533,6 +533,12 @@ const api = (() => {
     if (rig.bones.some((b) => b.parentId === boneId))
       throw Error('请先删除子关节');
     if (
+      (doc.actions || []).some((a) =>
+        a.particleEvents?.some((e) => e.boneId === boneId && e.trail),
+      )
+    )
+      throw Error('请先移除或重新绑定引用该骨骼的连续剑痕');
+    if (
       (rig.constraints || []).some(
         (c) =>
           importedCardCharacterAdvanced.ik
@@ -553,6 +559,8 @@ const api = (() => {
     rig.bindings = rig.bindings.filter((b) => b.boneId !== boneId);
     for (const a of doc.actions || []) {
       if (a.boneTracks) delete a.boneTracks[boneId];
+      for (const event of a.particleEvents || [])
+        if (event.boneId === boneId) delete event.boneId;
       for (const tracks of Object.values(a.deformTracks || {}))
         delete tracks[boneId];
     }
@@ -713,6 +721,7 @@ const api = (() => {
     validate,
     compile,
     sample,
+    sampleTrack,
     rest,
     local,
     placement,

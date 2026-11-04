@@ -9,13 +9,13 @@ function document(artwork=true){
 }
 function harness(doc,workshop=W.create(doc,'workshop','card-a')){
  const elements=new Map();
- function node(){return {id:'',hidden:false,disabled:false,value:'',title:'',type:'',textContent:'',validity:{valid:true},children:[],classList:{remove(){},toggle(){}},replaceChildren(...children){this.children=children;},after(...children){for(const child of children)elements.set(child.id,child);},closest(){return this;}};}
+ function node(){return {id:'',dataset:{},hidden:false,disabled:false,value:'',title:'',type:'',textContent:'',validity:{valid:true},children:[],classList:{remove(){},toggle(){}},setAttribute(){},add(child){this.children.push(child);},append(...children){this.children.push(...children);for(const child of children)if(child.id)elements.set(child.id,child);},replaceChildren(...children){this.children=children;},before(...children){for(const child of children){elements.set(child.id,child);for(const descendant of child.children||[])if(descendant.id)elements.set(descendant.id,descendant);}},after(...children){for(const child of children)elements.set(child.id,child);},closest(){return this;}};}
  function get(id){if(!elements.has(id)){const el=node();el.id=id;if(['width','corner','depth','bevel','animationSpeed'].some(k=>id==='frame-'+k))el.type='number';else if(['frame-color','frame-accent'].includes(id))el.type='color';elements.set(id,el);}return elements.get(id);}
  let state={document:doc,workshop,layer:doc.layers.find(l=>l.kind==='frame'),busy:false,revision:0,documentToken:doc.id};const history=[],opened=[],messages=[],playbacks=[],events=new Map();let view={time:1.25,paused:doc.effects?.paused??false};let enabled=0;
  const host={state:()=>state,say:message=>messages.push(message),mutate(label,fn){const next=structuredClone(state.document);fn(next);R.validate(next);history.push(structuredClone(state.document));state={...state,document:next,layer:next.layers.find(l=>l.id===state.layer?.id),revision:state.revision+1};return true;},chooseFrame(){state.layer=state.document.layers.find(l=>l.kind==='frame');},unlockFrame(){state.layer.locked=false;}};
  host.previewEffects=(seconds,paused)=>{playbacks.push({seconds,paused});view={...view,time:seconds,paused};state.document.effects={...state.document.effects,paused};return true;};
- const window={addEventListener:(name,fn)=>events.set(name,fn),cardPreview:{getView:()=>view},cardEditorHost:host,CardFrame:F,CardWorkshop:W,CardStats:require('../dist/renderer/card-stats.js'),CardCosmetics:require('../dist/renderer/cosmetics-model.js'),atelierComponentEditor:{open(...args){opened.push(args);}},atelierWorkspace:{panel(){},syncLayout(){},enableEffectsPreview(){enabled++;get('preview-effects').checked=true;}}};
- vm.runInNewContext(fs.readFileSync(require.resolve('../dist/renderer/frame-panel.js'),'utf8'),{window,document:{getElementById:get,createElement:node,activeElement:null,body:{classList:{remove(){}}}},Option:function(text,value){return {text,value};}});
+ const window={addEventListener:(name,fn)=>events.set(name,fn),cardPreview:{getView:()=>view},cardEditorHost:host,CardFrameContourEditor:require('../dist/renderer/frame-contour-editor.js'),CardFrame:F,CardWorkshop:W,CardStats:require('../dist/renderer/card-stats.js'),CardCosmetics:require('../dist/renderer/cosmetics-model.js'),atelierComponentEditor:{open(...args){opened.push(args);}},atelierWorkspace:{panel(){},syncLayout(){},enableEffectsPreview(){enabled++;get('preview-effects').checked=true;}}};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../dist/renderer/frame-panel.js'),'utf8'),{window,structuredClone,document:{getElementById:get,createElement:node,createElementNS:()=>node(),createTextNode:text=>({textContent:text}),activeElement:null,body:{classList:{remove(){}}}},Option:function(text,value){return {text,value};}});
  const refresh=()=>window.atelierFrame.refresh(state);
  return {get,opened,messages,history,window,playbacks,enabled:()=>enabled,state:()=>state,refresh,event(name){events.get(name)?.();},change(key,value){get('frame-'+key).value=String(value);get('frame-'+key).onchange();},undo(){const d=history.pop();state={...state,document:d,layer:d.layers.find(l=>l.kind==='frame')};refresh();},set(next){state={...state,...next};refresh();}};
 }
@@ -26,6 +26,13 @@ test('frame playback pauses and resumes the current clock, and replay starts at 
  h.get('frame-playback').onclick();assert.deepEqual(h.playbacks.at(-1),{seconds:1.25,paused:false});assert.equal(h.enabled(),1);
  h.get('frame-replay').onclick();assert.deepEqual(h.playbacks.at(-1),{seconds:0,paused:false});assert.equal(h.enabled(),2);
  assert.deepEqual(d.componentScenes.frame.document.shader,shader);assert.deepEqual(d.componentScenes.frame.document.layers,layers);assert.equal(h.history.length,0);
+});
+
+test('contour controls synchronize artwork carriers and component windows without replacing image pixels',()=>{
+ const d=document(),h=harness(d),before=structuredClone(d.componentScenes.frame.document.layers);
+ h.get('frame-contour-preset').value='double';h.get('frame-contour-preset').onchange();h.get('frame-contour-apply').onclick();
+ const result=h.state().document;assert.equal(result.frameStyle.contour.windows.length,2);assert.deepEqual(result.frameStyle.contour,result.componentScenes.frame.document.frameStyle.contour);assert.deepEqual(result.componentScenes.frame.document.layers,before);
+ assert.equal(h.history.length,1);h.undo();assert.equal(h.state().document.frameStyle.contour,undefined);
 });
 
 test('frame playback is available without selection or unlocking and reveals disabled effects',()=>{

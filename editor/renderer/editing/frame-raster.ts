@@ -14,6 +14,7 @@ type Uniforms = Record<string, WebGLUniformLocation | null>;
 import importedCardFrame from './frame-model.ts';
 import importedCardRuntime from '../rendering/runtime-core.ts';
 import shaderVariants from '../rendering/shader-variants.ts';
+import contourFields from '../rendering/contour-field-renderer.ts';
 
 const api = (() => {
   'use strict';
@@ -38,8 +39,10 @@ const api = (() => {
     if (start < 0 || end < 0) throw Error('Missing shared rim shader');
     const source = `precision highp float;
 varying vec2 masterUV;uniform vec3 low,hi;uniform vec4 metrics;uniform vec2 animation;uniform float finish;
+${importedCardRuntime.contourGLSL}
 ${importedCardRuntime.fragment.slice(start, end)}
 void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metrics.y);
+ if(contourTexture>.5){vec2 shape=contourAt(vec2(uv.x-.5,.75-uv.y*1.5));vec4 body=contourRim(low,hi,uv,vec2(0.),0.,metrics,finish,animation,.75);body.a*=shape.x*(1.-shape.y);vec4 glow=contourGlow(low,hi,uv,vec2(0.),0.,metrics,finish,animation);float alpha=body.a+glow.a*(1.-body.a);gl_FragColor=vec4((body.rgb*body.a+glow.rgb*glow.a*(1.-body.a))/max(alpha,.00001),alpha);return;}
  if(distance>metrics.x){gl_FragColor=rimAura(low,hi,uv,vec2(0.),0.,metrics,finish,animation);return;}
  if(distance<0.){gl_FragColor=rimAura(low,hi,uv,vec2(0.),0.,metrics,finish,animation);return;}
  float bevel=min(metrics.w,metrics.x*.4),shade=1.;
@@ -65,7 +68,11 @@ void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metr
       hits = 0,
       bytes = 0;
     const cache = new Map<string, RasterEntry>();
+    let contourFieldRenderer: ReturnType<typeof contourFields.create> | null =
+      null;
     function reset() {
+      contourFieldRenderer?.dispose();
+      contourFieldRenderer = null;
       cache.clear();
       bytes = 0;
       if (gl && !gl.isContextLost()) {
@@ -139,9 +146,19 @@ void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metr
         const context = gl,
           linked = program;
         uniforms = Object.fromEntries(
-          ['extent', 'low', 'hi', 'metrics', 'animation', 'finish'].map(
-            (name) => [name, context.getUniformLocation(linked, name)],
-          ),
+          [
+            'extent',
+            'low',
+            'hi',
+            'metrics',
+            'animation',
+            'finish',
+            'contourCounts',
+            'contourTexture',
+            'contourField',
+            'contourFieldInfo',
+            'contourEdges[0]',
+          ].map((name) => [name, context.getUniformLocation(linked, name)]),
         );
         error = null;
         programFinish = finish;
@@ -166,6 +183,7 @@ void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metr
           style.finish,
           style.animation,
           style.animationSpeed,
+          style.contour,
         ]);
       const cached = cache.get(key);
       if (cached) {
@@ -201,10 +219,23 @@ void main(){vec2 uv=masterUV,p=uv*vec2(1.,1.5);float distance=rimDistance(p,metr
       gl.uniform3fv(uniforms.hi, importedCardFrame.rgb(style.accent));
       gl.uniform4fv(
         uniforms.metrics,
-        [style.width, style.corner, style.depth, style.bevel].map(
-          (n) => n / 1024,
-        ),
+        [
+          style.width,
+          style.corner,
+          style.depth,
+          importedCardFrame.bevel(style),
+        ].map((n) => n / 1024),
       );
+      gl.uniform2fv(
+        uniforms.contourCounts,
+        importedCardFrame.contourUniforms(style).counts,
+      );
+      (contourFieldRenderer ||= contourFields.create(gl)).bind(style, uniforms);
+      if (style.contour)
+        gl.uniform4fv(
+          uniforms['contourEdges[0]'],
+          importedCardFrame.contourUniforms(style).edges,
+        );
       gl.uniform2f(
         uniforms.animation,
         importedCardFrame.animations.indexOf(style.animation),

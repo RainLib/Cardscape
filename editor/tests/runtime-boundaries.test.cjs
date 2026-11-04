@@ -64,6 +64,7 @@ test('browser scripts assemble runtime without CommonJS and retain nested valida
     'frame-model',
     'card-stats',
     'title-model',
+    'action-audio-model',
     'component-model',
     'cosmetics-model',
     'back-asset-model',

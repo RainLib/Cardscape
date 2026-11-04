@@ -8,9 +8,10 @@ uniform float particle_time=0.0;
 uniform float particle_speed=.25;
 uniform float cosmic_pass=0.0;
 uniform float layer_offset_z=0.0;
+uniform bool world_space=false;
 varying float particle_seed;
 varying float particle_kind;
-void vertex(){particle_seed=INSTANCE_CUSTOM.x;particle_kind=INSTANCE_CUSTOM.z>.01?round(INSTANCE_CUSTOM.z*32.)-1.:float(visual);vec2 size=vec2(length(MODEL_MATRIX[0].xyz),length(MODEL_MATRIX[1].xyz));float a=INSTANCE_CUSTOM.y;if(particle_kind==16.)size.x*=.18+.82*abs(cos(particle_time*1.1+particle_seed*6.283));if(particle_kind==19.&&particle_seed>.78)size.x*=8.;if(particle_kind==20.&&particle_seed>=.58&&particle_seed<.82)size.y*=8.;vec2 plane=mat2(vec2(cos(a),sin(a)),vec2(-sin(a),cos(a)))*(VERTEX.xy*size);vec3 center=(VIEW_MATRIX*vec4(MODEL_MATRIX[3].xyz+normalize(MODEL_MATRIX[2].xyz)*layer_offset_z,1.0)).xyz;POSITION=PROJECTION_MATRIX*vec4(center+vec3(plane,0.0),1.0);}
+void vertex(){particle_seed=INSTANCE_CUSTOM.x;particle_kind=INSTANCE_CUSTOM.z>.01?round(INSTANCE_CUSTOM.z*32.)-1.:float(visual);vec2 size=vec2(length(MODEL_MATRIX[0].xyz),length(MODEL_MATRIX[1].xyz));float a=INSTANCE_CUSTOM.y;if(particle_kind==16.)size.x*=.18+.82*abs(cos(particle_time*1.1+particle_seed*6.283));if(particle_kind==19.&&particle_seed>.78)size.x*=8.;if(particle_kind==20.&&particle_seed>=.58&&particle_seed<.82)size.y*=8.;vec2 plane=mat2(vec2(cos(a),sin(a)),vec2(-sin(a),cos(a)))*(VERTEX.xy*size);vec3 center=(VIEW_MATRIX*vec4(MODEL_MATRIX[3].xyz+normalize(MODEL_MATRIX[2].xyz)*layer_offset_z*(world_space?INSTANCE_CUSTOM.w:1.0),1.0)).xyz;POSITION=PROJECTION_MATRIX*vec4(center+vec3(plane,0.0),1.0);}
 // Shared faceted gold crystal: eight projected faces, not a shaded flat rhombus.
 vec3 diamondTurn(vec3 p,vec2 yaw,vec2 pitch){
  p=vec3(p.x,p.y*pitch.x-p.z*pitch.y,p.y*pitch.y+p.z*pitch.x);

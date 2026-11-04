@@ -87,6 +87,30 @@ const animation = (value: unknown) =>
       slots: entries(entries(frames)),
       deform: entries(entries(entries(frames))),
       attachments: entries(entries(entries(entries(frames)))),
+      drawOrder: (v) =>
+        array(v, (f) =>
+          fields(
+            f,
+            {},
+            {
+              time: number,
+              offsets: (x) =>
+                array(x, (o) => fields(o, { slot: string, offset: number })),
+            },
+          ),
+        ),
+      draworder: (v) =>
+        array(v, (f) =>
+          fields(
+            f,
+            {},
+            {
+              time: number,
+              offsets: (x) =>
+                array(x, (o) => fields(o, { slot: string, offset: number })),
+            },
+          ),
+        ),
     },
   );
 
@@ -174,6 +198,7 @@ const trackFields = [
   'expressionTracks',
   'deformTracks',
   'layerTracks',
+  'drawOrder',
 ] as const;
 function pack(doc: CardDocument): CharacterArchive {
   return {

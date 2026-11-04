@@ -1558,11 +1558,7 @@ export const moduleApi = (() => {
       context.save();
       context.beginPath();
       context.rect(-8192, -8192, 17408, 17920);
-      const points = importedCardFrame.contour(style, style.width).reverse();
-      points.forEach(([x, y], i) =>
-        i ? context.lineTo(x, y) : context.moveTo(x, y),
-      );
-      context.closePath();
+      importedCardFrame.windowPath(context,style,true);
       context.clip('evenodd');
       context.beginPath();
       const left = pop.left ? -8192 : style.width,
@@ -3421,6 +3417,12 @@ export const moduleApi = (() => {
       return;
     mutate('删除图层（可撤销）', () => {
       doc.layers = doc.layers.filter((l) => l.id !== layer.id);
+      for(const action of doc.actions||[]){
+        if(action.drawOrder)for(const frame of action.drawOrder)frame.layers=frame.layers.filter(id=>id!==layer.id);
+        if(action.layerTracks)delete action.layerTracks[layer.id];
+        if(action.deformTracks)delete action.deformTracks[layer.id];
+        if(action.particleEvents)action.particleEvents=action.particleEvents.filter(event=>event.particles.emitter?.layerId!==layer.id);
+      }
       if (doc.characterRig) {
         doc.characterRig.bindings = doc.characterRig.bindings.filter(
           (b) => b.layerId !== layer.id,

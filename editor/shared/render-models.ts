@@ -2,7 +2,31 @@ import type { CardLayer, CardSlot, TextStyle } from './document';
 export type Vec2 = [number, number];
 export type Vec3 = [number, number, number];
 export type Rect4 = [number, number, number, number];
+/** Registered 1024×1536 pixel contours; windows are disjoint, simple polygons. */
+export interface ContourRegion {
+  outline: Vec2[];
+  windows: Vec2[][];
+}
+export interface CardContour extends ContourRegion {
+  /** Additional disjoint material regions, including islands inside windows. */
+  islands?: ContourRegion[];
+  paths?: ContourPaths;
+}
+export interface ContourKnot {
+  point: Vec2;
+  incoming?: Vec2;
+  outgoing?: Vec2;
+}
+export type ContourPath = ContourKnot[];
+export interface ContourPaths {
+  schema: 'card-contour-paths/1';
+  outline: ContourPath;
+  windows: ContourPath[];
+  islands?: Array<{ outline: ContourPath; windows: ContourPath[] }>;
+  tolerance: number;
+}
 export interface FrameStyle extends Record<string, unknown> {
+  contour?: CardContour;
   name: string;
   shape: string;
   width: number;

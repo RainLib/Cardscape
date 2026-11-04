@@ -38,6 +38,24 @@ func _ready() -> void:
 		button.text = spec[0]
 		button.pressed.connect(spec[1])
 		panel.add_child(button)
+	var action_picker:=OptionButton.new()
+	var populate_actions:=func():
+		action_picker.clear()
+		for action in catalog.card(card.card_id).get("actions",[]):
+			action_picker.add_item(str(action.name))
+			action_picker.set_item_metadata(action_picker.item_count-1,action.id)
+	action_picker.item_selected.connect(func(index):card.play_action(str(action_picker.get_item_metadata(index))))
+	select.item_selected.connect(func(_index):populate_actions.call())
+	populate_actions.call()
+	panel.add_child(action_picker)
+	var play:=Button.new()
+	play.text="Play / Pause action"
+	play.pressed.connect(func():card.pause_action(not card._paused))
+	panel.add_child(play)
+	var audio:=CheckButton.new()
+	audio.text="Enable action audio"
+	audio.toggled.connect(func(value):card.audio_enabled=value)
+	panel.add_child(audio)
 	var zoom := HSlider.new()
 	zoom.min_value=.25
 	zoom.max_value=3.0

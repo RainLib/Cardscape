@@ -1,10 +1,14 @@
+import { audioBytes, checkAudio } from './audio-assets';
+import type { ActionAudioEvent } from '../shared/character';
 import fs from 'node:fs/promises';
+import { contourFieldPNG } from './contour-field-export';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { ROOT, SDK } from './paths';
 import { isRecord } from './validation';
 import { exportRemote } from './remote-export';
 import type { WorkshopDocument } from '../shared/projects';
+import type { FrameStyle } from '../shared/render-models';
 import type {
   AssetManifest,
   ExportResource,
@@ -20,6 +24,7 @@ import {
   frameModel as F,
   runtimeModel as R,
   cosmeticsModel,
+  shaderVariants,
 } from './export-models';
 
 function required<K, V>(map: Map<K, V>, key: K): V {
@@ -61,7 +66,26 @@ export async function exportGodot(
   await fs.cp(path.join(ROOT, 'licenses'), path.join(root, 'licenses'), {
     recursive: true,
   });
+  const audioPaths = new Map<string, string>();
+  async function audioAsset(event: ActionAudioEvent, base: string) {
+    let bytes: Buffer;
+    if (event.src.startsWith('data:')) bytes = audioBytes(event);
+    else {
+      const file = path.resolve(base, event.src);
+      if (!file.startsWith(directory + path.sep))
+        throw Error('音效路径超出导出目录');
+      bytes = await fs.readFile(file);
+      checkAudio(bytes, event.sourceDuration);
+    }
+    const key = createHash('sha256').update(bytes).digest('hex') + '.wav';
+    if (!audioPaths.has(key)) {
+      await fs.writeFile(path.join(root, 'assets', key), bytes);
+      audioPaths.set(key, 'res://assets/' + key);
+    }
+    return key;
+  }
   const lazyTextures = new Set<string>();
+  const shaderSources = new Map<string, string>();
   const texturePaths = new Map<string, string>(),
     shaderPaths = new Map<string, string>(),
     template = await fs.readFile(
@@ -89,7 +113,10 @@ export async function exportGodot(
     }
     return key;
   }
-  async function shader(config: ShaderSettings) {
+  async function shader(
+    config: ShaderSettings,
+    styles: readonly Partial<FrameStyle>[] = [],
+  ) {
     const key = createHash('sha256')
       .update(
         config.geometryBody +
@@ -115,6 +142,26 @@ export async function exportGodot(
         );
       await fs.writeFile(path.join(root, 'shaders', key + '.gdshader'), code);
       shaderPaths.set(key, 'res://shaders/' + key + '.gdshader');
+      shaderSources.set(key, code);
+    }
+    // Export only styles the project uses, plus its material-LOD fallback.
+    // Unlisted styles keep the full program, preserving runtime customization.
+    const finishes = new Set<number>();
+    for (const style of styles) {
+      const finish = style.finish || 'metal';
+      finishes.add(F.finishes.indexOf(finish));
+      finishes.add(finish === 'flat' ? 0 : 1);
+    }
+    for (const finish of finishes) {
+      if (finish < 0) continue;
+      const variantKey = key + ':finish:' + finish;
+      if (shaderPaths.has(variantKey)) continue;
+      const source = required(shaderSources, key),
+        code = shaderVariants.frameFragment(source, finish);
+      if (code === source) continue; // Hooks referencing another rim must stay generic.
+      const file = key + '-finish-' + finish + '.gdshader';
+      await fs.writeFile(path.join(root, 'shaders', file), code);
+      shaderPaths.set(variantKey, 'res://shaders/' + file);
     }
     return key;
   }
@@ -173,9 +220,18 @@ export async function exportGodot(
     delete d.foregroundMesh;
     d.frameStyle = F.resolve(d);
     d.frameGeometry = F.geometry(d.frameStyle);
+    const field = contourFieldPNG(d.frameStyle);
+    if (field)
+      d.contourFieldAsset = await asset(
+        'data:image/png;base64,' + field.toString('base64'),
+        base,
+      );
     d.shader = { ...R.defaults.shader, ...d.shader };
     d.effects = { ...R.defaults.effects, ...d.effects };
-    d.shader_key = await shader(d.shader);
+    d.shader_key = await shader(d.shader, [
+      d.frameStyle,
+      ...(d.frameStyles || []),
+    ]);
     delete result.layerRasters;
     delete result.titleRasters;
     delete d.masks;
@@ -183,6 +239,14 @@ export async function exportGodot(
     delete d.backScene;
     delete d.fonts;
     if (d.particles) d.particles = await particleAsset(d.particles, base);
+    for (const action of d.actions || [])
+      for (const event of action.particleEvents || []) {
+        if (event.particles.sprite)
+          event.particles.sprite = await asset(event.particles.sprite, base);
+      }
+    for (const action of d.actions || [])
+      for (const event of action.audioEvents || [])
+        event.src = await audioAsset(event, base);
     return result;
   }
   async function particleAsset(
@@ -223,7 +287,12 @@ export async function exportGodot(
     m.id = card.id;
     m.foregroundGeometry = doc.foregroundMesh || R.grid();
     m.frameGeometry = F.geometry(F.resolve(doc));
-    m.shader_key = await shader({ ...R.defaults.shader, ...doc.shader });
+    if (m.contourFieldAsset)
+      m.contourFieldAsset = await asset(m.contourFieldAsset, base);
+    m.shader_key = await shader({ ...R.defaults.shader, ...doc.shader }, [
+      F.resolve(doc),
+      ...(doc.frameStyles || []),
+    ]);
     for (const layer of m.layers) {
       if (
         layer.kind === 'frame' &&
@@ -253,6 +322,14 @@ export async function exportGodot(
       m.exportProfile.textures = variants;
     }
     if (m.particles) m.particles = await particleAsset(m.particles, base);
+    for (const action of m.actions || [])
+      for (const event of action.particleEvents || []) {
+        if (event.particles.sprite)
+          event.particles.sprite = await asset(event.particles.sprite, base);
+      }
+    for (const action of m.actions || [])
+      for (const event of action.audioEvents || [])
+        event.src = await audioAsset(event, base);
     if (m.material) m.material = await componentAsset(m.material, base);
     const scenes = m.componentScenes;
     if (scenes)
@@ -313,11 +390,18 @@ export async function exportGodot(
   };
   let resource =
     '[gd_resource type="Resource" script_class="CardscapeLibrary" load_steps=' +
-    String(2 + texturePaths.size - lazyTextures.size + shaderPaths.size) +
+    String(
+      2 +
+        texturePaths.size -
+        lazyTextures.size +
+        shaderPaths.size +
+        audioPaths.size,
+    ) +
     ' format=3]\n\n[ext_resource type="Script" path="res://addons/cardscape/cardscape_library.gd" id="1"]\n';
   let n = 2;
   const textures = [],
-    shaders = [];
+    shaders = [],
+    audioStreams = [];
   const lazyPaths: Record<string, string> = {};
   for (const [key, file] of texturePaths) {
     if (lazyTextures.has(key)) {
@@ -332,6 +416,18 @@ export async function exportGodot(
       JSON.stringify(id) +
       ']\n';
     textures.push(
+      JSON.stringify(key) + ': ExtResource(' + JSON.stringify(id) + ')',
+    );
+  }
+  for (const [key, file] of audioPaths) {
+    const id = String(n++);
+    resource +=
+      '[ext_resource type="AudioStream" path=' +
+      JSON.stringify(file) +
+      ' id=' +
+      JSON.stringify(id) +
+      ']\n';
+    audioStreams.push(
       JSON.stringify(key) + ': ExtResource(' + JSON.stringify(id) + ')',
     );
   }
@@ -354,7 +450,9 @@ export async function exportGodot(
     textures.join(',\n') +
     '\n}\ntexture_paths = ' +
     JSON.stringify(lazyPaths) +
-    '\nshaders = {\n' +
+    '\naudio_streams = {\n' +
+    audioStreams.join(',\n') +
+    '\n}\nshaders = {\n' +
     shaders.join(',\n') +
     '\n}\n';
   await fs.writeFile(path.join(root, 'library.tres'), resource);
@@ -370,6 +468,7 @@ export async function exportGodot(
     {
       data,
       texturePaths: Object.fromEntries(texturePaths),
+      audioPaths: Object.fromEntries(audioPaths),
       shaderPaths: Object.fromEntries(shaderPaths),
     },
     { cardDirectory },
@@ -379,7 +478,8 @@ export async function exportGodot(
     cards: cards.length,
     components: components.length,
     textures: texturePaths.size,
-    shaderCount: shaderPaths.size,
+    shaderCount: shaderSources.size,
+    shaderVariantCount: shaderPaths.size - shaderSources.size,
     ...(remote ? { remote } : {}),
   };
 }

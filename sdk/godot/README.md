@@ -14,6 +14,7 @@ card.depth_strength = 1.0
 card.set_stats(3, 6) # 战斗数值，切换语言/组件后保留
 card.particle_settings = {"enabled":true,"count":96,"spread":.6}
 card.material_settings = {"enabled":true,"style":"holographic","strength":.25}
+card.audio_enabled = true # 可选：动作音效，默认静音
 card.play_action("enter")
 card.inspect(18, 8)
 ```
@@ -25,6 +26,8 @@ Godot Inspector 中可设置 library / card_id / locale / component_overrides / 
 职责：工坊制作原图、Mask、图片字标、共享组件版本、默认几何与特效、动作。游戏引擎管理战斗数值、卡片放置、互动/选中、换装组合、触发时机、质量档位和参数覆盖。原始素材的大改回工坊，游戏覆盖可以留在场景/Resource 中；不要把运行中的战斗状态回写成美术源文件。
 
 shader_type spatial 已适配；导出支持纯数学的 deformCard / surfaceEffect 函数体，遇到 WebGL 专有标识或纹理采样声明会明确拒绝，不会静默降级。任意 Godot 特有代码请在游戏中使用 set_custom_shader。PNG/Mask 引用封装在 library.tres 中，随 PCK 一起导出，不依赖运行时解析散落的 JSON。0.19 支持 spatial 的远/中/近景、人物后/主体/前部与图片字标深度，统一相机并校正正面注册；旧卡保留原深度规则。游戏可用 set_layer_transform 的 z 参数调整实际层间距离，修改相机基准时同步 Camera3D 与 spatial.cameraDistance。本 SDK 是动态接入基础，并不宣称逐帧复制 Marvel Snap。
+
+导出器为工程实际使用的边饰及其低档金属／纯色回退生成 Shader 特化，移除其他内置边饰分支，减少首次 GPU 编译负担；同库同渲染模式共享 Shader，每个实例保留独立 ShaderMaterial。完整程序仍随库导出，游戏切换到未预置的边饰会使用它，可能触发较长的首次编译；不会为每个 Shader 自动生成全部 25 种文件。远端卡片与独立组件也包含其引用 Shader 的特化文件及完整回退，并列入预取依赖，按内容摘要共享。若自定义 Hook 直接调用其他边饰的分派函数，该 Shader 保持完整。`set_effect_parameter("frame_finish", index)` 会选择匹配程序并保留已有 uniform 值；正常动作更新仍按配置写回边饰，与此前一致。`set_custom_shader`、直接赋予材质的 Shader 及原地修改的 Shader 代码由游戏管理，质量／边饰切换不会覆盖它们。旧库没有特化键时继续使用完整程序；`library.surface_shader(key, painter_order, additive)` 的三参数接口保持兼容。
 
 `surfaceEffect` 及其片元辅助函数可调用 `vec4 sampleSource(vec2 uv)`，例如 `return sampleSource(uv + vec2(.005 * sin(time), 0.0));`，让源图按时间真实位移。传入当前函数的 `uv` 使用各自运行时的原有 UV 空间；WebGL 自动保留源图窗口、视差偏移和卡背翻转，Godot 自动保留背景扩展、源图窗口和卡背翻转。返回值是运行时原始源纹理 RGBA，未叠加调色、Mask 或已有光效；每次调用增加一次纹理采样，复用当前图层纹理。该辅助函数只用于片元效果，不用于几何函数，也不自动生成重复平铺。若位移需显露原透明区域，图层须开启 `shaderTransparent`，并由效果自身限制最终 Alpha。WebGL 与 Godot 导出均保留同一调用，无需在保存的函数体中编写 `texture2D` 或声明采样器。
 
@@ -158,4 +161,12 @@ node editor/scripts/test-godot.cjs --project EXPORTED_GODOT_DIR --script tests/t
 
 彩色变体通过 `library.tres.texture_paths` 按需加载，整档完成后同步替换；Mask 继续保真。导出 PCK 时选择 **Export all resources**，或显式包含 `assets/` 下全部变体。`tests/test_export_detail.gd` 使用真实 Spine 卡牌检查全部动作、纹理尺寸、图层恢复、粒子、网格和时钟。完整预设与资源范围见 [导出预设](../../editor/docs/export-presets.md)。
 
+原生多卡基准使用真实拆层样卡，覆盖高清、小图保留特效和自动档。先在 `editor` 运行 `npm run test:production-card` 生成工程，设置 `GODOT_BIN` 后运行 `npm run perf:godot`；十分钟八卡压力使用 `npm run perf:godot:long`。结果保留引擎、SDK 摘要、处理帧间隔、渲染 CPU／GPU 计时、引擎资源快照、暂停／换档／释放检查及固定姿态截图。处理帧频率不等于实际呈现 FPS，引擎内存计数不等于驱动显存；手机结果仍待真机。范围与本机记录见 [性能记录](../../editor/docs/performance-2026-11-03.md)。
+
+动作事件的 `simulationSpace: "world"` 将粒子与连续剑痕固定在各自出生时的世界变换，已发射效果不会随卡牌根节点继续移动、缩放或翻面。节点仍归卡牌所有，释放卡牌会释放它们。根轨道解析采样；游戏放置和 `inspect()` 姿态记录最多 1024 项，相邻记录插值，未记录的时间保持最近放置。需要任意时间精确回放时，设置 `set_particle_world_sampler(Callable)`：参数为动作 ID、含循环轮次的动作秒数、已合成的 fallback；返回 `{transform: Transform3D, opacity: float}`，表示包含父节点、查看姿态及动作根轨道的完整视觉根变换。默认模式不能恢复从未观察到的游戏移动。具体规则与 WebGL 对应接口见 [动作粒子](../../editor/docs/action-particles.md)。`test_world_particles.gd` 验证移动游戏根、暂停、反向定位、历史采样器、循环轮次和释放；正常成品验收会一并执行。
+
 远端内容接入使用 `CardscapeRemote`：从 OSS / CDN 读取 `catalog.json`，下载并校验所选卡片依赖，再返回标准 `CardscapeLibrary`；图片直接从原始字节创建 Texture2D，无需远端 `.import`。共享组件跨卡复用，高清按缩放下载，保持动画时钟和蒙皮网格。`demo/remote.tscn` 是不需要本地素材库的示例，导出中的 `godot-remote/` 可直接运行；APK 需启用 Internet 权限。缓存、签名 URL、组件换装、发布顺序与验证边界见 [远端内容](../../editor/docs/remote-delivery.md)。
+
+普通动作粒子可带 `physics.schema: "card-particle-physics/1"`，在 `card`／`world` 模拟空间使用初速度、随机速度、重力、半径与最多八个静态平面，实现反弹／滑动／命中消失。独立 `particle_physics.gd` 使用解析弹道与连续平面交点，每卡缓存最多 256 条数值路径；定位不依赖上一帧，卡牌重建／释放时清理。平面使用所选模拟空间，世界平面不会自动随每张卡平移。此模式替换旧程序化位置，保留外观和出生／寿命；不支持剑痕物理、球体或动态场景网格。字段单位与边界见 [动作粒子](../../editor/docs/action-particles.md)。`test_particle_physics.gd` 随成品验收执行，覆盖解析落体、高速平面命中、半径／滑动／多墙、反向采样、真实导出缓冲、暂停游戏根移动、响应切换、缓存上限和释放。
+
+动作音效：`actions[].audioEvents` 的规范 PCM16 WAV 随共享 `AudioStream` 引用导出，远端交付包含基础依赖、摘要和离线缓存。设置 `card.audio_enabled=true` 后，与 `play_action`／`pause_action`／`seek_action` 同步；`audio_state()` 可查看声部和错误。本地与远端示例均有音效开关。每卡最多八个非空间化声部，SDK 全局最多 32 个；节点随卡牌停止／重建／销毁，WAV 仍由共享库持有。宿主停止处理卡牌前应显式暂停或关闭音效。素材可裁剪、变速或在事件内循环，定位从对应偏移继续，动作切换停止旧声音，不补播错过的短事件。远端 WAV 字节载入需要 Godot 4.4+，已在 4.7.1 实测。`test_action_audio.gd` 包含实际混音和暂停静音、两端事件采样、打断、预算与释放检查。完整契约、格式与限制见 [动作音效](../../editor/docs/action-audio.md)。

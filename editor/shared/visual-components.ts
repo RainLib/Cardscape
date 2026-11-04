@@ -105,6 +105,8 @@ export type ComponentSource = Partial<
     | 'frameStyle'
     | 'material'
     | 'particles'
+    | 'actions'
+    | 'characterRig'
   >
 > & {
   schema?: string;

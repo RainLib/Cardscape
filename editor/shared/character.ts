@@ -1,4 +1,5 @@
 import type { CardLayer } from './document';
+import type { Particles } from './visual-components';
 export type Affine = readonly number[];
 export interface Bone {
   id: string;
@@ -83,7 +84,60 @@ export interface DeformFrame {
   curve?: number[];
 }
 export type NumericTracks = Record<string, Keyframe[]>;
+export type ParticleVector = [number, number, number];
+export interface ParticlePlane {
+  id: string;
+  /** Free half-space: dot(normalized normal, position) >= distance + radius. */
+  normal: ParticleVector;
+  distance: number;
+}
+export interface ParticlePhysics {
+  schema: 'card-particle-physics/1';
+  /** Initial emitter-local velocity and deterministic component-wise spread. */
+  velocity: ParticleVector;
+  spread: ParticleVector;
+  /** Gravity and static planes use the selected simulation space. */
+  gravity: ParticleVector;
+  radius: number;
+  restitution: number;
+  friction: number;
+  response: 'bounce' | 'slide' | 'kill';
+  maxBounces: number;
+  planes: ParticlePlane[];
+}
+export interface ActionParticleEvent {
+  id: string;
+  name: string;
+  /** Normalized action time; age and duration are in seconds. */
+  at: number;
+  duration: number;
+  /** Stop creating particles at this age; already born particles keep fading. */
+  emissionDuration?: number;
+  /** Connected strip sampled from past bone poses, in card coordinates. */
+  trail?: { duration: number; segments: number };
+  boneId?: string;
+  /** Card freezes the bone; world also freezes the card root at birth. */
+  simulationSpace?: 'bone' | 'card' | 'world';
+  /** Ballistic motion replaces procedural trajectory; appearance is retained. */
+  physics?: ParticlePhysics;
+  particles: Particles;
+}
+/** Radians, then world translation/uniform scale/opacity. Matches preview projection. */
+export interface ParticleWorldPose {
+  angle: [number, number];
+  root: [number, number, number, number, number];
+}
+export type ParticleWorldSampler = (
+  actionId: string,
+  actionSeconds: number,
+  fallback: ParticleWorldPose,
+) => ParticleWorldPose;
 export interface CharacterAction {
+  audioEvents?: ActionAudioEvent[];
+  particleEvents?: ActionParticleEvent[];
+  transitionDuration?: number;
+  /** Full painter order, back to front. Omitted layers keep their original slots. */
+  drawOrder?: Array<{ at: number; layers: string[] }>;
   id: string;
   name: string;
   duration: number;
@@ -99,6 +153,31 @@ export interface CharacterAction {
   layerTracks?: Record<string, NumericTracks>;
   deformTracks?: Record<string, Record<string, DeformFrame[]>>;
   [extension: string]: unknown;
+}
+export interface ActionAudioEvent {
+  id: string;
+  name: string;
+  /** Embedded canonical PCM WAV while authoring; exported asset path at runtime. */
+  src: string;
+  sourceDuration: number;
+  /** Normalized action trigger, seconds of output and seconds into the source. */
+  at: number;
+  duration: number;
+  offset: number;
+  volume: number;
+  playbackRate: number;
+  loop: boolean;
+  enabled: boolean;
+}
+export interface ActionAudioState {
+  enabled: boolean;
+  context: string;
+  voices: number;
+  sources: number;
+  decodedBytes: number;
+  starts: number;
+  error: string;
+  level: number;
 }
 export interface CharacterDocument {
   layers: CardLayer[];

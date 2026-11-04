@@ -1,0 +1,11 @@
+{
+  "source": "scripts/production-audio-fixture.mts",
+  "kind": "Original deterministic synthesis, no external samples",
+  "sampleRate": 48000,
+  "encoding": "PCM16 mono WAV",
+  "sha256": {
+    "swish": "499eafd7714ae709304ddf94459b37271af50e92b157c850a8d5aeaefac60f92",
+    "charge": "7b50f64e9501363f34efa0dffe98abbdb82c638c7aaaf79980d4e2271fa60c28",
+    "impact": "088482f1fc5f6881b83b0093f41e5e779bff08ffff359499f0d986dabbe83fe9"
+  }
+}

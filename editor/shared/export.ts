@@ -75,6 +75,10 @@ export interface FontDependency {
   embedded: string | null;
 }
 export interface AssetManifest {
+  contourFieldAsset?: string;
+  contourFieldFormat?:
+    | 'card-contour-field-rgb12/1'
+    | 'card-contour-field-atlas/2';
   schema: string;
   id?: string;
   name: string;
@@ -140,6 +144,7 @@ export interface ExportResource extends Omit<WorkshopResource, 'versions'> {
   versions: Array<{ version: number; value: ComponentValue }>;
 }
 export interface GodotSnapshot {
+  audioPaths?: Record<string, string>;
   data: { cards: AssetManifest[]; components: ExportResource[] };
   texturePaths: Record<string, string>;
   shaderPaths: Record<string, string>;

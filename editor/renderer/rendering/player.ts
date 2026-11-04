@@ -1,4 +1,5 @@
 import PlayerModel from './player-model.ts';
+import PlayerTextures from './player-textures.ts';
 import type { PreviewAPI } from '../../shared/preview';
 import type { TextureAsset } from '../../shared/export';
 import type { CardLayer } from '../../shared/document';
@@ -104,6 +105,10 @@ import CardExportProfile from './export-profile.ts';
       slots,
       foregroundMesh,
     );
+    if (remote)
+      for (const action of doc.actions)
+        for (const event of action.audioEvents || [])
+          event.src = await remote.resolve(event.src);
     doc.effects.paused = true;
     cardPreview.setDocument(doc);
     let textures: ReturnType<typeof textureLoader>;
@@ -146,32 +151,11 @@ import CardExportProfile from './export-profile.ts';
       _variant: TextureAsset,
       im: HTMLImageElement,
     ) {
-      const l = entry.layer;
-      if (
-        !l?.sourceWindow ||
-        l.kind === 'background' ||
-        l.role === 'background-candidate'
-      )
-        return im;
-      const r = l.sourceWindow,
-        size = entry.variants?.sourceSize || [im.width, im.height],
-        sx = im.width / size[0],
-        sy = im.height / size[1],
-        c = document.createElement('canvas');
-      c.width = Math.max(1, Math.round(1024 * sx));
-      c.height = Math.max(1, Math.round(1536 * sy));
-      c.getContext('2d')!.drawImage(
+      return PlayerTextures.registered(
+        entry.layer,
         im,
-        r.x * sx,
-        r.y * sy,
-        r.width * sx,
-        r.height * sy,
-        0,
-        0,
-        c.width,
-        c.height,
+        entry.variants?.sourceSize,
       );
-      return c;
     }
     function textureLoader() {
       return CardAdaptiveTextures.create({
@@ -314,6 +298,17 @@ import CardExportProfile from './export-profile.ts';
       .forEach(
         (b) => (b.onclick = () => cardPreview.pose(Number(b.dataset.pose))),
       );
+    $('player-audio').onclick = async () => {
+      const enabled = await cardPreview.setAudioEnabled(
+        !cardPreview.getAudioState().enabled,
+      );
+      $('player-audio').textContent = enabled ? '静音' : '启用音效';
+      if (!enabled && cardPreview.getAudioState().error)
+        $('player-status').textContent = cardPreview.getAudioState().error;
+    };
+    window.addEventListener('pagehide', () => cardPreview.dispose(), {
+      once: true,
+    });
     $('player-play').onclick = () => {
       cardPreview.playAction($<HTMLSelectElement>('player-action').value);
       $('player-pause').textContent = '暂停';

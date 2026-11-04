@@ -90,6 +90,13 @@ export async function exportWorkshop(
       for (const v of l.titleArt?.variants || [])
         if (v.rasterAsset) v.rasterAsset = await move(v.rasterAsset);
     }
+    for (const action of m.actions || [])
+      for (const event of action.audioEvents || [])
+        event.src = await move(event.src);
+    await fs.writeFile(
+      path.join(dir, 'actions.json'),
+      JSON.stringify(m.actions || [], null, 2),
+    );
     m.shaderAssets = {
       vertex: await move('shaders/card.vert.glsl'),
       fragment: await move('shaders/card.frag.glsl'),

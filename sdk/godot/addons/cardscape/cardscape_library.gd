@@ -4,6 +4,7 @@ extends Resource
 ## Imported catalog uses Resource references so textures survive PCK export.
 @export_multiline var data_json: String = "{}"
 @export var textures: Dictionary = {}
+@export var audio_streams: Dictionary = {}
 @export var shaders: Dictionary = {}
 @export var texture_paths: Dictionary = {}
 var remote_source
@@ -14,14 +15,17 @@ var _texture_consumers: Dictionary = {}
 var _cache: Dictionary = {}
 var _source: String = ""
 var _surface_shader_cache: Dictionary = {}
+var _alpha_bounds_cache: Dictionary = {}
 
 ## Uniforms stay on each ShaderMaterial; identical render-mode variants share
 ## their immutable Shader so a layered card compiles each program only once.
-func surface_shader(key: String, painter_order: bool, additive: bool) -> Shader:
-	var base := shaders.get(key) as Shader
+func surface_shader(key: String, painter_order: bool, additive: bool, finish: int = -1) -> Shader:
+	var requested_key:=key+":finish:"+str(finish)
+	var source_key:=requested_key if shaders.has(requested_key) else key
+	var base := shaders.get(source_key) as Shader
 	if not base or (not painter_order and not additive):
 		return base
-	var variant_key := key+":"+str(painter_order)+":"+str(additive)
+	var variant_key := source_key+":"+str(painter_order)+":"+str(additive)
 	var cached: Dictionary = _surface_shader_cache.get(variant_key,{})
 	if cached.get("source","")==base.code and cached.has("shader"):
 		return cached.shader as Shader
@@ -56,6 +60,30 @@ func component(kind: String, id: String, version: int = 0) -> Dictionary:
 			if variant.version == version or (version == 0 and variant == entry.versions.back()):
 				return variant.value.duplicate(true)
 	return {}
+
+## Mutable ImageTexture/CanvasTexture resources keep full support. Published
+## imported textures are immutable; the cache retains numeric rectangles only.
+func image_alpha_bounds(image: Image) -> Vector4:
+	var full:=Vector4(0,0,1,1)
+	if not image or image.is_empty() or image.get_width()*image.get_height()>16*1024*1024:return full
+	if image.is_compressed():
+		image=image.duplicate()
+		if image.decompress()!=OK:return full
+	var used:=image.get_used_rect()
+	if not used.has_area():return Vector4(-1,-1,-1,-1)
+	used=used.grow(2).intersection(Rect2i(0,0,image.get_width(),image.get_height()))
+	return Vector4(float(used.position.x)/image.get_width(),float(used.position.y)/image.get_height(),float(used.end.x)/image.get_width(),float(used.end.y)/image.get_height())
+
+func alpha_bounds(texture_value: Texture2D) -> Vector4:
+	var full:=Vector4(0,0,1,1)
+	if not texture_value is CompressedTexture2D:return full
+	if texture_value.get_width()*texture_value.get_height()>16*1024*1024:return full
+	var key:=texture_value.get_instance_id()
+	if _alpha_bounds_cache.has(key):return _alpha_bounds_cache[key]
+	var bounds:=image_alpha_bounds(texture_value.get_image())
+	_alpha_bounds_cache[key]=bounds
+	if _alpha_bounds_cache.size()>64:_alpha_bounds_cache.erase(_alpha_bounds_cache.keys()[0])
+	return bounds
 
 func texture(key: String) -> Texture2D:
 	if textures.has(key):return textures[key] as Texture2D

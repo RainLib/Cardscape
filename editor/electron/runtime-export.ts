@@ -15,6 +15,9 @@ export async function exportRuntime(
     recursive: true,
   });
   const shader = doc.shader || runtime.defaults.shader;
+  const frameStyle = runtimeFrame.resolve(doc),
+    frameContour = runtimeFrame.contourUniforms(frameStyle),
+    frameField = runtimeFrame.distanceField(frameStyle);
   await fs.mkdir(path.join(directory, 'shaders'));
   await fs.writeFile(
     path.join(directory, 'shaders/card.vert.glsl'),
@@ -118,6 +121,14 @@ export async function exportRuntime(
           frameAccent: 'vec3 RGB highlight',
           frameMetrics:
             'vec4 width/1024, corner cut/1024, thickness/1024, bevel/1024; planar clipped-corner aperture',
+          contourCounts:
+            'vec2 outer edge count,custom marker/edge count; zero preserves the legacy aperture',
+          contourTexture:
+            'float: complex/empty shapes use the shared packed distance texture on unit 7',
+          contourField:
+            'opaque RGB12 pair of signed source-pixel distances; decode before bilinear filtering',
+          contourEdges:
+            'vec4[64] card-space edge endpoints x0,y0,x1,y1; bind frameContour.edges when enabled',
           frameFinish: '0:flat 1:metal 2:glow',
           rigidSurface:
             '1: rigid anatomical parts, rim, sides, back and background bypass user geometry and wind; shared card rotation still applies',
@@ -127,7 +138,23 @@ export async function exportRuntime(
         composition: { ...runtime.compositionDefaults, ...doc.composition },
         locale: doc.locale || 'zh-CN',
         armor: { ...runtime.armorDefaults, ...doc.armor },
-        frameStyle: runtimeFrame.resolve(doc),
+        frameStyle,
+        frameContour: {
+          counts: frameContour.counts,
+          edges: frameContour.counts[1] ? Array.from(frameContour.edges) : [],
+          texture: frameField ? 1 : 0,
+          fieldAsset: frameField ? 'contour-field.png' : null,
+          fieldSize: frameField ? [frameField.width, frameField.height] : null,
+          fieldInfo: frameField
+            ? [
+                frameField.width,
+                frameField.height,
+                frameField.step,
+                frameField.padding,
+              ]
+            : null,
+          fieldFormat: 'card-contour-field-atlas/2',
+        },
         deformation: doc.deformation || runtime.defaults.deformation,
         colorSpace:
           'display-referred RGB matching editor; masks linear data, no sRGB conversion',
@@ -150,15 +177,29 @@ export async function exportRuntime(
     'component-model.js',
     'cosmetics-model.js',
     'particle-batch.js',
+    'particle-world-model.js',
+    'particle-physics-model.js',
+    'source-alpha-bounds.js',
+    'action-audio-model.js',
+    'action-audio-runtime.js',
     'back-asset-model.js',
     'preview-update-model.js',
     'back-asset-renderer.js',
     'title-model.js',
+    'contour-bevel-engine.js',
+    'contour-bevel-model.js',
     'frame-model.js',
+    'contour-path-model.js',
+    'contour-geometry.js',
+    'contour-distance-transform.js',
+    'contour-coordinate-model.js',
+    'contour-field-model.js',
+    'contour-field-renderer.js',
     'card-stats.js',
     'shader-graph-model.js',
     'export-profile.js',
     'adaptive-textures.js',
+    'contour-material-glsl.js',
     'runtime-core.js',
     'runtime-validation.js',
     'runtime-model.js',
@@ -170,6 +211,7 @@ export async function exportRuntime(
     'player-bridge.js',
     'remote-assets.js',
     'player-model.js',
+    'player-textures.js',
     'player.js',
     'player.css',
   ] as const)

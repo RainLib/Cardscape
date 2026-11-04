@@ -129,7 +129,7 @@ function frameFragment(source: string, finish: number): string {
   // A custom hook may deliberately invoke a rim with another finish. Its
   // arguments must retain their original semantics instead of inheriting ours.
   if (
-    /\b(?:rimColor|rimAura|rimCoverage)\b/.test(
+    /\b(?:rimColor|rimAura|rimCoverage|contourRim|contourGlow)\b/.test(
       maskComments(source.slice(0, start)),
     )
   )

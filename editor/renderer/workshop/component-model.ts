@@ -1,5 +1,14 @@
+import AudioModel from '../animation/action-audio-model.ts';
 import type { CardLayer } from '../../shared/document';
-import type { CharacterPlacement } from '../../shared/character';
+import type {
+  CharacterPlacement,
+  CharacterAction,
+  CharacterPose,
+  ActionParticleEvent,
+  BonePose,
+  ParticleWorldPose,
+  ParticleVector,
+} from '../../shared/character';
 import type {
   Material,
   Particles,
@@ -21,9 +30,12 @@ const record = (value: unknown): value is Record<string, unknown> =>
 /* Shared visual components. All distances are card-local units (width = 1). */
 import importedCardRuntime from '../rendering/runtime-core.ts';
 import importedCardSpatial from '../rendering/spatial-model.ts';
+import particleWorld from '../rendering/particle-world-model.ts';
+import particlePhysics from '../rendering/particle-physics-model.ts';
 
 const api = (() => {
   'use strict';
+  let defaultPhysicsCache: ReturnType<typeof particlePhysics.cache> | undefined;
   const materialStyles = [
     'iridescent',
     'holographic',
@@ -409,6 +421,73 @@ const api = (() => {
   function validate(doc: ComponentSource): void {
     if (doc.material) validateMaterial(doc.material);
     if (doc.particles) validateParticles(doc.particles);
+    for (const action of doc.actions || []) {
+      AudioModel.validate(action);
+      if (action.particleEvents === undefined) continue;
+      if (
+        !Array.isArray(action.particleEvents) ||
+        action.particleEvents.length > 16
+      )
+        throw Error('每个动作最多保存 16 组粒子事件');
+      const ids = new Set<string>();
+      for (const event of action.particleEvents) {
+        if (
+          !record(event) ||
+          typeof event.id !== 'string' ||
+          !/^[a-zA-Z0-9_-]{1,100}$/.test(event.id) ||
+          ids.has(event.id) ||
+          typeof event.name !== 'string' ||
+          !event.name.trim() ||
+          event.name.length > 100 ||
+          !range(event.at, 0, 1) ||
+          !range(event.duration, 0.08, 12)
+        )
+          throw Error('动作粒子事件无效');
+        ids.add(event.id);
+        if (
+          event.at * action.duration + event.duration >
+          action.duration + 0.000001
+        )
+          throw Error('粒子事件须在动作结束前完成');
+        validateParticles(event.particles);
+        if (event.physics !== undefined) {
+          particlePhysics.validate(event.physics);
+          if (
+            event.trail ||
+            !['card', 'world'].includes(event.simulationSpace || 'bone')
+          )
+            throw Error('粒子物理需要卡牌或世界空间的普通粒子事件');
+        }
+        if (
+          event.emissionDuration !== undefined &&
+          !range(event.emissionDuration, 0, event.duration)
+        )
+          throw Error('粒子发射时长须在事件持续时间内');
+        if (
+          event.trail !== undefined &&
+          (!record(event.trail) ||
+            !range(event.trail.duration, 0.04, 2) ||
+            !Number.isInteger(event.trail.segments) ||
+            !range(event.trail.segments, 4, 64) ||
+            !event.boneId)
+        )
+          throw Error('连续剑痕需要有效骨骼、0.04–2 秒留痕与 4–64 段网格');
+        if (
+          event.simulationSpace !== undefined &&
+          !['bone', 'card', 'world'].includes(event.simulationSpace)
+        )
+          throw Error('动作粒子模拟空间无效');
+        if (
+          event.boneId !== undefined &&
+          (typeof event.boneId !== 'string' ||
+            !doc.characterRig?.bones.some((b) => b.id === event.boneId) ||
+            !['card', 'layer'].includes(
+              emitter(event.particles.emitter).target,
+            ))
+        )
+          throw Error('动作粒子骨骼绑定无效');
+      }
+    }
     if (doc.emissionRegions) {
       if (
         !Array.isArray(doc.emissionRegions) ||
@@ -668,6 +747,7 @@ const api = (() => {
     facing = 0,
     output: NumericOutput,
     limit = 256,
+    ignoreSide = false,
   ) {
     const p = particles(value);
     if (!p.enabled) return 0;
@@ -676,8 +756,9 @@ const api = (() => {
     resolved.placement = placementFor(resolved);
     const e = resolved.geometry;
     if (
-      (e.side === 'front' && Math.cos(facing) < 0) ||
-      (e.side === 'back' && Math.cos(facing) >= 0)
+      !ignoreSide &&
+      ((e.side === 'front' && Math.cos(facing) < 0) ||
+        (e.side === 'back' && Math.cos(facing) >= 0))
     )
       return 0;
     const cut =
@@ -1234,6 +1315,7 @@ const api = (() => {
     visuals: VisualOutput,
     limit = 256,
     revealTime = time,
+    ignoreSide = false,
   ) {
     const p = particles(value),
       r = p.reveal,
@@ -1253,15 +1335,24 @@ const api = (() => {
         : active
           ? Math.floor((budget * p.count) / (p.count + r.count))
           : budget;
-    const idle = sampleInto(p, time, doc, facing, output, idleLimit);
+    const idle = sampleInto(
+      p,
+      time,
+      doc,
+      facing,
+      output,
+      idleLimit,
+      ignoreSide,
+    );
     visuals.fill(-1, 0, idle);
     if (!active || !p.enabled) return idle;
     const resolved = resolveEmitter(p, doc);
     if (!resolved.ok) return idle;
     const e = resolved.geometry;
     if (
-      (e.side === 'front' && Math.cos(facing) < 0) ||
-      (e.side === 'back' && Math.cos(facing) >= 0)
+      !ignoreSide &&
+      ((e.side === 'front' && Math.cos(facing) < 0) ||
+        (e.side === 'back' && Math.cos(facing) >= 0))
     )
       return idle;
     resolved.placement = placementFor(resolved);
@@ -1337,6 +1428,391 @@ const api = (() => {
     }
     return idle + count;
   }
+  function actionParticleEvents(
+    action: CharacterAction | null | undefined,
+    progress: number,
+  ) {
+    const seconds =
+      Math.max(0, Math.min(1, progress)) * (action?.duration || 1);
+    return (action?.particleEvents || []).flatMap((event) => {
+      const age = seconds - event.at * action!.duration;
+      return event.particles.enabled && age >= 0 && age < event.duration
+        ? [{ event, age }]
+        : [];
+    });
+  }
+  function sampleEventInto(
+    event: ActionParticleEvent,
+    age: number,
+    doc: ComponentSource,
+    facing: number,
+    pose: CharacterPose | null | undefined,
+    output: NumericOutput,
+    visuals: VisualOutput,
+    limit = 256,
+    sampleBirth?: (
+      seconds: number,
+      boneId: string,
+    ) => Pick<BonePose, 'matrix' | 'opacity'> | undefined,
+    sampleWorld?: (seconds: number) => ParticleWorldPose,
+    worldOffset = 0,
+    worldCamera = doc.spatial?.cameraDistance ?? 2.7,
+    worldFrames?: NumericOutput,
+    physicsCache?: ReturnType<typeof particlePhysics.cache>,
+  ) {
+    if (!Number.isFinite(age) || age < 0 || age >= event.duration) return 0;
+    const world = event.simulationSpace === 'world';
+    if (world && !sampleWorld)
+      throw Error('世界空间粒子需要整卡历史变换采样器');
+    if (event.trail)
+      return sampleTrailInto(
+        event,
+        age,
+        doc,
+        facing,
+        pose,
+        output,
+        visuals,
+        limit,
+        sampleBirth,
+        sampleWorld,
+        worldCamera,
+        worldFrames,
+      );
+    const count = sampleCompositionInto(
+      event.particles,
+      age,
+      doc,
+      facing,
+      output,
+      visuals,
+      limit,
+      age,
+      world,
+    );
+    const fade = Math.min(0.12, event.duration * 0.2),
+      edge = Math.max(
+        0,
+        Math.min(1, age / fade, (event.duration - age) / fade),
+      ),
+      opacity = edge * edge * (3 - 2 * edge);
+    let birthIndex = 0;
+    const drain =
+      event.emissionDuration !== undefined &&
+      ['float', 'field'].includes(event.particles.trajectory)
+        ? 1 -
+          Math.max(
+            0,
+            Math.min(
+              1,
+              (age - event.emissionDuration) / event.particles.lifetime,
+            ),
+          )
+        : 1;
+    for (let i = 0; i < count; i++) {
+      const birth = particleBirth(
+        event.particles,
+        i,
+        age,
+        visuals[i] >= 0 ? birthIndex++ : undefined,
+      );
+      output[i * 7 + 4] *=
+        birth < (event.emissionDuration ?? event.duration)
+          ? opacity * drain
+          : 0;
+    }
+    const applyWorld = () => {
+      if (world) {
+        const resolved = resolveEmitter(event.particles, doc);
+        if (!resolved.ok) return 0;
+        let reveal = 0;
+        for (let i = 0; i < count; i++) {
+          const birth = particleBirth(
+            event.particles,
+            i,
+            age,
+            visuals[i] >= 0 ? reveal++ : undefined,
+          );
+          const root = sampleWorld!(birth);
+          if (!particleWorld.visible(root, resolved.geometry.side, worldCamera))
+            output[i * 7 + 4] = 0;
+          output[i * 7 + 2] += worldOffset;
+          particleWorld.transform(output, i * 7, root);
+        }
+      }
+      if (event.physics) {
+        const resolved = resolveEmitter(event.particles, doc);
+        if (!resolved.ok) return 0;
+        const config = event.physics;
+        const engine =
+          physicsCache || (defaultPhysicsCache ||= particlePhysics.cache());
+        const samplePhysics = engine.prepare(config);
+        const temporary = new Float64Array(14);
+        let reveal = 0;
+        for (let i = 0; i < count; i++) {
+          const revealed = visuals[i] >= 0;
+          const revealIndex = revealed ? reveal++ : undefined;
+          const birth = particleBirth(event.particles, i, age, revealIndex);
+          const e = resolved.geometry;
+          const cut =
+            resolved.target === 'frame' &&
+            e.shape === 'perimeter' &&
+            e.width === 1 &&
+            e.height === 1
+              ? (resolved.document.frameStyle?.corner ?? 48) / 1024
+              : 0;
+          const launch = particlePhysics.launch(
+            event.particles.seed,
+            revealed ? 1024 + revealIndex! : i,
+            e,
+            config,
+            cut,
+          );
+          const first = mapEmitterPoint(
+            resolved,
+            launch.position[0],
+            launch.position[1],
+            emissionOffset(event.particles),
+          );
+          const last = mapEmitterPoint(
+            resolved,
+            launch.position[0] + launch.velocity[0],
+            launch.position[1] + launch.velocity[1],
+            emissionOffset(event.particles),
+          );
+          temporary[0] = first.x;
+          temporary[1] = first.y;
+          temporary[2] = first.z;
+          temporary[7] = last.x;
+          temporary[8] = last.y;
+          temporary[9] =
+            last.z +
+            (resolved.reverse ? -launch.velocity[2] : launch.velocity[2]);
+          let rootPose: ParticleWorldPose | undefined;
+          if (event.boneId) {
+            const bone = sampleBirth?.(birth, event.boneId);
+            if (!bone) {
+              output[i * 7 + 4] = 0;
+              continue;
+            }
+            const [a, b, c, d, tx, ty] = bone.matrix,
+              registration = placementFor(resolved).registration;
+            for (const k of [0, 7]) {
+              const x = (temporary[k] / registration) * 1024 + 512,
+                y = 768 - (temporary[k + 1] / registration) * 1024;
+              temporary[k] = ((a * x + c * y + tx - 512) / 1024) * registration;
+              temporary[k + 1] =
+                (-(b * x + d * y + ty - 768) / 1024) * registration;
+            }
+          }
+          if (world) {
+            const root = (rootPose = sampleWorld!(birth));
+            temporary[3] = temporary[4] = temporary[10] = temporary[11] = 1;
+            particleWorld.transform(temporary, 0, root);
+            particleWorld.transform(temporary, 7, root);
+          }
+          const p: ParticleVector = [temporary[0], temporary[1], temporary[2]];
+          const v: ParticleVector = [
+            temporary[7] - p[0],
+            temporary[8] - p[1],
+            temporary[9] - p[2],
+          ];
+          const state = samplePhysics(
+            p,
+            v,
+            Math.max(0, age - birth),
+            Math.max(0, event.duration - birth),
+          );
+          if (rootPose && worldOffset)
+            particleWorld.frame(temporary, 0, rootPose);
+          for (let axis = 0; axis < 3; axis++)
+            output[i * 7 + axis] =
+              state.position[axis] +
+              (rootPose && worldOffset
+                ? temporary[axis] * worldOffset * rootPose.root[3]
+                : 0);
+          if (!state.alive) output[i * 7 + 4] = 0;
+          if (Math.hypot(state.velocity[0], state.velocity[1]) > 1e-7)
+            output[i * 7 + 5] = Math.atan2(
+              state.velocity[1],
+              state.velocity[0],
+            );
+        }
+      }
+      return count;
+    };
+    if (!event.boneId || !pose) return applyWorld();
+    const currentBone = pose.bones.get(event.boneId);
+    if (!currentBone) return 0;
+    if ((event.simulationSpace === 'card' || world) && !sampleBirth)
+      throw Error('卡牌空间粒子需要出生姿态采样器');
+    const resolved = resolveEmitter(event.particles, doc);
+    if (!resolved.ok) return 0;
+    const registration = placementFor(resolved).registration;
+    let revealIndex = 0;
+    for (let i = 0; i < count; i++) {
+      const bone =
+        event.simulationSpace === 'card' || world
+          ? sampleBirth!(
+              particleBirth(
+                event.particles,
+                i,
+                age,
+                visuals[i] >= 0 ? revealIndex++ : undefined,
+              ),
+              event.boneId,
+            )
+          : currentBone;
+      if (!bone) {
+        output[i * 7 + 4] = 0;
+        continue;
+      }
+      const [a, b, c, d, tx, ty] = bone.matrix;
+      const scale = Math.sqrt(Math.abs(a * d - b * c)),
+        angle = Math.atan2(b, a);
+      const k = i * 7,
+        x = (output[k] / registration) * 1024 + 512,
+        y = 768 - (output[k + 1] / registration) * 1024;
+      output[k] = ((a * x + c * y + tx - 512) / 1024) * registration;
+      output[k + 1] = (-(b * x + d * y + ty - 768) / 1024) * registration;
+      output[k + 3] *= scale;
+      output[k + 4] *= bone.opacity;
+      output[k + 5] -= angle;
+    }
+    return applyWorld();
+  }
+  /** One center/half-width/alpha/longitudinal-UV sample per cross section.
+   * The batcher connects adjacent sections; no frame history survives a seek. */
+  function sampleTrailInto(
+    event: ActionParticleEvent,
+    age: number,
+    doc: ComponentSource,
+    facing: number,
+    pose: CharacterPose | null | undefined,
+    output: NumericOutput,
+    visuals: VisualOutput,
+    limit: number,
+    sampleBirth?: (
+      seconds: number,
+      boneId: string,
+    ) => Pick<BonePose, 'matrix' | 'opacity'> | undefined,
+    sampleWorld?: (seconds: number) => ParticleWorldPose,
+    worldCamera = 2.7,
+    worldFrames?: NumericOutput,
+  ) {
+    if (
+      !event.particles.enabled ||
+      !event.boneId ||
+      !pose ||
+      !event.trail ||
+      limit < 1
+    )
+      return 0;
+    const resolved = resolveEmitter(event.particles, doc);
+    if (!resolved.ok) return 0;
+    const p = event.particles,
+      e = resolved.geometry,
+      side = e.side || 'both';
+    if (!sampleBirth) throw Error('连续剑痕需要历史姿态采样器');
+    if (
+      event.simulationSpace !== 'world' &&
+      ((side === 'front' && Math.cos(facing) < 0) ||
+        (side === 'back' && Math.cos(facing) >= 0))
+    )
+      return 0;
+    const head = Math.min(age, event.emissionDuration ?? event.duration),
+      tail = Math.max(0, age - event.trail.duration);
+    if (head <= tail) return 0;
+    const sections = Math.min(event.trail.segments, Math.floor(limit)) + 1,
+      base = mapEmitterPoint(
+        resolved,
+        e.u - 0.5,
+        (0.5 - e.v) * 1.5,
+        emissionOffset(p),
+      ),
+      registration = placementFor(resolved).registration,
+      fade = Math.min(0.12, event.duration * 0.2),
+      edge = Math.max(
+        0,
+        Math.min(1, age / fade, (event.duration - age) / fade),
+      );
+    if (output.length < sections * 7 || visuals.length < sections)
+      throw Error('剑痕采样缓冲区不足');
+    if (worldFrames && worldFrames.length < sections * 6)
+      throw Error('世界剑痕朝向缓冲区不足');
+    for (let i = 0; i < sections; i++) {
+      const t = tail + ((head - tail) * i) / (sections - 1),
+        bone = sampleBirth
+          ? sampleBirth(t, event.boneId)
+          : pose.bones.get(event.boneId),
+        k = i * 7,
+        freshness = Math.max(0, 1 - (age - t) / event.trail.duration);
+      if (!bone) return 0;
+      const [a, b, c, d, tx, ty] = bone.matrix,
+        x = (base.x / registration) * 1024 + 512,
+        y = 768 - (base.y / registration) * 1024;
+      output[k] = ((a * x + c * y + tx - 512) / 1024) * registration;
+      output[k + 1] = (-(b * x + d * y + ty - 768) / 1024) * registration;
+      output[k + 2] = base.z;
+      output[k + 3] =
+        p.size *
+        base.scale *
+        Math.sqrt(Math.abs(a * d - b * c)) *
+        (0.15 + 0.85 * freshness);
+      output[k + 4] =
+        p.opacity * bone.opacity * freshness * edge * edge * (3 - 2 * edge);
+      output[k + 5] = freshness * 2 - 1;
+      output[k + 6] = 0;
+      visuals[i] = -2;
+      if (event.simulationSpace === 'world') {
+        const root = sampleWorld!(t);
+        if (!particleWorld.visible(root, side, worldCamera)) output[k + 4] = 0;
+        particleWorld.transform(output, k, root);
+        if (worldFrames) particleWorld.frame(worldFrames, i * 6, root);
+      }
+    }
+    return sections;
+  }
+  /** Analytic birth times match the procedural sampler, including grouped halo
+   * particles and delayed reveal rays. No frame history or fixed-step replay. */
+  function particleBirth(
+    p: Particles,
+    index: number,
+    seconds: number,
+    revealIndex?: number,
+  ) {
+    if (revealIndex !== undefined) {
+      const r = p.reveal;
+      if (r.profile !== 'trails') return 0;
+      const late = revealIndex % 5 === 0;
+      return (
+        r.duration *
+        Math.min(
+          0.8,
+          r.stagger *
+            (late
+              ? 0.8 + 0.4 * hash(revealIndex + 751, p.seed)
+              : 0.12 * hash(revealIndex + 751, p.seed)),
+        )
+      );
+    }
+    if (['float', 'field'].includes(p.trajectory)) return 0;
+    const halo = p.trajectory === 'halo';
+    let life = p.lifetime,
+      seed = hash(index, p.seed),
+      delay = 0;
+    if (halo && p.visual === 'adamantium')
+      life *= 0.8 + 0.4 * hash(index + 467, p.seed);
+    if (halo && ['krackle', 'starcore'].includes(p.visual)) {
+      const groupSize = p.visual === 'krackle' ? 3 : 4;
+      seed = hash(Math.floor(index / groupSize) + 201, p.seed);
+      delay = (index % groupSize) * (groupSize === 3 ? 0.1 : 0.07);
+    }
+    return Math.max(
+      0,
+      (Math.floor(Math.max(0, seconds) / life + seed) - seed + delay) * life,
+    );
+  }
   return {
     materialStyles,
     particleVisuals,
@@ -1370,6 +1846,10 @@ const api = (() => {
     sample,
     sampleInto,
     sampleCompositionInto,
+    particleBirth,
+    actionParticleEvents,
+    sampleEventInto,
+    createPhysicsCache: () => particlePhysics.cache(),
   };
 })();
 

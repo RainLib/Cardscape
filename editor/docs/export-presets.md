@@ -17,6 +17,10 @@
 
 完整一档解码后才同时替换纹理与效果；加载期间保留上一档，失败保留已加载画面。切档不重建蒙皮网格，不重启动画。源工程可选附带，运行时预设默认排除可编辑图片备份。编辑器原工程仍需正常保存。
 
+WebGL 播放器与多卡验收现在共用 `player-textures.js` 的配准逻辑：两档均按 `sourceWindow` 和原始 `sourceSize` 恢复母版位置，背景保留扩展画幅。完整导出与远端瘦客户端自动包含此模块；手动组合脚本的游戏可复用 `CardPlayerTextures.registered(layer, image, sourceSize)`，并保留图层 `asset` 与文档 `exportProfile`，让渲染器继续按原尺寸采样。实际大小档色标及本地／远端／缓存播放器连续缩放、暂停时钟回归已通过。
+
+桌面 1／4／8／16 卡的实际发布贴图对照及验收页面入口见 [性能记录](performance-2026-11-03.md)。页面可单独选择小图保留特效，区分图片分辨率与特效降级；反复换档检查为独立选项。桌面结果不作为手机帧率承诺。
+
 WebGL 从 `manifest.json` 的 `exportProfile` 读取设置和纹理，`frontAsset` 为封面入口。Godot 的 `library.tres` 使用 `texture_paths` 延迟加载彩色变体；Mask 和旧资源继续正常引用。打包 Godot 项目时选择 **Export all resources**，或在选择性导出时显式包含 `assets/` 下全部变体，确保动态路径图片进入 PCK。游戏中可设置 `CardscapeCard.detail_pixel_width`（正数为 UI 投影宽度，0 使用相机），用 `export_detail_state()` 读取当前档位与效果；Node3D 大小或相机距离变化会自动切档。
 
 每包生成 `export-report.json`，列出预设、各档彩色纹理解码 RGBA 估算及保留策略。估算不包含 Mask、驱动开销、共享组件与帧缓冲，不能视为整卡 GPU 占用。

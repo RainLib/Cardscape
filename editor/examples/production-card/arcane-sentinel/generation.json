@@ -1,0 +1,26 @@
+{
+  "schema": "cardscape-generated-art/1",
+  "created": "2026-11-02",
+  "mode": "built-in image_gen.imagegen",
+  "purpose": "Original real-art production and animation acceptance card. Parts retain painted overlap and complete grip assemblies; this is not a placeholder color fixture.",
+  "assets": [
+    {
+      "file": "parts-atlas.png",
+      "generation": "exec-ba4ed9d7-4d6b-47f1-b3f1-e3c6146499e0",
+      "transparent": true,
+      "prompt": "Use case: stylized-concept. Create ONE original production-quality 2D skeletal character SPRITE ATLAS for a fantasy card editor, on a genuinely transparent background. Square 3x3 grid of nine equal cells, ideally 1536x1536. No cell borders, no labels, no text, no floor shadows. Each painted part must be wholly inside its own cell with at least 12% transparent padding and no contact with other cells. Consistent front-facing orthographic view, hand-painted fantasy game art, crisp readable contours, polished warm brass and dark blue enamel armor, luminous cyan accents, a crimson cloth cape. Character: an original friendly but powerful arcane clockwork guardian, rounded mechanical joints and substantial armor, attractive detailed game illustration rather than flat geometric test shapes. Exactly this row-major atlas layout: (1) central torso from neck socket to pelvis, including complete shoulders and full circular shoulder and hip sockets, NO head, arms or legs; underlying torso pixels and circular sockets must be fully painted for overlap. (2) separate helmeted head with glowing eyes and short neck bearing. (3) a complete separate crimson cape, broad at shoulders, flowing tapered lower hem, not containing a body. (4) screen-left upper arm, circular shoulder cap at its TOP and elbow bearing at its BOTTOM, vertical orientation. (5) screen-left forearm and armored hand gripping one complete short arcane sword; elbow bearing at TOP, hand at BOTTOM, sword extends downward; the hand, hilt and entire blade form ONE uninterrupted rigid assembly, no cropped blade. (6) screen-right upper arm, shoulder at TOP and elbow at BOTTOM. (7) screen-right forearm and complete open armored hand, elbow at TOP and hand at BOTTOM, no detached fingers. (8) complete screen-left leg from circular hip cap at TOP through knee armor to a broad boot at BOTTOM. (9) corresponding complete screen-right leg. Every limb is an individual painted cutout with round capped ends and enough real painted overlap at the joints for rotation; do not draw a complete assembled character anywhere. Keep neighboring body-part scales plausible; minor packing scale changes are acceptable, but no duplicated figures, extra props or anatomy. Lighting: warm key from upper left, cool cyan reflected light, rich painterly metal textures and careful edge highlights. These are final game-art components intended to be assembled and animated, not a diagram or a mockup."
+    },
+    {
+      "file": "background.png",
+      "generation": "exec-1fa7cd8c-ab93-48f6-a38b-ec16a3a35435",
+      "transparent": false,
+      "prompt": "Use case: stylized-concept. Asset type: a single original portrait fantasy game CARD BACKGROUND illustration, no character and no card border, no letters. Vertical 2:3 composition, ideally 1024x1536. A grand ancient arcane forge chamber for a brass clockwork guardian: worn dark teal stone arches, heavy brass machinery and concentric celestial engravings, a luminous cyan furnace deep behind the center, tiny warm sparks, warm upper-left illumination and cool blue shafts of light. Painterly premium fantasy card-game illustration with rich tactile metal and stone, not photorealistic and not a schematic. Keep the central vertical 55 percent reasonably quiet and darker so a full-body brass guardian layered in front remains readable. Let the chamber extend naturally to all image edges with no vignette cutout. Upper area has receding arches, lower area a dark clean stone dais; do not include people, robots, weapons, skeletons, text, numbers, logos, UI, frame or card mockup. Deliver only the painted environment."
+    },
+    {
+      "file": "back.png",
+      "generation": "exec-57800e2d-d8dd-489d-95d6-ee6bdb5f26b5",
+      "transparent": false,
+      "prompt": "Use case: stylized-concept. Asset type: original fantasy game CARD BACK artwork for an arcane brass clockwork guardian. Portrait 2:3, ideally 1024x1536, edge-to-edge image, no mockup and no text. A beautifully hand-painted ornamental object: deep dark teal enamel plate inset into aged warm brass, an elegant centered circular celestial mechanism and cyan crystal core, balanced interlocking rings and sun/star engravings, small crimson fabric accents at the upper and lower ornaments. Intricate but readable premium fantasy card-game illustration, tactile brushed metal, controlled warm highlights and cool cyan glow. Bilateral near-symmetry, a strong central seal readable at thumbnail size, quieter dark teal margins that can be clipped to a custom curved card silhouette. Do not include a character, skull, bones, logos, numbers, writing, UI, detached props or a surrounding scene. Deliver a single finished painted back texture filling the canvas."
+    }
+  ]
+}

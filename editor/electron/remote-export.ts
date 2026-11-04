@@ -61,6 +61,7 @@ const mime = (file: string) =>
     ['jpg', 'image/jpeg'],
     ['json', 'application/json'],
     ['glsl', 'text/plain'],
+    ['wav', 'audio/wav'],
   ]).get(path.extname(file).slice(1)) || 'application/octet-stream';
 export async function exportRemote(
   directory: string,
@@ -107,6 +108,19 @@ export async function exportRemote(
   }
   const addJSON = async (value: unknown) =>
     add(json(value), 'application/json');
+  const finishKeys = Object.keys(godot.shaderPaths).filter((key) =>
+    key.includes(':finish:'),
+  );
+  function shaderFamily(keys: Iterable<string>): Set<string> {
+    const selected = new Set<string>();
+    for (const key of keys) {
+      if (!godot.shaderPaths[key]) continue;
+      selected.add(key);
+      for (const finish of finishKeys)
+        if (finish.startsWith(key + ':finish:')) selected.add(finish);
+    }
+    return selected;
+  }
   async function imageURI(value: string) {
     const match = /^data:([^;]+);base64,(.+)$/.exec(value);
     if (!match) throw Error('远端资源编码无效');
@@ -238,7 +252,14 @@ export async function exportRemote(
     const images = new Set<string | null | undefined>([
       m.frontAsset || 'front.png',
       m.backAsset,
+      m.contourFieldAsset,
       m.particles?.sprite,
+      ...(m.actions || []).flatMap((a) =>
+        (a.audioEvents || []).map((e) => e.src),
+      ),
+      ...(m.actions || []).flatMap((a) =>
+        (a.particleEvents || []).map((e) => e.particles.sprite),
+      ),
       ...m.layers.flatMap((l) => [
         l.asset,
         l.cutoutMaskAsset,
@@ -354,7 +375,7 @@ export async function exportRemote(
     }
     shaderReferences(g);
     const shaders: Record<string, string> = {};
-    for (const key of shaderKeys)
+    for (const key of shaderFamily(shaderKeys))
       shaders[key] = await add(
         await fs.readFile(
           path.join(directory, 'godot', godot.shaderPaths[key].slice(6)),
@@ -380,10 +401,30 @@ export async function exportRemote(
     embedded(g.componentScenes);
     embedded(g.backScene);
     for (const key of componentKeys) gSmall.add(textureObjects[key]);
+    const audioObjects: Record<string, string> = {};
+    function collectAudio(value: unknown): void {
+      if (typeof value === 'string' && godot.audioPaths?.[value])
+        audioObjects[value] = '';
+      else if (Array.isArray(value)) value.forEach(collectAudio);
+      else if (value && typeof value === 'object')
+        Object.values(value).forEach(collectAudio);
+    }
+    collectAudio(g);
+    for (const key of Object.keys(audioObjects))
+      audioObjects[key] = (
+        await fileAsset(
+          godot.audioPaths![key].slice(6),
+          path.join(directory, 'godot'),
+        )
+      ).slice(7);
     const godotSplit = await splitComponents(g);
     const godotRecord = await record(
-      { card: godotSplit.card, textureObjects, shaders },
-      new Set<string>([...gSmall, ...Object.values(shaders)]),
+      { card: godotSplit.card, textureObjects, shaders, audioObjects },
+      new Set<string>([
+        ...gSmall,
+        ...Object.values(shaders),
+        ...Object.values(audioObjects),
+      ]),
       gHigh,
     );
     cards.push({
@@ -415,15 +456,29 @@ export async function exportRemote(
               path.join(directory, 'godot'),
             )
           ).slice(7);
-        if (godot.shaderPaths[key])
-          shaders[key] = await add(
-            await fs.readFile(
-              path.join(directory, 'godot', godot.shaderPaths[key].slice(6)),
-            ),
-            'text/plain',
-          );
       }
-      const definition = await addJSON({ value, textureObjects, shaders });
+      for (const key of shaderFamily(strings))
+        shaders[key] = await add(
+          await fs.readFile(
+            path.join(directory, 'godot', godot.shaderPaths[key].slice(6)),
+          ),
+          'text/plain',
+        );
+      const audioObjects: Record<string, string> = {};
+      for (const key of strings)
+        if (godot.audioPaths?.[key])
+          audioObjects[key] = (
+            await fileAsset(
+              godot.audioPaths[key].slice(6),
+              path.join(directory, 'godot'),
+            )
+          ).slice(7);
+      const definition = await addJSON({
+        value,
+        textureObjects,
+        shaders,
+        audioObjects,
+      });
       components.push({
         id: resource.id,
         kind: resource.kind,
@@ -434,6 +489,7 @@ export async function exportRemote(
           ...new Set<string>([
             ...Object.values(textureObjects),
             ...Object.values(shaders),
+            ...Object.values(audioObjects),
           ]),
         ],
       });

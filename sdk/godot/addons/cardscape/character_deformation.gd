@@ -155,7 +155,8 @@ static func deforms(action: Dictionary, progress: float) -> Dictionary:
 	return out
 
 static func geometry(mesh: Dictionary, pose: Dictionary, base: Transform3D, registration: float, camera: float=2.7) -> PackedVector3Array:
-	var vertices: Array=mesh.vertices.duplicate()
+	# Only morphs write to the source vertex array. Ordinary skinning reads it.
+	var vertices: Array=mesh.vertices.duplicate() if not mesh.morphs.is_empty() else mesh.vertices
 	for morph in mesh.morphs:
 		var value: float=pose.expressions.get(morph.expressionId,0)
 		for j in range(0,morph.deltas.size(),3):
@@ -164,21 +165,28 @@ static func geometry(mesh: Dictionary, pose: Dictionary, base: Transform3D, regi
 			vertices[i+1]+=float(morph.deltas[j+2])*value
 	var bind_offsets: Dictionary={}
 	for id in mesh.get("binds",{}): bind_offsets[id]=offsets(mesh.binds[id])
-	var deform: Dictionary=pose.get("deforms",{}).get(mesh.layerId,{})
+	var empty_offsets: Dictionary={}
+	var deform: Dictionary=pose.get("deforms",empty_offsets).get(mesh.layerId,empty_offsets)
+	var weights: Array=mesh.weights
+	var bones: Dictionary=pose.bones
+	var has_depths: bool=mesh.has("depths")
+	var depths: Array=mesh.get("depths",[])
 	var inverse := base.affine_inverse()
 	var positions := PackedVector3Array()
-	for i in range(vertices.size()/2):
+	var vertex_count := int(vertices.size()/2)
+	positions.resize(vertex_count)
+	for i in vertex_count:
 		var local := Vector3(float(vertices[i*2])/1024.0-.5,.75-float(vertices[i*2+1])/1024.0,0)
 		var placed := base*local
 		var pixel := Vector2(512+placed.x/registration*1024,768-placed.y/registration*1024)
 		var weighted := Vector2.ZERO
-		for weight in mesh.weights[i]:
-			var bone: Transform2D=pose.bones[weight.boneId].matrix
-			var offset: Vector2=bind_offsets.get(weight.boneId,{}).get(i,Vector2.ZERO)+deform.get(weight.boneId,{}).get(i,Vector2.ZERO)
+		for weight in weights[i]:
+			var bone: Transform2D=bones[weight.boneId].matrix
+			var offset: Vector2=bind_offsets.get(weight.boneId,empty_offsets).get(i,Vector2.ZERO)+deform.get(weight.boneId,empty_offsets).get(i,Vector2.ZERO)
 			var placed_offset: Vector3=base.basis*Vector3(offset.x/1024.0,-offset.y/1024.0,0)
 			var source_pixel: Vector2=pixel+Vector2(placed_offset.x,-placed_offset.y)/registration*1024.0
 			weighted+=(bone*source_pixel)*float(weight.weight)
-		var depth: float=mesh.get("depths",[])[i] if mesh.has("depths") else 0.0
+		var depth: float=depths[i] if has_depths else 0.0
 		var vertex_registration := registration-depth/(camera-.045)
-		positions.append(inverse*Vector3((weighted.x-512)/1024.0*vertex_registration,-(weighted.y-768)/1024.0*vertex_registration,base.origin.z+depth))
+		positions[i]=inverse*Vector3((weighted.x-512)/1024.0*vertex_registration,-(weighted.y-768)/1024.0*vertex_registration,base.origin.z+depth)
 	return positions

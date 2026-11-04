@@ -3,7 +3,7 @@ const fs=require('node:fs/promises'),path=require('node:path'),{spawn}=require('
 async function main(){
  const args=process.argv.slice(2),read=flag=>{const i=args.indexOf(flag);return i<0?null:args[i+1];};
  const project=read('--project'),script=read('--script')||'tests/test_sdk.gd',output=read('--output'),timeout=Number(read('--timeout')||45000),captureDir=read('--captures');
- if(!project||!Number.isFinite(timeout)||timeout<1000||timeout>300000)throw Error('Usage: npm run test:sdk -- --project EXPORTED_GODOT_DIR [--script tests/test_sdk.gd] [--output LOG_FILE] [--timeout 45000 (max 300000)]');
+ if(!project||!Number.isFinite(timeout)||timeout<1000||timeout>1200000)throw Error('Usage: npm run test:sdk -- --project EXPORTED_GODOT_DIR [--script tests/test_sdk.gd] [--output LOG_FILE] [--timeout 45000 (max 1200000 for explicit long benchmarks)]');
  if(captureDir)await fs.mkdir(path.resolve(captureDir),{recursive:true});
  if(script.replace(/^res:\/\//,'')==='tests/test_shader_emission.gd'){
   const C=require('../dist/renderer/component-model.js');

@@ -8,23 +8,117 @@ function panelFunctions(...names){
 }
 
 // Run the real renderer and RAF clock; only GPU/DOM facilities are replaced.
-function harness(){
- const listeners=new Map();const frames=new Map(),events=[],componentTimes=[],componentZooms=[],viewports=[];let sequence=0,now=0;
+function harness(options={}){
+ const listeners=new Map(),documentListeners=new Map(),observers=[];const frames=new Map(),events=[],componentTimes=[],componentZooms=[],viewports=[];let sequence=0,now=0;
  const gl=new Proxy({viewport:(...args)=>viewports.push(args),createTexture:()=>({}),createProgram:()=>({}),createShader:()=>({}),createBuffer:()=>({}),getShaderParameter:()=>true,getProgramParameter:()=>true,getParameter:()=>8,getAttribLocation:()=>0,getUniformLocation:(_,name)=>name,getError:()=>0},{get:(o,k)=>k in o?o[k]:()=>{}});
  const makeCanvas=()=>({dataset:{},width:400,height:600,clientWidth:400,clientHeight:600,setAttribute(){},setPointerCapture(){},getContext:type=>type==='webgl'?null:{fillRect(){}}});
  const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{id,after(){},add(){},value:'idle',textContent:''});return nodes.get(id);};
- const document={body:{dataset:{appMode:'editor'}},hidden:false,createElement:makeCanvas,getElementById:node,querySelectorAll:()=>[],addEventListener(){}};
+ const document={body:{dataset:{appMode:'editor'}},hidden:false,createElement:makeCanvas,getElementById:node,querySelectorAll:()=>[],addEventListener(name,fn){if(!documentListeners.has(name))documentListeners.set(name,new Set());documentListeners.get(name).add(fn);},removeEventListener(name,fn){documentListeners.get(name)?.delete(fn);}};
  const window={CardRuntime:R,CardBackRenderer:{create:()=>({draw(value,options){componentTimes.push(options.time);componentZooms.push(options.viewportZoom);return {triangles:0,loaded:true};},dispose(){},reset(){}})},addEventListener:(name,fn)=>{if(!listeners.has(name))listeners.set(name,[]);listeners.get(name).push(fn);},dispatchEvent:event=>{events.push(event);for(const fn of listeners.get(event.type)||[])fn(event);}};
- for(const [name,file] of Object.entries({MeshRigidity:'mesh-rigidity',CardFrame:'frame-model',CardParticleBatch:'particle-batch',CardMaskEdit:'mask-edit-model',CardSpatial:'spatial-model',CardCosmetics:'cosmetics-model',CardComponents:'component-model',CardStats:'card-stats',CardTitle:'title-model',CardPreviewUpdate:'preview-update-model',CardInspection:'inspection-model',CardExportProfile:'export-profile',CardPlayerModel:'player-model',CardAdaptiveTextures:'adaptive-textures'}))window[name]=require('../dist/renderer/'+file+'.js');
- const context={window,bindings:window,document,CardExportProfile:window.CardExportProfile,CardAdaptiveTextures:window.CardAdaptiveTextures,innerWidth:400,innerHeight:700,devicePixelRatio:1,performance:{now:()=>now},ResizeObserver:class{observe(){}},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},requestAnimationFrame:callback=>{frames.set(++sequence,callback);return sequence;},cancelAnimationFrame:id=>frames.delete(id)};
- window.CardShaderVariants=require('../dist/renderer/shader-variants.js');window.CardLazyPreview=require('../dist/renderer/lazy-preview.js');vm.createContext(context);vm.runInContext(fs.readFileSync(require.resolve('../dist/renderer/author-preview.js'),'utf8'),context);
- const canvas=makeCanvas(),preview=window.CardSurfaceRenderer.create({canvas,gl});window.cardPreview=preview;
+ for(const [name,file] of Object.entries({CardCharacterAnimation:'character-animation-model',MeshRigidity:'mesh-rigidity',CardContourFieldRenderer:'contour-field-renderer',CardFrame:'frame-model',CardParticleWorld:'particle-world-model',CardParticleBatch:'particle-batch',CardMaskEdit:'mask-edit-model',CardSpatial:'spatial-model',CardCosmetics:'cosmetics-model',CardComponents:'component-model',CardStats:'card-stats',CardTitle:'title-model',CardPreviewUpdate:'preview-update-model',CardInspection:'inspection-model',CardExportProfile:'export-profile',CardPlayerModel:'player-model',CardAdaptiveTextures:'adaptive-textures'}))window[name]=require('../dist/renderer/'+file+'.js');
+ const context={window,bindings:window,document,CardExportProfile:window.CardExportProfile,CardAdaptiveTextures:window.CardAdaptiveTextures,innerWidth:400,innerHeight:700,devicePixelRatio:1,performance:{now:()=>now},ResizeObserver:class{constructor(){this.disconnected=0;observers.push(this);}observe(){}disconnect(){this.disconnected++;}},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},requestAnimationFrame:callback=>{frames.set(++sequence,callback);return sequence;},cancelAnimationFrame:id=>frames.delete(id)};
+ window.CardSourceAlphaBounds=require('../dist/renderer/source-alpha-bounds.js');window.CardActionAudioRuntime=options.audioRuntime||require('../dist/renderer/action-audio-runtime.js');window.CardShaderVariants=require('../dist/renderer/shader-variants.js');window.CardLazyPreview=require('../dist/renderer/lazy-preview.js');vm.createContext(context);vm.runInContext(fs.readFileSync(require.resolve('../dist/renderer/player-textures.js'),'utf8'),context);vm.runInContext(fs.readFileSync(require.resolve('../dist/renderer/author-preview.js'),'utf8'),context);
+ const canvas=makeCanvas(),preview=window.CardSurfaceRenderer.create({canvas,gl,...options});window.cardPreview=preview;
  const component=R.ensure({id:'frame-asset',previewMode:'authored',layers:[],masks:{},shader:{fragmentBody:'return color * (0.9 + 0.1 * sin(time));',fragmentStrength:1}});
  const doc=R.ensure({id:'hero',previewMode:'authored',layers:[{id:'frame',kind:'frame',visible:true}],masks:{},effects:{paused:false},componentScenes:{frame:{document:component}}});
  preview.setDocument(doc);preview.setActive(true);
  const advance=ms=>{now+=ms;const pending=[...frames.values()];frames.clear();for(const callback of pending)callback(now);};
- return {context,preview,doc,canvas,events,componentTimes,componentZooms,viewports,node,frames,advance,gl};
+ return {context,preview,doc,canvas,events,componentTimes,componentZooms,viewports,node,frames,advance,gl,documentListeners,observers};
 }
+
+test('disposing an interactive preview disconnects its observers, document listener and pointer handlers',()=>{
+ const h=harness();h.preview.playAction('idle',0,false);
+ assert.equal(h.documentListeners.get('visibilitychange').size,1);assert.ok(h.canvas.onpointerdown);assert.ok(h.frames.size>0);
+ h.preview.dispose();h.preview.dispose();
+ assert.equal(h.documentListeners.get('visibilitychange').size,0);assert.equal(h.observers[0].disconnected,1);assert.equal(h.frames.size,0);
+ for(const key of ['onpointerdown','onpointermove','onpointerup','onpointercancel'])assert.equal(h.canvas[key],null);
+});
+test('asset reset clears audio ownership while changing particle birth poses does not reset audio',()=>{
+ const Audio=require('../dist/renderer/action-audio-runtime.js');let resets=0;
+ const h=harness({audioRuntime:{create(){const audio=Audio.create(),reset=audio.reset;audio.reset=()=>{resets++;reset();};return audio;}}});
+ const C=require('../dist/renderer/component-model.js');const d=structuredClone(h.doc);
+ d.actions[0].particleEvents=[{id:'card-sparks',name:'Sparks',at:0,duration:1,simulationSpace:'card',particles:C.particles({enabled:true,count:8})}];
+ const before=resets;h.preview.setDocument(d);h.preview.playAction(d.actions[0].id,.2,false);assert.equal(resets,before);
+ h.preview.resetAssets();assert.equal(resets,before+1);h.preview.dispose();
+});
+
+test('embedded scene draws avoid synchronous GPU error queries unless diagnostics are explicitly requested',()=>{
+ const h=harness({embedded:true});let queries=0;h.gl.getError=()=>{queries++;return 0;};
+ for(let i=0;i<8;i++)h.preview.drawExternal({angle:[0,0],root:[0,0,0,1],time:i*.1,width:400,height:600});
+ assert.equal(queries,0);assert.equal(h.canvas.dataset.glError,'unchecked');
+ h.canvas.dataset.gpuDiagnostics='true';h.preview.drawExternal({angle:[0,0],root:[0,0,0,1],width:400,height:600});
+ assert.equal(queries,1);assert.equal(h.canvas.dataset.glError,'0');h.preview.dispose();
+});
+
+test('late asset completions cannot allocate GPU storage or retain a scene after disposal',()=>{
+ const h=harness();h.preview.dispose();let allocations=0;
+ h.gl.createTexture=()=>{allocations++;return {};};h.gl.createProgram=()=>{allocations++;return {};};h.gl.createBuffer=()=>{allocations++;return {};};
+ const pixels={width:2,height:2,data:new Uint8ClampedArray(16)};
+ h.preview.setTexture('late-image',pixels);h.preview.addImage({id:'late-layer',kind:'image'},pixels);
+ h.preview.updateMask('emission',pixels);h.preview.setRegion({mode:'mask',map:pixels});h.preview.resetAssets();
+ assert.throws(()=>h.preview.setDocument(h.doc),/disposed/);
+ assert.throws(()=>h.preview.compileShader({fragmentBody:'return color;'}),/disposed/);
+ assert.equal(allocations,0);assert.deepEqual(Object.keys(h.preview.getCharacterGeometry()),[]);
+});
+
+test('animated painter order reaches the renderer without rebuilding meshes or textures',()=>{
+ const h=harness(),d=require('./fixtures/irregular-card.cjs').irregular();h.preview.setDocument(d);
+ h.preview.playAction('idle',.9,true);const before={...h.canvas.dataset},a=JSON.parse(before.drawOrder);
+ h.preview.playAction('idle',1,true);const b=JSON.parse(h.canvas.dataset.drawOrder);
+ assert.ok(a.indexOf('body')<a.indexOf('forearm'));assert.ok(b.indexOf('body')>b.indexOf('forearm'));
+ assert.equal(h.canvas.dataset.resourceMeshes,before.resourceMeshes);assert.equal(h.canvas.dataset.resourceTextures,before.resourceTextures);
+ h.preview.playAction('idle',.1,true);assert.deepEqual(JSON.parse(h.canvas.dataset.drawOrder),a);h.preview.dispose();
+});
+test('simultaneous action PNG particles decode once per source, replay deterministically and release textures',()=>{
+ const h=harness(),pending=[],created=[],deleted=[];
+ h.context.Image=class{constructor(){this.width=8;this.height=8;}set src(value){this._src=value;pending.push(this);}get src(){return this._src;}};
+ h.gl.createTexture=()=>{const value={sprite:created.length};created.push(value);return value;};h.gl.deleteTexture=texture=>deleted.push(texture);
+ const C=require('../dist/renderer/component-model.js'),d=structuredClone(h.doc);
+ d.actions[0].particleEvents=['sprite-a.png','sprite-b.png'].map((sprite,i)=>({id:'sprite-'+i,name:'Sprite '+i,at:0,duration:3,particles:C.particles({enabled:true,count:8,visual:'sprite',sprite,emitter:{target:'card',shape:'point',u:.5,v:.5}})}));
+ h.preview.setDocument(d);h.preview.playAction(d.actions[0].id,1,true);
+ assert.equal(pending.length,2);for(const image of pending)image.onload();
+ assert.equal(created.length,2);assert.equal(h.canvas.dataset.particleEventParticles,'16');
+ assert.ok(Number(h.canvas.dataset.particleCount)>=16);assert.ok(Number(h.canvas.dataset.particleTotalCount)<=128);
+ h.canvas.dataset.particleDiagnostics='true';h.preview.playAction(d.actions[0].id,1,true);const samples=h.canvas.dataset.particleEventSamples;
+ h.preview.playAction(d.actions[0].id,2,true);h.preview.playAction(d.actions[0].id,1,true);
+ assert.equal(h.canvas.dataset.particleEventSamples,samples);assert.equal(pending.length,2);assert.equal(created.length,2);
+ h.preview.dispose();for(const texture of created)assert.equal(deleted.filter(t=>t===texture).length,1);
+});
+test('card-space birth poses are reused during paused inspection and invalidated by bone edits',()=>{
+ const h=harness(),d=require('./fixtures/irregular-card.cjs').irregular(),C=require('../dist/renderer/component-model.js');
+ d.actions[0].boneTracks={elbow:{rotation:[{at:0,value:0},{at:1,value:90}]}};
+ d.actions[0].particleEvents=[{id:'trail',name:'Trail',at:0,duration:1.8,boneId:'elbow',simulationSpace:'card',particles:C.particles({enabled:true,count:24,lifetime:.5,emitter:{target:'card',shape:'point',u:.6,v:.6}})}];
+ const original=R.sampleCharacter;let births=0;
+ R.sampleCharacter=(doc,action,...args)=>{if(action?.id==='idle'&&action.particleEvents===undefined){births++;assert.equal(action.deformTracks,undefined);assert.equal(action.expressionTracks,undefined);}return original(doc,action,...args);};
+ try {
+  h.canvas.dataset.particleDiagnostics='true';h.preview.setDocument(d);h.preview.playAction('idle',1,true);
+  const before=births,points=h.canvas.dataset.particleEventSamples;assert.ok(before>0);
+  h.preview.pose(12,8);h.preview.pose(0,0);h.preview.playAction('idle',1,true);
+  assert.equal(births,before,'inspection and repeated paused draws reuse birth transforms');
+  assert.equal(h.canvas.dataset.particleEventSamples,points);
+  d.actions[0].boneTracks.elbow.rotation[1].value=140;h.preview.setDocument(d);h.preview.playAction('idle',1,true);
+  assert.ok(births>before,'editing the bone track invalidates cached transforms');
+  assert.notEqual(h.canvas.dataset.particleEventSamples,points);
+ } finally {R.sampleCharacter=original;h.preview.dispose();}
+});
+test('action crossfade starts at the current pose, pauses, interrupts continuously and completes short clips',()=>{
+ const h=harness(),d=require('./fixtures/irregular-card.cjs').irregular();d.actions[0].transitionDuration=.4;d.actions[1].duration=.1;
+ h.preview.setDocument(d);h.preview.playAction('idle',.3,true);const start=h.canvas.dataset.characterPose;
+ h.preview.playAction('raise');assert.equal(h.canvas.dataset.characterPose,start);assert.equal(h.canvas.dataset.actionTransition,'0');
+ h.advance(100);h.advance(100);const halfway=h.canvas.dataset.characterPose;assert.notEqual(halfway,start);
+ h.preview.setPaused(true);h.advance(100);assert.equal(h.canvas.dataset.characterPose,halfway);
+ h.preview.playAction('idle');assert.equal(h.canvas.dataset.characterPose,halfway);assert.equal(h.canvas.dataset.actionTransition,'0');
+ for(let i=0;i<7;i++)h.advance(100);assert.equal(h.canvas.dataset.actionTransition,'1');
+ h.preview.playAction('raise');for(let i=0;i<7;i++)h.advance(100);assert.equal(h.canvas.dataset.actionTransition,'1');assert.equal(h.preview.getView().paused,true);
+ h.preview.playAction('idle',.5,true);assert.equal(h.canvas.dataset.actionTransition,'1');h.preview.dispose();
+});
+
+test('editor document synchronization preserves a running transition while a new revision cancels it',()=>{
+ const h=harness(),d=require('./fixtures/irregular-card.cjs').irregular();h.preview.setDocument(d);h.preview.playAction('idle',.2,true);const before=h.canvas.dataset.characterPose;
+ h.preview.playAction('raise');h.preview.setDocument(structuredClone(d));assert.equal(h.canvas.dataset.characterPose,before);assert.equal(h.canvas.dataset.actionTransition,'0');
+ h.advance(100);h.advance(100);assert.notEqual(h.canvas.dataset.characterPose,before);
+ d.revision=1;h.preview.setDocument(d);assert.equal(h.canvas.dataset.actionTransition,'1');h.preview.dispose();
+});
 
 test('native character idle runs without unrelated effects and freezes the same pose after multiple loops',()=>{
  const h=harness(),doc=require('./fixtures/character-animation.cjs').fixture();
@@ -190,4 +284,78 @@ test('remote sprite dependencies load only with a particle-enabled detail tier a
  assert.deepEqual(resolved,['@asset:sprite-id']);assert.equal(h.context.document.body.dataset.textureLevel,'large');
  assert.equal(h.canvas.dataset.particleSpriteState,'ready');assert.equal(h.preview.getView().time,time);assert.equal(h.preview.getView().paused,false);
  h.preview.dispose();
+});
+
+test('connected ribbon renderer uploads one joined strip and ignores ordinary cosmic passes, then follows the motion toggle',()=>{
+ const h=harness(),d=require('./fixtures/irregular-card.cjs').irregular(),C=require('../dist/renderer/component-model.js');
+ d.actions[0].boneTracks={elbow:{rotation:[{at:0,value:0},{at:1,value:90}]}};
+ d.actions[0].particleEvents=[{id:'ribbon',name:'Ribbon',at:0,duration:1.8,boneId:'elbow',trail:{duration:.4,segments:16},particles:C.particles({enabled:true,visual:'cosmic',palette:'rainbow',placement:'behind',emitter:{target:'card',shape:'point',u:.6,v:.6}})}];
+ let program,particleProgram;const draws=[],visuals=[];
+ h.gl.useProgram=p=>{program=p;};h.gl.uniform1f=(name,value)=>{if(name==='visual'){particleProgram=program;visuals.push(value);}};h.gl.drawArrays=(_,first,count)=>{if(program===particleProgram)draws.push(count);};
+ h.canvas.dataset.particleDiagnostics='true';h.preview.setDocument(d);draws.length=visuals.length=0;h.preview.playAction('idle',1,true);
+ const mesh=JSON.parse(h.canvas.dataset.particleTrailVertices).ribbon;
+ assert.equal(mesh.length,16*60);assert.equal(h.canvas.dataset.particleEventParticles,'16');
+ assert.deepEqual(draws,[16*6]);assert.deepEqual(visuals,[3]);
+ const original=h.canvas.dataset.particleEventSamples;
+ h.preview.playAction('idle',.5,true);h.preview.playAction('idle',1,true);assert.equal(h.canvas.dataset.particleEventSamples,original);
+ h.preview.setPreviewLevel('common');h.preview.playAction('idle',1,true);
+ const points=JSON.parse(h.canvas.dataset.particleEventSamples).ribbon;
+ assert.equal(points.length,17*7);
+ for(let i=1;i<17;i++){assert.equal(points[i*7],points[0]);assert.equal(points[i*7+1],points[1]);}
+ h.preview.setPreviewLevel('authored');h.preview.playAction('idle',1,true);
+ assert.equal(h.canvas.dataset.particleEventSamples,original);
+ h.preview.dispose();
+});
+
+test('raw player sources specialize the active rim while still compiling the supplied files',()=>{
+ const h=harness(),F=require('../dist/renderer/frame-model.js');h.doc.componentScenes={};h.doc.frameStyle={...F.defaults,finish:'metal'};h.preview.setDocument(h.doc);
+ const sources=[];h.gl.shaderSource=(_,source)=>sources.push(source);
+ const supplied='// supplied shader asset, distinct from the cached program\n'+R.fragment;
+ assert.ok(supplied.includes('vec4 rimHalloweenStickers('));
+ assert.equal(h.preview.compileSources(R.vertex(R.defaults.shader.geometryBody),supplied).ok,true);
+ assert.equal(sources.length,2,'source assets cannot reuse a different generated program');
+ assert.ok(sources[1].includes('// supplied shader asset'));
+ assert.ok(!sources[1].includes('vec4 rimHalloweenStickers('),'unused rim branches must not reach the driver');
+ h.preview.dispose();
+});
+
+test('raw shaders that explicitly use another rim finish keep their full helper semantics',()=>{
+ const h=harness(),sources=[];h.gl.shaderSource=(_,source)=>sources.push(source);
+ const body='return vec4(rimColor(color.rgb,vec3(1.),uv,vec2(0.),time,vec4(.02,.04,.02,.005),2.,vec2(0.),.75),color.a);';
+ const supplied=R.fragmentSource(body,true);
+ assert.equal(h.preview.compileSources(R.vertex(R.defaults.shader.geometryBody),supplied).ok,true);
+ assert.equal(sources.at(-1),supplied);h.preview.dispose();
+});
+
+
+test('world events bypass the current card root and retain paused pixels through inspection and custom sampler changes',()=>{
+ const h=harness(),d=require('./fixtures/irregular-card.cjs').irregular(),C=require('../dist/renderer/component-model.js');
+ d.actions[0].tracks={x:[{at:0,value:0},{at:1,value:256}],yaw:[{at:0,value:0},{at:1,value:30}],opacity:[{at:0,value:1},{at:1,value:.2}]};
+ d.actions[0].particleEvents=[{id:'world',name:'World',at:0,duration:1.8,simulationSpace:'world',particles:C.particles({enabled:true,count:8,lifetime:.6,placement:'front',emitter:{target:'card',shape:'point',u:.6,v:.6}})}];
+ const uniforms=[];for(const kind of ['uniform1f','uniform2f','uniform4f'])h.gl[kind]=(...args)=>uniforms.push(args);
+ h.canvas.dataset.particleDiagnostics='true';h.preview.setDocument(d);h.preview.pose(0,0);h.preview.playAction('idle',.9,true);
+ const before=h.canvas.dataset.particleEventSamples;assert.ok(JSON.parse(before).world.length>0);
+ h.preview.pose(90,45);assert.equal(h.canvas.dataset.particleEventSamples,before);
+ assert.deepEqual(uniforms.filter(a=>a[0]==='rootTransform').at(-1),['rootTransform',0,0,0,1]);
+ assert.deepEqual(uniforms.filter(a=>a[0]==='angle').at(-1),['angle',0,0]);
+ assert.deepEqual(uniforms.filter(a=>a[0]==='rootOpacity').at(-1),['rootOpacity',1]);
+ h.preview.setParticleWorldSampler(()=>({angle:[0,0],root:[4,0,0,1,1]}));assert.notEqual(h.canvas.dataset.particleEventSamples,before);
+ h.preview.setParticleWorldSampler(null);assert.equal(h.canvas.dataset.particleEventSamples,before);
+ h.preview.playAction('idle',5.2,false);const playing=h.canvas.dataset.particleEventSamples;h.preview.setPaused(true);
+ assert.equal(h.canvas.dataset.particleEventSamples,playing,'loop pause preserves the world birth cycle');h.preview.dispose();
+});
+
+
+test('embedded world emitters interpolate live game roots and preserve recorded positions through reverse seeks',()=>{
+ const h=harness({embedded:true}),d=require('./fixtures/irregular-card.cjs').irregular(),C=require('../dist/renderer/component-model.js');
+ const particles=C.particles({enabled:true,count:8,lifetime:12,speed:0,spread:0,radius:0,z:0,placement:'front',emitter:{target:'card',shape:'point',u:.6,v:.6}});
+ d.actions[0].particleEvents=[{id:'world',name:'World',at:0,duration:1.8,simulationSpace:'world',particles}];
+ h.canvas.dataset.particleDiagnostics='true';h.preview.setDocument(d);
+ const draw=(time,x,sampler)=>{h.preview.drawExternal({time,angle:[0,0],root:[x,0,0,1,1],width:400,height:600,sampleParticleWorld:sampler});return JSON.parse(h.canvas.dataset.particleEventSamples).world;};
+ draw(0,2);draw(.3,4);const before=draw(.6,6);assert.ok(before.length>0);
+ for(let i=0;i<before.length/7;i++){const birth=C.particleBirth(particles,i,.6);assert.ok(Math.abs(before[i*7]-(2.1+birth*20/3))<1e-6);}
+ assert.deepEqual(draw(.6,20),before,'paused external transforms leave old particles in place');
+ draw(.3,30);assert.deepEqual(draw(.6,30),before,'recorded game history survives a reverse seek');
+ const calls=[];const sampled=draw(.6,30,(id,t)=>{calls.push([id,t]);return {angle:[0,0],root:[t*3,0,0,1,1]};});
+ assert.ok(calls.length>0);assert.notDeepEqual(sampled,before);assert.ok(calls.every(([id,t])=>id==='idle'&&t>=0&&t<=.6));h.preview.dispose();
 });

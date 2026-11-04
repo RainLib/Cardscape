@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768">
+  <title>异形卡体：椭圆主窗口与矩形文字窗口</title>
+  <g transform="translate(10 10)">
+    <path fill="#b89d61" fill-rule="evenodd" d="
+      M0 0 H492 V748 H0 Z
+      M436 270 A190 240 0 1 1 56 270 A190 240 0 1 1 436 270 Z
+      M50 550 H442 V680 H50 Z"/>
+  </g>
+</svg>

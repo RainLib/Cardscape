@@ -7,6 +7,7 @@ var picker: OptionButton
 var actions: OptionButton
 var status: Label
 var url_input: LineEdit
+var audio: CheckButton
 var zoom: HSlider
 var _selection: int = 0
 
@@ -44,6 +45,11 @@ func _ready() -> void:
 	play.pressed.connect(func():
 		if card:card.pause_action(not card._paused))
 	panel.add_child(play)
+	audio=CheckButton.new()
+	audio.text="启用动作音效"
+	audio.toggled.connect(func(value):
+		if card:card.audio_enabled=value)
+	panel.add_child(audio)
 	zoom=HSlider.new()
 	zoom.min_value=.25
 	zoom.max_value=3
@@ -76,6 +82,7 @@ func _show(index: int) -> void:
 	if token!=_selection or not library:return
 	var next := CardscapeCard.new()
 	next.library=library
+	next.audio_enabled=audio.button_pressed
 	next.card_id=id
 	next.scale=Vector3.ONE*zoom.value
 	add_child(next)

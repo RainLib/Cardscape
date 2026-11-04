@@ -1,7 +1,17 @@
+import SourceAlphaBounds from './source-alpha-bounds.ts';
+import AudioRuntime from './action-audio-runtime.ts';
 import type { CardDocument, CardLayer } from '../../shared/document';
-import type { CharacterAction, CharacterPose } from '../../shared/character';
+import type {
+  CharacterAction,
+  CharacterPose,
+  ActionParticleEvent,
+  ParticleWorldPose,
+  ParticleWorldSampler,
+} from '../../shared/character';
 import type { SceneMetadata } from '../../shared/visual-components';
 import type { RuntimeSample } from '../../shared/runtime';
+import contourFields from './contour-field-renderer.ts';
+import particleWorld from './particle-world-model.ts';
 import type {
   ExternalView,
   SurfaceOptions,
@@ -55,6 +65,16 @@ import { createLazyPreview } from './lazy-preview.ts';
 export const moduleApi = (() => {
   'use strict';
   const bindings = window as unknown as SurfaceBindings;
+  // Shared decoded artwork can be used by multiple cards/components on one
+  // context. Writable images and Masks still own independent physical storage.
+  const texturePools = new WeakMap<
+    WebGLRenderingContext,
+    {
+      refs: Map<WebGLTexture, number>;
+      images: WeakMap<HTMLImageElement, SharedTexture>;
+      shares: Map<WebGLTexture, SharedTexture>;
+    }
+  >();
   function create({
     canvas,
     gl,
@@ -63,6 +83,11 @@ export const moduleApi = (() => {
     info = { textContent: '' },
     embedded = false,
   }: SurfaceOptions): PreviewAPI {
+    const actionAudio = AudioRuntime.create();
+    const sourceBounds = new Map<
+      string,
+      readonly [number, number, number, number]
+    >();
     let textureDetail: TextureTier | null = null,
       requestedDetail: TextureTier | null = null;
     let viewZoom = 1,
@@ -180,14 +205,35 @@ export const moduleApi = (() => {
         { source: string; image: PixelImage | null }
       >(),
       joinBuffers = new Map<string, JoinBuffers>();
-    const textureRefs = new Map<WebGLTexture, number>(),
-      imageTextures = new WeakMap<HTMLImageElement, SharedTexture>(),
-      textureShares = new Map<WebGLTexture, SharedTexture>();
+    let texturePool = texturePools.get(gl);
+    if (!texturePool) {
+      texturePool = {
+        refs: new Map(),
+        images: new WeakMap(),
+        shares: new Map(),
+      };
+      texturePools.set(gl, texturePool);
+    }
+    const textureRefs = texturePool.refs,
+      imageTextures = texturePool.images,
+      textureShares = texturePool.shares;
     const runtime = importedCardRuntime,
       frames = importedCardFrame;
     let frameGeometryKey = '',
       frameAuraKey = '',
       frameGeometry: ReturnType<typeof frames.geometry> | null = null;
+    let contourData = frames.contourUniforms(frames.defaults);
+    const contourFieldRenderer = contourFields.create(gl);
+    let actionTransition: {
+      from: CharacterAction;
+      duration: number;
+      seconds: number;
+    } | null = null;
+    let renderedAction: {
+      clip: CharacterAction;
+      seconds: number;
+      seek: boolean;
+    } | null = null;
     let characterMaskVersion = 0;
     let program: WebGLProgram | null = null,
       a: Record<string, number> = {},
@@ -258,6 +304,7 @@ export const moduleApi = (() => {
       finish = frames.resolve(doc).finish,
       specialize = true,
     ) {
+      if (disposed) throw Error('Preview is disposed');
       const key = shaderKey(config, finish),
         cached = specialize ? programs.get(key) : undefined;
       if (cached) {
@@ -310,6 +357,11 @@ export const moduleApi = (() => {
           'tex',
           'opacity',
           'frame',
+          'contourCounts',
+          'contourTexture',
+          'contourField',
+          'contourFieldInfo',
+          'contourEdges[0]',
           'flow',
           'flowSpeed',
           'shift',
@@ -317,6 +369,7 @@ export const moduleApi = (() => {
           'phaseTex',
           'insetTex',
           'sourceRect',
+          '_cardscapeSourceAlphaBounds',
           'bend',
           'windSpeed',
           'layerRotation',
@@ -392,6 +445,7 @@ export const moduleApi = (() => {
       textureShares.delete(tex);
     }
     function releaseTexture(id: string) {
+      sourceBounds.delete(id);
       const tex = textures.get(id) ?? null;
       if (!tex) return;
       textures.delete(id);
@@ -405,6 +459,7 @@ export const moduleApi = (() => {
       gl.deleteTexture(tex);
     }
     function upload(id: string, image: SurfaceImage, rect?: PixelRect) {
+      if (disposed) return false;
       const w =
           ('naturalWidth' in image ? image.naturalWidth : 0) || image.width,
         h =
@@ -417,6 +472,10 @@ export const moduleApi = (() => {
           id.startsWith('mask-') ||
           id === 'custom-mask' ||
           id === 'region-mask';
+      sourceBounds.set(
+        id,
+        mask ? SourceAlphaBounds.full : SourceAlphaBounds.image(image),
+      );
       const immutable =
         !mask &&
         !rect &&
@@ -441,6 +500,7 @@ export const moduleApi = (() => {
       ) {
         releaseTexture(id);
         textures.set(id, shared.texture);
+        sourceBounds.set(id, SourceAlphaBounds.image(image));
         textureRefs.set(
           shared.texture,
           (textureRefs.get(shared.texture) || 0) + 1,
@@ -464,6 +524,10 @@ export const moduleApi = (() => {
         textureRefs.set(tex, 1);
       }
       textureImages.set(id, { image, source });
+      sourceBounds.set(
+        id,
+        mask ? SourceAlphaBounds.full : SourceAlphaBounds.image(image),
+      );
       textureSizes.set(id, [w, h]);
       textureDiagnostics();
       count('textures');
@@ -622,6 +686,53 @@ export const moduleApi = (() => {
     }
     let characterSample: { key: unknown[]; pose: CharacterPose | null } | null =
       null;
+    const particleBirthCache = new Map<
+      string,
+      Pick<import('../../shared/character').BonePose, 'matrix' | 'opacity'>
+    >();
+    const particleWorldHistory = particleWorld.history();
+    let particlePhysicsCache:
+      | ReturnType<typeof importedCardComponents.createPhysicsCache>
+      | undefined;
+    let particleWorldSource = '';
+    let particleWorldTimeOffset = 0;
+    let particleWorldSampler: ParticleWorldSampler | null = null;
+    let sampleParticleWorld: (seconds: number) => ParticleWorldPose = () => ({
+      angle: [0, 0],
+      root: [0, 0, 0, 1, 1],
+    });
+    let particleBirthSource = '',
+      particleBirthAction: CharacterAction | undefined;
+    function sampleParticleBirth(seconds: number, boneId: string) {
+      if (!doc || !particleBirthAction) return undefined;
+      if (doc.cosmeticPreview?.motion === false)
+        return importedCardCharacterAnimation.rest(doc)?.bones.get(boneId);
+      const key = `${boneId}:${seconds}`;
+      if (!particleBirthCache.has(key)) {
+        const bone = runtime
+          .sampleCharacter(
+            doc,
+            {
+              id: particleBirthAction.id,
+              name: particleBirthAction.name,
+              duration: particleBirthAction.duration,
+              boneTracks: particleBirthAction.boneTracks,
+              ikTracks: particleBirthAction.ikTracks,
+            },
+            seconds,
+            { seek: true },
+          )
+          ?.bones.get(boneId);
+        if (!bone) return undefined;
+        if (particleBirthCache.size >= 512)
+          particleBirthCache.delete(particleBirthCache.keys().next().value!);
+        particleBirthCache.set(key, {
+          matrix: bone.matrix,
+          opacity: bone.opacity,
+        });
+      }
+      return particleBirthCache.get(key);
+    }
     function sampleCharacterCached(
       action: CharacterAction | undefined,
       seconds: number,
@@ -743,6 +854,7 @@ export const moduleApi = (() => {
           style.corner,
           style.depth,
           style.bevel,
+          style.contour,
         ]),
         auraKey = JSON.stringify([
           key,
@@ -751,6 +863,7 @@ export const moduleApi = (() => {
         ]);
       if (key === frameGeometryKey && auraKey === frameAuraKey) return;
       frameGeometry = frames.geometry(style);
+      contourData = frames.contourUniforms(style);
       if (key !== frameGeometryKey) {
         mesh('frame-rim', frameGeometry.rim);
         mesh('frame-rear', frameGeometry.rear);
@@ -1008,6 +1121,11 @@ export const moduleApi = (() => {
       const texture = textures.get(id) || (textures.get('background') ?? null);
       if (!texture && frame === 0) return;
       attributes(m);
+      gl.uniform4f(
+        u._cardscapeSourceAlphaBounds,
+        ...(sourceBounds.get(textures.has(id) ? id : 'background') ||
+          SourceAlphaBounds.full),
+      );
       const pl = skin
           ? {
               ...runtime.placement(viewDocument, layer),
@@ -1329,6 +1447,7 @@ export const moduleApi = (() => {
         detail,
       });
       if (kind === 'particles') {
+        ambientParticleCount = result.particles || 0;
         canvas.dataset.particleCount = String(result.particles || 0);
         canvas.dataset.emitterState = result.emitterState || '';
         Object.assign(canvas.dataset, result.particleStats || {});
@@ -1365,6 +1484,7 @@ export const moduleApi = (() => {
       particleBuffer = required(gl.createBuffer()),
       particleSamples = new Float32Array(256 * 7),
       particleKinds = new Float32Array(256),
+      particleWorldFrames = new Float64Array(256 * 6),
       particleVertices = new Float32Array(256 * 6 * B.stride);
     const pv = shader(gl.VERTEX_SHADER, B.vertex),
       pf = shader(gl.FRAGMENT_SHADER, B.fragment);
@@ -1406,34 +1526,51 @@ export const moduleApi = (() => {
       particleVertices.byteLength,
       gl.DYNAMIC_DRAW,
     );
-    let particleSprite: {
-        src: string;
-        texture: WebGLTexture | null;
-        state: string;
-      } = { src: '', texture: null, state: 'empty' },
-      spriteTicket = 0;
+    type ParticleSprite = {
+      src: string;
+      texture: WebGLTexture | null;
+      state: string;
+    };
+    let particleSprite: ParticleSprite = {
+      src: '',
+      texture: null,
+      state: 'empty',
+    };
+    const particleSprites = new Map<string, ParticleSprite>();
     function spriteTexture(
       config: ReturnType<typeof importedCardComponents.particles>,
     ) {
       if (config.visual !== 'sprite') return true;
-      if (config.sprite === particleSprite.src)
-        return particleSprite.state === 'ready';
-      const token = ++spriteTicket;
-      if (particleSprite.texture) gl.deleteTexture(particleSprite.texture);
-      particleSprite = { src: config.sprite, texture: null, state: 'loading' };
+      const cached = particleSprites.get(config.sprite);
+      if (cached) {
+        particleSprite = cached;
+        return cached.state === 'ready';
+      }
+      const entry: ParticleSprite = {
+        src: config.sprite,
+        texture: null,
+        state: 'loading',
+      };
+      particleSprite = entry;
+      particleSprites.set(config.sprite, entry);
+      if (particleSprites.size > 64) {
+        const [key, old] = required(particleSprites.entries().next().value);
+        if (old.texture) gl.deleteTexture(old.texture);
+        particleSprites.delete(key);
+      }
       const im = new Image();
       im.onload = () => {
-        if (disposed || token !== spriteTicket) return;
+        if (disposed || particleSprites.get(config.sprite) !== entry) return;
         if (im.width > 512 || im.height > 512) {
-          particleSprite.state = 'error';
+          entry.state = 'error';
           draw();
           return;
         }
         const activeUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
         gl.activeTexture(gl.TEXTURE0);
         const binding = gl.getParameter(gl.TEXTURE_BINDING_2D);
-        particleSprite.texture = required(gl.createTexture());
-        gl.bindTexture(gl.TEXTURE_2D, particleSprite.texture);
+        entry.texture = required(gl.createTexture());
+        gl.bindTexture(gl.TEXTURE_2D, entry.texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -1441,18 +1578,23 @@ export const moduleApi = (() => {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, im);
         gl.bindTexture(gl.TEXTURE_2D, binding);
         gl.activeTexture(activeUnit);
-        particleSprite.state = 'ready';
+        entry.state = 'ready';
         draw();
       };
       im.onerror = () => {
-        if (disposed || token !== spriteTicket) return;
-        particleSprite.state = 'error';
+        if (disposed || particleSprites.get(config.sprite) !== entry) return;
+        entry.state = 'error';
         draw();
       };
       im.src = config.sprite;
       return false;
     }
     let particleCachedCount = 0;
+    let ambientParticleCount = 0;
+    let actionParticleGroups: Array<{
+      event: ActionParticleEvent;
+      age: number;
+    }> = [];
     function drawParticles(
       facing: number,
       tilt: number,
@@ -1460,6 +1602,7 @@ export const moduleApi = (() => {
       w: number,
       h: number,
       cosmicFront = false,
+      group?: { event: ActionParticleEvent; age: number },
     ) {
       const viewDocument = doc;
       if (!viewDocument) return;
@@ -1469,37 +1612,85 @@ export const moduleApi = (() => {
         canvas.dataset.particleDrawCalls = '0';
         return;
       }
-      if (viewDocument.componentScenes?.particles) return;
+      if (viewDocument.componentScenes?.particles && !group) return;
       const started = performance.now(),
         config = importedCardComponents.particles(
-          external?.particleConfig || viewDocument.particles,
+          (group?.event.trail
+            ? { ...group.event.particles, visual: 'streak', palette: 'solid' }
+            : group?.event.particles) ||
+            external?.particleConfig ||
+            viewDocument.particles,
         ),
         context = external?.emitterContext || emitterContext || viewDocument,
         resolved = importedCardComponents.resolveEmitter(config, context),
-        limit = importedCardCosmetics.budget(
-          viewDocument.cosmetics?.quality,
-          external?.visibleCards,
-        ).particles,
-        count = cosmicFront
-          ? particleCachedCount
-          : effectsEnabled && spriteTexture(config)
-            ? importedCardComponents.sampleCompositionInto(
-                config,
-                time,
-                context,
+        limit = Math.floor(
+          importedCardCosmetics.budget(
+            viewDocument.cosmetics?.quality,
+            external?.visibleCards,
+          ).particles /
+            (1 + actionParticleGroups.length),
+        ),
+        count = group
+          ? effectsEnabled && spriteTexture(config)
+            ? importedCardComponents.sampleEventInto(
+                group.event,
+                group.age,
+                viewDocument,
                 facing,
+                characterPose ||
+                  (group.event.boneId
+                    ? importedCardCharacterAnimation.rest(viewDocument)
+                    : null),
                 particleSamples,
                 particleKinds,
                 limit,
-                external?.particleRevealTime ?? time - particleRevealStart,
+                (birth, boneId) =>
+                  sampleParticleBirth(
+                    group.event.at * (particleBirthAction?.duration || 1) +
+                      birth,
+                    boneId,
+                  ),
+                (birth) =>
+                  sampleParticleWorld(
+                    group.event.at * (particleBirthAction?.duration || 1) +
+                      birth,
+                  ),
+                cosmicFront && group.event.simulationSpace === 'world'
+                  ? resolved.reverse
+                    ? -0.2
+                    : 0.2
+                  : 0,
+                cameraDistance(),
+                particleWorldFrames,
+                group.event.physics
+                  ? (particlePhysicsCache ||=
+                      importedCardComponents.createPhysicsCache())
+                  : undefined,
               )
-            : 0;
-      if (!cosmicFront) particleCachedCount = count;
+            : 0
+          : cosmicFront
+            ? particleCachedCount
+            : effectsEnabled && spriteTexture(config)
+              ? importedCardComponents.sampleCompositionInto(
+                  config,
+                  time,
+                  context,
+                  facing,
+                  particleSamples,
+                  particleKinds,
+                  limit,
+                  external?.particleRevealTime ?? time - particleRevealStart,
+                )
+              : 0;
+      const ribbon = !!group?.event.trail,
+        quads = ribbon ? Math.max(0, count - 1) : count;
+      if (!cosmicFront && !group) particleCachedCount = count;
+      if (!cosmicFront && !group) ambientParticleCount = count;
       let revealCount = 0;
       for (let i = 0; i < count; i++) if (particleKinds[i] >= 0) revealCount++;
       Object.assign(canvas.dataset, {
         emitterState: resolved.ok ? 'ready' : resolved.reason,
-        particleCount: String(count),
+        particleCount: String(quads),
         particleRevealTime: String(
           external?.particleRevealTime ?? time - particleRevealStart,
         ),
@@ -1507,7 +1698,7 @@ export const moduleApi = (() => {
         particleVisual: config.visual,
         particlePalette: config.palette,
         particleDrawCalls: count ? (cosmicFront ? '2' : '1') : '0',
-        particleUploadBytes: String(count * 6 * B.stride * 4),
+        particleUploadBytes: String(quads * 6 * B.stride * 4),
         particleBufferBytes: String(particleVertices.byteLength),
         particleBudget: String(limit),
         particleSpriteState:
@@ -1521,10 +1712,46 @@ export const moduleApi = (() => {
         particleRadius: String(config.radius),
         particleOpacity: String(config.opacity),
       });
+      if (group && !cosmicFront)
+        canvas.dataset.particleEventParticles = String(
+          Number(canvas.dataset.particleEventParticles || 0) + quads,
+        );
+      if (
+        group &&
+        !cosmicFront &&
+        canvas.dataset.particleDiagnostics === 'true'
+      ) {
+        const samples = JSON.parse(
+          canvas.dataset.particleEventSamples || '{}',
+        ) as Record<string, number[]>;
+        samples[group.event.id] = Array.from(
+          particleSamples.subarray(0, count * 7),
+        );
+        canvas.dataset.particleEventSamples = JSON.stringify(samples);
+      }
       if (!count) return;
-      const length = cosmicFront
-        ? count * 6 * B.stride
-        : B.pack(particleSamples, count, particleVertices, particleKinds);
+      const length =
+        cosmicFront && !group
+          ? count * 6 * B.stride
+          : ribbon
+            ? B.packTrail(
+                particleSamples,
+                count,
+                particleVertices,
+                group?.event.simulationSpace === 'world'
+                  ? particleWorldFrames
+                  : undefined,
+              )
+            : B.pack(particleSamples, count, particleVertices, particleKinds);
+      if (ribbon && canvas.dataset.particleDiagnostics === 'true') {
+        const meshes = JSON.parse(
+          canvas.dataset.particleTrailVertices || '{}',
+        ) as Record<string, number[]>;
+        meshes[group!.event.id] = Array.from(
+          particleVertices.subarray(0, length),
+        );
+        canvas.dataset.particleTrailVertices = JSON.stringify(meshes);
+      }
       for (let i = 0; i < maxAttributes; i++) gl.disableVertexAttribArray(i);
       gl.useProgram(particleProgram);
       gl.depthMask(false);
@@ -1535,7 +1762,7 @@ export const moduleApi = (() => {
         gl.ONE_MINUS_SRC_ALPHA,
       );
       gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer);
-      if (!cosmicFront)
+      if (!cosmicFront || group)
         gl.bufferSubData(
           gl.ARRAY_BUFFER,
           0,
@@ -1556,26 +1783,27 @@ export const moduleApi = (() => {
           offset,
         );
       }
-      gl.uniform2f(pu.angle, facing, tilt);
+      const world = group?.event.simulationSpace === 'world';
+      gl.uniform2f(pu.angle, world ? 0 : facing, world ? 0 : tilt);
       gl.uniform4f(
         pu.rootTransform,
-        act.x / 1024,
-        -act.y / 1024,
-        act.z,
-        act.scale,
+        world ? 0 : act.x / 1024,
+        world ? 0 : -act.y / 1024,
+        world ? 0 : act.z,
+        world ? 1 : act.scale,
       );
       gl.uniform1f(pu.cameraDistance, cameraDistance());
       gl.uniform1f(pu.aspect, w / h);
       gl.uniform3fv(pu.color, frames.rgb(config.color));
-      gl.uniform1f(pu.rootOpacity, act.opacity);
+      gl.uniform1f(pu.rootOpacity, world ? 1 : act.opacity);
       gl.uniform1f(pu.visual, B.visuals.indexOf(config.visual));
       gl.uniform1f(pu.rainbow, config.palette === 'rainbow' ? 1 : 0);
       gl.uniform1f(pu.stretch, config.stretch);
-      gl.uniform1f(pu.particleTime, time);
+      gl.uniform1f(pu.particleTime, group?.age ?? time);
       gl.uniform1f(pu.particleSpeed, config.speed);
       gl.uniform1f(
         pu.layerOffset,
-        cosmicFront ? (resolved.reverse ? -0.2 : 0.2) : 0,
+        cosmicFront && !world ? (resolved.reverse ? -0.2 : 0.2) : 0,
       );
       gl.uniform1f(
         pu.cosmicPass,
@@ -1592,8 +1820,8 @@ export const moduleApi = (() => {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, particleSprite.texture);
       }
-      gl.drawArrays(gl.TRIANGLES, 0, count * 6);
-      trianglesDrawn += count * 2;
+      gl.drawArrays(gl.TRIANGLES, 0, quads * 6);
+      trianglesDrawn += quads * 2;
       for (const loc of [pa, ps, pc] as const) gl.disableVertexAttribArray(loc);
       gl.depthMask(true);
       gl.blendFuncSeparate(
@@ -1668,7 +1896,7 @@ export const moduleApi = (() => {
       );
       gl.useProgram(program);
       const elapsed = playing ? Math.max(0, time - playing.start) : time,
-        sampled = runtime.action(
+        targetSample = runtime.action(
           playing?.draft
             ? {
                 ...viewDocument,
@@ -1681,6 +1909,40 @@ export const moduleApi = (() => {
           elapsed,
           { seek: !!playing?.paused },
         ),
+        targetAction =
+          playing?.draft ||
+          viewDocument.actions.find((a) => a.id === targetSample.id),
+        fade = actionTransition
+          ? Math.min(1, actionTransition.seconds / actionTransition.duration)
+          : 1,
+        effectiveAction =
+          actionTransition && targetAction
+            ? runtime.blendActions(
+                actionTransition.from,
+                runtime.snapshotAction(
+                  viewDocument,
+                  targetAction,
+                  elapsed,
+                  !!playing?.paused,
+                ),
+                fade * fade * (3 - 2 * fade),
+              )
+            : targetAction,
+        effectiveSeconds = actionTransition ? 0 : elapsed,
+        sampled =
+          actionTransition && effectiveAction
+            ? {
+                ...runtime.action(
+                  { actions: [effectiveAction] },
+                  effectiveAction.id,
+                  0,
+                ),
+                id: targetSample.id,
+                event: targetSample.event,
+                progress: targetSample.progress,
+                done: targetSample.done,
+              }
+            : targetSample,
         scan = inspection
           ? importedCardInspection.sample(inspection, inspectionTime)
           : null,
@@ -1700,12 +1962,25 @@ export const moduleApi = (() => {
       characterPose =
         effectsEnabled && viewDocument.cosmeticPreview?.motion !== false
           ? sampleCharacterCached(
-              playing?.draft ||
-                viewDocument.actions.find((a) => a.id === sampled.id),
-              elapsed,
+              playing?.draft || effectiveAction,
+              effectiveSeconds,
               !!playing?.paused,
             )
           : null;
+      actionAudio.sync(
+        playing ? targetAction || null : null,
+        elapsed,
+        !!playing && !playing.paused && effectsEnabled && !document.hidden,
+      );
+      renderedAction = effectiveAction
+        ? {
+            clip: effectiveAction,
+            seconds: effectiveSeconds,
+            seek: !!playing?.paused,
+          }
+        : null;
+      canvas.dataset.actionTransition = String(actionTransition ? fade : 1);
+      if (fade >= 1) actionTransition = null;
       canvas.dataset.characterPose = JSON.stringify(
         characterPose
           ? [...characterPose.bones].map(([id, p]) => ({
@@ -1715,7 +1990,7 @@ export const moduleApi = (() => {
             }))
           : [],
       );
-      if (playing && act.done && !playing.paused) {
+      if (playing && act.done && !playing.paused && fade >= 1) {
         if (act.event === 'enter') playing.completed = true;
         else {
           playing.paused = true;
@@ -1764,6 +2039,99 @@ export const moduleApi = (() => {
         root: [act.x / 1024, -act.y / 1024, act.z, act.scale],
       };
       updateDetail(zoom, act.scale, act.z);
+      actionParticleGroups = importedCardComponents.actionParticleEvents(
+        targetAction,
+        targetSample.progress,
+      );
+      particleBirthAction = targetAction;
+      if (
+        targetAction?.particleEvents?.some((e) => e.simulationSpace === 'world')
+      ) {
+        const source = JSON.stringify([
+          viewDocument.id,
+          targetAction.id,
+          targetAction.duration,
+          targetAction.tracks,
+        ]);
+        if (source !== particleWorldSource) {
+          particleWorldSource = source;
+          particleWorldHistory.clear();
+        }
+        const r = external?.root || [0, 0, 0, 1, 1];
+        const base: ParticleWorldPose = {
+          angle: [facing - act.rotation, tilt - act.pitch],
+          root: scan
+            ? [act.x / 1024, -act.y / 1024, act.z, act.scale, act.opacity]
+            : [r[0], r[1], r[2], r[3], r[4] ?? 1],
+        };
+        particleWorldHistory.record(elapsed + particleWorldTimeOffset, base);
+        const cycle =
+          elapsed +
+          particleWorldTimeOffset -
+          targetSample.progress * targetAction.duration;
+        const sampler = external?.sampleParticleWorld || particleWorldSampler;
+        sampleParticleWorld = (seconds) => {
+          const at = cycle + seconds;
+          const placement = particleWorldHistory.sample(at) || base;
+          const sample = scan
+            ? { x: 0, y: 0, z: 0, scale: 1, opacity: 1, rotation: 0, pitch: 0 }
+            : runtime.action(
+                { actions: [targetAction] },
+                targetAction.id,
+                seconds,
+                { seek: true },
+              );
+          const fallback: ParticleWorldPose = {
+            angle: [
+              placement.angle[0] + sample.rotation,
+              placement.angle[1] + sample.pitch,
+            ],
+            root: [
+              placement.root[0] + (sample.x / 1024) * placement.root[3],
+              placement.root[1] - (sample.y / 1024) * placement.root[3],
+              placement.root[2] + sample.z * placement.root[3],
+              placement.root[3] * sample.scale,
+              placement.root[4] * sample.opacity,
+            ],
+          };
+          return sampler ? sampler(targetAction.id, at, fallback) : fallback;
+        };
+        canvas.dataset.particleWorldHistory = String(particleWorldHistory.size);
+      }
+      if (
+        actionParticleGroups.some(
+          (g) =>
+            g.event.simulationSpace === 'card' ||
+            g.event.simulationSpace === 'world' ||
+            g.event.trail,
+        )
+      ) {
+        const source = JSON.stringify([
+          targetAction?.duration,
+          targetAction?.boneTracks,
+          targetAction?.ikTracks,
+          viewDocument.characterRig?.bones,
+          viewDocument.characterRig?.constraints,
+        ]);
+        if (source !== particleBirthSource) {
+          particleBirthSource = source;
+          particleBirthCache.clear();
+        }
+      }
+      ambientParticleCount = 0;
+      canvas.dataset.particleEventCount = String(actionParticleGroups.length);
+      canvas.dataset.particleEventParticles = '0';
+      if (canvas.dataset.particleDiagnostics === 'true') {
+        canvas.dataset.particleEventSamples = '{}';
+        canvas.dataset.particleTrailVertices = '{}';
+      }
+      canvas.dataset.particleEvents = JSON.stringify(
+        actionParticleGroups.map((g) => ({ id: g.event.id, age: g.age })),
+      );
+      const eventInFront = (group: { event: ActionParticleEvent }) =>
+        ['front', 'surface'].includes(group.event.particles.placement);
+      for (const group of actionParticleGroups.filter((g) => !eventInFront(g)))
+        drawParticles(facing, tilt, act, w, h, false, group);
       if (external?.cosmicFront) {
         drawParticles(facing, tilt, act, w, h, true);
         return;
@@ -1891,6 +2259,9 @@ export const moduleApi = (() => {
           (viewDocument.cosmeticPreview?.motion === false ? 0 : act.bend),
       );
       const style = frames.resolve(viewDocument);
+      gl.uniform2fv(u.contourCounts, contourData.counts);
+      contourFieldRenderer.bind(style, u);
+      if (style.contour) gl.uniform4fv(u['contourEdges[0]'], contourData.edges);
       gl.uniform3fv(u.frameColor, frames.rgb(style.color));
       gl.uniform3fv(u.frameAccent, frames.rgb(style.accent));
       gl.uniform1f(
@@ -1920,7 +2291,7 @@ export const moduleApi = (() => {
         style.width / 1024,
         style.corner / 1024,
         style.depth / 1024,
-        Math.min(style.bevel, style.width * 0.4) / 1024,
+        frames.bevel(style) / 1024,
       );
       gl.uniform1f(u.windSpeed, viewDocument.deformation.speed);
       gl.uniform1i(u.tex, 0);
@@ -1931,18 +2302,23 @@ export const moduleApi = (() => {
       gl.uniform1i(u.customMaskTex, 3);
       gl.uniform1i(u.regionTex, 6);
       const front = Math.cos(facing) * Math.cos(tilt) > 0.03;
-      const layers = importedCardStats
-          .paintOrder(viewDocument.layers)
-          .filter(
-            (l) =>
-              l.visible &&
-              (!importedCardExportProfile ||
-                importedCardExportProfile.visible(
-                  exportPolicy(),
-                  l.id,
-                  detail.level,
-                )),
-          ),
+      const baseLayers = importedCardStats.paintOrder(viewDocument.layers);
+      const ordered = runtime.orderedLayers(
+        baseLayers,
+        effectiveAction,
+        sampled.progress,
+      );
+      canvas.dataset.drawOrder = JSON.stringify(ordered.map((l) => l.id));
+      const layers = ordered.filter(
+          (l) =>
+            l.visible &&
+            (!importedCardExportProfile ||
+              importedCardExportProfile.visible(
+                exportPolicy(),
+                l.id,
+                detail.level,
+              )),
+        ),
         frameLayer = layers.find((l) => l.kind === 'frame');
       if (!front) {
         if (viewDocument.backScene && backRenderer) {
@@ -2183,6 +2559,21 @@ export const moduleApi = (() => {
           );
         else drawParticles(facing, tilt, act, w, h, true);
       }
+      for (const group of actionParticleGroups) {
+        if (eventInFront(group))
+          drawParticles(facing, tilt, act, w, h, false, group);
+        else if (
+          !group.event.trail &&
+          group.event.particles.visual === 'cosmic'
+        )
+          drawParticles(facing, tilt, act, w, h, true, group);
+      }
+      canvas.dataset.particleTotalCount = String(
+        ambientParticleCount +
+          Number(canvas.dataset.particleEventParticles || 0),
+      );
+      if (actionParticleGroups.length)
+        canvas.dataset.particleCount = canvas.dataset.particleTotalCount;
       // Diagnostic serialization and GPU error queries need not run at animation frequency.
       if (!canAnimate() || performance.now() - lastDiagnosticsAt >= 250) {
         lastDiagnosticsAt = performance.now();
@@ -2329,7 +2720,13 @@ export const moduleApi = (() => {
           action: act.id,
           actionProgress: act.progress.toFixed(3),
           slotCount: String(viewDocument.slots.length),
-          glError: String(gl.getError()),
+          // An embedded surface is driven by a shared scene, so canAnimate()
+          // is always false. Querying after each card serializes CPU and GPU.
+          // Scene hosts/QA can opt in; never label an unchecked draw as clean.
+          glError:
+            !embedded || canvas.dataset.gpuDiagnostics === 'true'
+              ? String(gl.getError())
+              : 'unchecked',
           effectsEnabled: String(effectsEnabled),
           viewportActive: String(active),
           actionSeconds: (playing
@@ -2394,6 +2791,7 @@ export const moduleApi = (() => {
       );
     }
     function setPlaybackPaused(value: boolean) {
+      if (value) actionAudio.stop();
       const paused = !!value;
       if (doc) doc.effects.paused = paused;
       if (sourceDoc?.effects) sourceDoc.effects.paused = paused;
@@ -2401,8 +2799,12 @@ export const moduleApi = (() => {
         if (paused && !playing.paused) {
           const action =
             playing.draft || doc?.actions.find((a) => a.id === playing?.id);
-          if (action?.loop)
+          if (action?.loop) {
+            particleWorldTimeOffset +=
+              Math.floor((time - playing.start) / action.duration) *
+              action.duration;
             playing.start = time - ((time - playing.start) % action.duration);
+          }
         }
         playing.paused = paused;
       }
@@ -2439,8 +2841,10 @@ export const moduleApi = (() => {
           effectsEnabled &&
           (playing || hasDynamics()) &&
           !(playing ? playing.paused : doc?.effects.paused)
-        )
+        ) {
           time += delta;
+          if (actionTransition) actionTransition.seconds += delta;
+        }
         last = now;
         draw();
       } else if (canAnimate()) raf = requestAnimationFrame(tick);
@@ -2458,6 +2862,12 @@ export const moduleApi = (() => {
         emit('atelier-inspection-stop');
       }
     }
+    let resizeObserver: ResizeObserver | null = null;
+    const visibilityChanged = () => {
+      if (document.hidden) actionAudio.stop();
+      last = 0;
+      draw();
+    };
     if (!embedded) {
       canvas.onpointerdown = (e) => {
         if (e.button !== 0) return;
@@ -2504,11 +2914,9 @@ export const moduleApi = (() => {
       };
       canvas.onpointerup = () => (drag = null);
       canvas.onpointercancel = () => (drag = null);
-      new ResizeObserver(() => draw()).observe(canvas);
-      document.addEventListener('visibilitychange', () => {
-        last = 0;
-        draw();
-      });
+      resizeObserver = new ResizeObserver(() => draw());
+      resizeObserver.observe(canvas);
+      document.addEventListener('visibilitychange', visibilityChanged);
     }
     const base: SurfaceBase = {
       setTextureDetail(value) {
@@ -2577,6 +2985,17 @@ export const moduleApi = (() => {
           : legacy.getView?.() || { yaw: 0, pitch: 0, time: 0 };
       },
       setDocument(d) {
+        if (doc?.id !== d.id) actionAudio.reset();
+        if (disposed) throw Error('Preview is disposed');
+        if (
+          doc?.id !== d.id ||
+          doc?.revision !== d.revision ||
+          !importedCardPreviewUpdate.equal(doc?.actions, d.actions) ||
+          !importedCardPreviewUpdate.equal(doc?.characterRig, d.characterRig)
+        ) {
+          actionTransition = null;
+          renderedAction = null;
+        }
         characterSample = null;
         for (const [id, m] of meshes)
           if (id.startsWith('character-skin:')) {
@@ -2660,12 +3079,14 @@ export const moduleApi = (() => {
         draw();
       },
       addImage(layer, image) {
+        if (disposed) return;
         ensureOwnership(layer);
         upload(layer.id, image);
         if (!generic) legacy.addImage?.(layer, image);
         draw();
       },
       setText(layer, image) {
+        if (disposed) return;
         upload(layer.id, image);
         if (layer.titleArt) {
           const c = document.createElement('canvas');
@@ -2694,6 +3115,7 @@ export const moduleApi = (() => {
         draw();
       },
       setRegion(value) {
+        if (disposed) return;
         const next = value || { mode: 'none' },
           key = JSON.stringify([
             next.mode,
@@ -2719,6 +3141,7 @@ export const moduleApi = (() => {
         if (key !== previous) draw();
       },
       updateMask(id, image, rect, source) {
+        if (disposed) return;
         characterMaskVersion++;
         maskData.set(id, image);
         if (region.mode === 'mask' && region.maskId === id) {
@@ -2750,7 +3173,13 @@ export const moduleApi = (() => {
         } else legacy.updateMask?.(id, image);
       },
       resetAssets() {
+        if (disposed) return;
         count('resets');
+        actionAudio.reset();
+        contourFieldRenderer.dispose();
+        particleBirthCache.clear();
+        particleWorldHistory.clear();
+        particlePhysicsCache?.clear();
         clearSkinMeshes();
         backRenderer?.reset();
         for (const renderer of componentRenderers.values()) renderer.dispose();
@@ -2760,6 +3189,7 @@ export const moduleApi = (() => {
         regionVersion = null;
         emit('atelier-preview-assets-reset');
         for (const id of textures.keys()) releaseTexture(id);
+        sourceBounds.clear();
         textureImages.clear();
         textureSizes.clear();
         maskTextureSizes.clear();
@@ -2774,15 +3204,18 @@ export const moduleApi = (() => {
         upload('mask-default', black);
       },
       compileSources(vertexSource, fragmentSource) {
+        if (disposed) throw Error('Preview is disposed');
+        const finish = frames.finishes.indexOf(frames.resolve(doc).finish);
         return compile(
           required(doc).shader,
           vertexSource,
-          fragmentSource,
+          shaderVariants.frameFragment(fragmentSource, finish),
           undefined,
           false,
         );
       },
       compileShader(config, document) {
+        if (disposed) throw Error('Preview is disposed');
         const next = { ...runtime.defaults.shader, ...config };
         const finish = document
           ? frames.resolve(
@@ -2799,6 +3232,7 @@ export const moduleApi = (() => {
           : compile(next, undefined, undefined, finish);
       },
       compileGeometry(body) {
+        if (disposed) throw Error('Preview is disposed');
         const result = compile({
           ...runtime.defaults.shader,
           ...doc?.shader,
@@ -2808,6 +3242,32 @@ export const moduleApi = (() => {
         return result;
       },
       playAction(id, seconds = 0, paused = false, draft = null) {
+        if (disposed) return;
+        actionAudio.stop();
+        particleWorldTimeOffset = 0;
+        if (playing?.id !== id || (!paused && seconds === 0))
+          particleWorldHistory.clear();
+        const target = draft || doc?.actions.find((a) => a.id === id),
+          duration = target?.transitionDuration || 0;
+        actionTransition =
+          doc &&
+          renderedAction &&
+          playing?.id !== id &&
+          !paused &&
+          !draft &&
+          seconds === 0 &&
+          duration > 0
+            ? {
+                from: runtime.snapshotAction(
+                  doc,
+                  renderedAction.clip,
+                  renderedAction.seconds,
+                  renderedAction.seek,
+                ),
+                duration,
+                seconds: 0,
+              }
+            : null;
         poseTween = null;
         clearInspection();
         const base = playing?.id === id ? playing : { yaw, pitch };
@@ -2827,6 +3287,8 @@ export const moduleApi = (() => {
         draw();
       },
       stopAction() {
+        actionAudio.stop();
+        actionTransition = null;
         if (playing) {
           yaw = playing.yaw;
           pitch = playing.pitch;
@@ -2834,7 +3296,21 @@ export const moduleApi = (() => {
         playing = null;
         draw();
       },
+      async setAudioEnabled(value) {
+        const enabled = await actionAudio.enable(value);
+        draw();
+        return enabled;
+      },
+      getAudioState() {
+        return actionAudio.state();
+      },
+      setParticleWorldSampler(sampler) {
+        if (disposed) return;
+        particleWorldSampler = sampler;
+        draw();
+      },
       setActive(value) {
+        if (!value) actionAudio.stop();
         active = !!value && document.body.dataset.appMode === 'editor';
         if (raf) {
           cancelAnimationFrame(raf);
@@ -2846,6 +3322,7 @@ export const moduleApi = (() => {
         if (active) draw();
       },
       setEffectsEnabled(value) {
+        if (!value) actionAudio.stop();
         effectsEnabled = !!value;
         if (raf) {
           cancelAnimationFrame(raf);
@@ -2926,6 +3403,7 @@ export const moduleApi = (() => {
         return paused;
       },
       setTime(t) {
+        actionTransition = null;
         time = Math.max(0, t);
         if (generic) draw();
         else legacy.setTime?.(t);
@@ -2979,6 +3457,7 @@ export const moduleApi = (() => {
         if (generic) refreshFrame();
       },
       setEmitterContext: (value) => {
+        if (disposed) return;
         emitterContext = value;
       },
       drawExternal: (options) => {
@@ -3025,13 +3504,32 @@ export const moduleApi = (() => {
       dispose: () => {
         if (disposed) return;
         disposed = true;
-        spriteTicket++;
-        if (particleSprite.texture) gl.deleteTexture(particleSprite.texture);
+        void actionAudio.dispose();
+        particleWorldSampler = null;
+        particlePhysicsCache?.clear();
+        sampleParticleWorld = () => ({ angle: [0, 0], root: [0, 0, 0, 1, 1] });
+        if (resizeObserver) {
+          resizeObserver.disconnect?.();
+          resizeObserver = null;
+          document.removeEventListener?.('visibilitychange', visibilityChanged);
+          canvas.onpointerdown =
+            canvas.onpointermove =
+            canvas.onpointerup =
+            canvas.onpointercancel =
+              null;
+        }
+        contourFieldRenderer.dispose();
+        particleBirthCache.clear();
+        particleWorldHistory.clear();
+        for (const entry of particleSprites.values())
+          if (entry.texture) gl.deleteTexture(entry.texture);
+        particleSprites.clear();
         if (raf) cancelAnimationFrame(raf);
         backRenderer?.dispose();
         for (const renderer of componentRenderers.values()) renderer.dispose();
         componentRenderers.clear();
         for (const id of textures.keys()) releaseTexture(id);
+        sourceBounds.clear();
         textureImages.clear();
         for (const m of meshes.values())
           for (const k of [
@@ -3044,9 +3542,26 @@ export const moduleApi = (() => {
             'lines',
           ] as const)
             gl.deleteBuffer(m[k]);
+        meshes.clear();
         for (const c of joinBuffers.values())
           for (const k of ['buffer', 'fx', 'guard'] as const)
             if (c[k]) gl.deleteBuffer(c[k]);
+        joinBuffers.clear();
+        maskData.clear();
+        maskTextureSizes.clear();
+        textureSizes.clear();
+        ownershipData.clear();
+        titleBounds.clear();
+        rigidityCache = null;
+        customMaskImage = null;
+        regionImage = null;
+        characterSample = null;
+        frameGeometry = null;
+        playing = null;
+        actionTransition = null;
+        renderedAction = null;
+        doc = sourceDoc = null;
+        emitterContext = null;
         for (const p of new Set([
           program,
           ...[...programs.values()].map((entry) => entry.program),

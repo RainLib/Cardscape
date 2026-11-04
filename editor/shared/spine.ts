@@ -65,6 +65,14 @@ export interface SpineFrame {
   curve?: number[] | 'stepped' | 'linear';
 }
 export interface SpineAnimation {
+  drawOrder?: Array<{
+    time?: number;
+    offsets?: Array<{ slot: string; offset: number }>;
+  }>;
+  draworder?: Array<{
+    time?: number;
+    offsets?: Array<{ slot: string; offset: number }>;
+  }>;
   bones?: Record<string, Record<string, SpineFrame[]>>;
   ik?: Record<string, SpineFrame[]>;
   slots?: Record<string, Record<string, SpineFrame[]>>;

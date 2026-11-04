@@ -2,6 +2,32 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {createServices}=require('../dist/electron/services.cjs'),W=require('../dist/renderer/workshop-model.js'),P=require('../dist/renderer/export-profile.js'),Remote=require('../dist/renderer/remote-assets.js'),{fixture,png}=require('./fixtures/character-animation.cjs');
 async function exported(colour=221){const temp=await fs.mkdtemp(path.join(os.tmpdir(),'card-remote-')),s=createServices({runtimeDir:temp});try{const d=fixture();d.exportSettings=P.config({preset:'mobile-list',remoteDelivery:true});let w=W.create(d,'remote-workshop','first');w=W.duplicate(w,'second');w.cards[1].document.layers.find(l=>l.id==='body').src=png([50,65,25,65],[colour,33,55,255]);const outputs=Object.fromEntries(w.cards.map(c=>[c.id,{front:d.layers[0].src}]));const result=await s.invoke('export-workshop',{workshop:await W.encode(w),outputs});return {temp,root:path.join(result.directory,'remote'),catalog:JSON.parse(await fs.readFile(path.join(result.directory,'remote/catalog.json')))};}catch(e){await fs.rm(temp,{recursive:true,force:true});throw e;}finally{s.close();}}
 function network(root){const calls=[],faults=new Map();let current=root,online=true,active=0,max=0;return {calls,faults,get max(){return max;},set root(value){current=value;},set online(v){online=v;},async fetch(url){calls.push(url);if(!online)throw Error('offline');active++;max=Math.max(max,active);await new Promise(resolve=>setImmediate(resolve));try{const file=new URL(url).pathname.slice(1);if(faults.has(file)){const kind=faults.get(file);faults.delete(file);return kind==='http'?new Response('retry',{status:503}):new Response('corrupt');}return new Response(await fs.readFile(path.join(current,file)));}finally{active--;}}};}
+
+test('remote Godot cards and independently requested components include finish variants and their complete dependencies',async()=>{
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'card-remote-variants-')),services=createServices({runtimeDir:temp});
+ try{
+  const d=fixture(),F=require('../dist/renderer/frame-model.js');
+  d.frameStyle={...F.defaults};d.exportSettings=P.config({preset:'mobile-list',remoteDelivery:true});
+  let w=W.create(d,'remote-variants','card');
+  const published=W.publish(w,{kind:'frame',id:'frame',name:'Shared frame',value:{schema:'card-frame/1',style:F.resolve(d),document:structuredClone(d)}});
+  w=W.bind(published.workshop,'frame',published.resourceId,published.version,['card']);
+  const result=await services.invoke('export-workshop',{workshop:await W.encode(w),outputs:{card:{front:d.layers[0].src}}});
+  const root=path.join(result.directory,'remote'),catalog=JSON.parse(await fs.readFile(path.join(root,'catalog.json'),'utf8'));
+  const object=async id=>{const metadata=catalog.objects[id],packed=await fs.readFile(path.join(root,metadata.path));return metadata.compression==='gzip'?gunzipSync(packed):packed;};
+  const card=catalog.cards[0].godot,component=catalog.components.find(c=>c.id===published.resourceId),records=[card,component];
+  assert.ok(component,'independent published frame exists');
+  for(const record of records){
+   const definition=JSON.parse(await object(record.definition)),keys=Object.keys(definition.shaders),variants=keys.filter(key=>key.endsWith(':finish:1'));
+   assert.ok(variants.length>0,'metal specialization is registered for both delivery paths');
+   for(const variant of variants){
+    const base=variant.split(':finish:')[0],variantId=definition.shaders[variant];
+    assert.ok(definition.shaders[base],'complete fallback remains available');
+    assert.ok(record.base.includes(variantId),'prefetch dependencies include the specialized program');
+    assert.ok((await object(variantId)).length<(await object(definition.shaders[base])).length*.65);
+   }
+  }
+ }finally{services.close();await fs.rm(temp,{recursive:true,force:true});}
+});
 test('remote export compresses content, shares frame dependencies and separates high-resolution downloads',async()=>{
  const out=await exported();try{const c=Remote.validate(out.catalog);assert.equal(c.cards.length,2);assert.ok(Object.values(c.objects).some(o=>o.compression==='gzip'&&o.bytes>o.downloadBytes*2));for(const [id,o]of Object.entries(c.objects)){const packed=await fs.readFile(path.join(out.root,o.path)),bytes=o.compression==='gzip'?gunzipSync(packed):packed;assert.equal(bytes.length,o.bytes);assert.equal(await Remote.digest(bytes),id);}const [a,b]=c.cards;assert.ok(a.webgl.detail.length>0);assert.ok(a.webgl.detail.every(id=>!a.webgl.base.includes(id)));const shared=a.webgl.base.filter(id=>b.webgl.base.includes(id));assert.ok(shared.length>4);const first=JSON.parse(gunzipSync(await fs.readFile(path.join(out.root,c.objects[a.webgl.definition].path))));const second=JSON.parse(gunzipSync(await fs.readFile(path.join(out.root,c.objects[b.webgl.definition].path))));assert.equal(first.manifest.frameStyle,second.manifest.frameStyle);assert.equal(first.manifest.characterRig,second.manifest.characterRig);assert.equal(first.actions,second.actions);assert.notEqual(a.webgl.definition,b.webgl.definition);await fs.stat(path.join(out.root,'runtime/remote-assets.js'));assert.equal(P.config({schema:'card-export-settings/1',preset:'desktop'}).remoteDelivery,false);}finally{await fs.rm(out.temp,{recursive:true,force:true});}
 });

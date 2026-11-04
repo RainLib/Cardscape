@@ -12,8 +12,15 @@ uniform sampler2D phase_tex : filter_linear, repeat_disable;
 uniform sampler2D foil_tex : filter_linear, repeat_disable;
 uniform sampler2D custom_mask_tex : filter_linear, repeat_disable;
 uniform vec2 background_extent = vec2(1.18);
+uniform vec4 _cardscape_source_alpha_bounds = vec4(0.0,0.0,1.0,1.0);
 uniform vec4 source_rect = vec4(0.0,0.0,1.0,1.0);
 uniform vec4 adjustment = vec4(0.0,1.0,1.0,1.0);
+uniform vec4 contour_edges[64];
+uniform vec2 contour_counts = vec2(0.0);
+uniform sampler2D contour_field : filter_nearest, repeat_disable;
+uniform float contour_texture = 0.0;
+uniform vec4 contour_field_info=vec4(2016.,1856.,1.,160.);
+uniform bool contour_wall = false;
 uniform mat4 layer_transform;
 uniform vec3 card_eye = vec3(0.0,0.0,2.7);
 uniform vec3 surfaceEye = vec3(0.0,0.0,2.7);
@@ -81,10 +88,34 @@ void vertex(){
 	card_point=(layer_transform*vec4(VERTEX,1.0)).xyz;
 	if(attached&&!rigid_part){float weight=texture(attachment_tex,UV).r;card_point=mix((attachment_transform*vec4(VERTEX,1.0)).xyz,card_point,weight);VERTEX=(inverse(layer_transform)*vec4(card_point,1.0)).xyz;}
 }
-bool in_outline(vec2 p,float inset){vec2 a=abs(p);float cut=max(0.0,metrics.y-(2.0-sqrt(2.0))*inset);return all(lessThanEqual(a,vec2(.5,.75)-inset))&&a.x+a.y<=1.25-2.0*inset-cut+.000001;}
+vec2 contour_pixel(vec2 p){return (vec2(p.x+.5,.75-p.y)*1024.+contour_field_info.w)/contour_field_info.z;}
+vec2 contour_decode(vec2 pixel){vec2 size=contour_field_info.xy,domain=vec2(size.x*(contour_field_info.w>.5?1./1.5:1.),size.y);vec3 c=floor(texture(contour_field,clamp(pixel,vec2(.5),domain-.5)/size).rgb*255.+.5);return vec2(c.r*16.+floor(c.g/16.),mod(c.g,16.)*256.+c.b)*((contour_field_info.w>.5?384.:128.)/4095.)-(contour_field_info.w>.5?192.:64.);}
+vec2 contour_read(vec2 p,out vec2 gradient){vec2 pixel=contour_pixel(p),domain=vec2(contour_field_info.x*(contour_field_info.w>.5?1./1.5:1.),contour_field_info.y);gradient=vec2(0.);
+ if(any(lessThan(pixel,vec2(0.)))||any(greaterThan(pixel,domain)))return vec2(-192.);
+ vec2 q=pixel-.5,base=floor(q),f=fract(q),a=contour_decode(base+.5),b=contour_decode(base+vec2(1.5,.5)),c=contour_decode(base+vec2(.5,1.5)),d=contour_decode(base+1.5);
+ vec2 distance=mix(mix(a,b,f.x),mix(c,d,f.x),f.y),dx=mix(b-a,d-c,f.y)/contour_field_info.z,dy=mix(c-a,d-b,f.x)/contour_field_info.z;
+ gradient=distance.x< -distance.y?vec2(dx.x,dy.x):-vec2(dx.y,dy.y);return distance;}
+vec2 contour_distance(vec2 p){vec2 gradient;return contour_read(p,gradient);}
+vec2 contour_arc_decode(vec2 pixel){vec2 size=contour_field_info.xy,domain=vec2(size.x/3.,size.y);vec3 c=floor(texture(contour_field,(vec2(size.x/1.5,0.)+clamp(pixel,vec2(.5),domain-.5))/size).rgb*255.+.5);return vec2((c.r*256.+c.g)/65536.,c.b);}
+float contour_arc(vec2 p,out float window){vec2 q=contour_pixel(p)*vec2(.5,1.)-.5,base=floor(q),f=fract(q),
+ a=contour_arc_decode(base+.5),b=contour_arc_decode(base+vec2(1.5,.5)),c=contour_arc_decode(base+vec2(.5,1.5)),d=contour_arc_decode(base+1.5),anchor=mix(mix(a,b,step(.5,f.x)),mix(c,d,step(.5,f.x)),step(.5,f.y));
+ if(abs(a.y-anchor.y)>.5)a=anchor;if(abs(b.y-anchor.y)>.5)b=anchor;if(abs(c.y-anchor.y)>.5)c=anchor;if(abs(d.y-anchor.y)>.5)d=anchor;
+ vec4 phase=vec4(a.x,b.x,c.x,d.x);phase+=floor(vec4(anchor.x)-phase+.5);window=mod(anchor.y,2.);return fract(mix(mix(phase.x,phase.y,f.x),mix(phase.z,phase.w,f.x),f.y));}
+vec2 contour_at(vec2 p){bool outer=false;bool inner=false;
+ if(contour_texture>.5)return step(vec2(0.0),contour_distance(p));
+ for(int i=0;i<64;i++){if(float(i)>=contour_counts.y)break;
+  vec4 edge=contour_edges[i];vec2 a=edge.xy,b=edge.zw;
+  if((a.y>p.y)!=(b.y>p.y)){float x=a.x+(b.x-a.x)*(p.y-a.y)/(b.y-a.y);if(p.x<x){if(float(i)<contour_counts.x)outer=!outer;else inner=!inner;}}
+ }return vec2(outer?1.0:0.0,inner?1.0:0.0);
+}
+bool in_outline(vec2 p,float inset){if(contour_counts.y>.5){vec2 c=contour_at(p);return inset>0.0?c.y>.5:c.x>.5;}vec2 a=abs(p);float cut=max(0.0,metrics.y-(2.0-sqrt(2.0))*inset);return all(lessThanEqual(a,vec2(.5,.75)-inset))&&a.x+a.y<=1.25-2.0*inset-cut+.000001;}
 vec2 at_plane(vec3 p,float z){float d=p.z-card_eye.z;return card_eye.xy+(p.xy-card_eye.xy)*(z-card_eye.z)/(abs(d)<.00001?-.00001:d);}
 float sweep(float x,vec4 s){float cycle=mod(clock,max(s.z,.3));float head=-.25+1.6*clamp(cycle/max(s.y,.3),0.0,1.0);return exp2(-3.0*pow((x-head)/max(s.w,.02),2.0))*step(cycle,s.y)*s.x;}
 
+vec2 contourRead(vec2 p,out vec2 gradient){return contour_read(p,gradient);}
+vec2 contourDistance(vec2 p){return contour_distance(p);}
+float contourArc(vec2 p,out float window){return contour_arc(p,window);}
+bool contourHasMaterial(){return contour_field_info.w>.5;}
 // Shared procedural finish and rim functions; mirrored in the Godot shader.
 float finishHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float finishNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(finishHash(i),finishHash(i+vec2(1.,0.)),f.x),mix(finishHash(i+vec2(0.,1.)),finishHash(i+vec2(1.,1.)),f.x),f.y);}
@@ -1071,14 +1102,64 @@ vec4 rimAura(vec3 low,vec3 hi,vec2 uv,vec2 view,float finish_time,vec4 rimMetric
  return vec4(clamp(rgb,0.,1.),clamp(a,0.,1.));
 }
 
+
+vec2 contourVirtualUV(float phase,float inset){
+ float cut=max(0.,.125-(2.-sqrt(2.))*inset),a=1.-2.*inset-2.*cut,b=1.5-2.*inset-2.*cut,d=cut*sqrt(2.);
+ float along=fract(phase)*(2.*a+2.*b+4.*d);vec2 p;
+ if(along<a)p=vec2(inset+cut+along,inset);
+ else if(along<a+d)p=vec2(1.-inset-cut,inset)+vec2(.70710678)*(along-a);
+ else if(along<a+d+b)p=vec2(1.-inset,inset+cut+along-a-d);
+ else if(along<a+2.*d+b)p=vec2(1.-inset,1.5-inset-cut)+vec2(-.70710678,.70710678)*(along-a-d-b);
+ else if(along<2.*a+2.*d+b)p=vec2(1.-inset-cut-(along-a-2.*d-b),1.5-inset);
+ else if(along<2.*a+3.*d+b)p=vec2(inset+cut,1.5-inset)-vec2(.70710678)*(along-2.*a-2.*d-b);
+ else if(along<2.*a+3.*d+2.*b)p=vec2(inset,1.5-inset-cut-(along-2.*a-3.*d-b));
+ else p=vec2(inset,inset+cut)+vec2(.70710678,-.70710678)*(along-2.*a-3.*d-2.*b);
+ return p/vec2(1.,1.5);
+}
+vec4 contourRim(vec3 low,vec3 hi,vec2 uv,vec2 view,float finish_time,vec4 rimMetrics,float finish,vec2 animation,float shade){
+ if(!contourHasMaterial())return vec4(rimColor(low,hi,uv,view,finish_time,rimMetrics,finish,animation,shade),rimCoverage(uv,rimMetrics,finish));
+ vec2 p=vec2(uv.x-.5,.75-uv.y*1.5),gradient;vec2 distances=contourRead(p,gradient);
+ float signedDistance=min(distances.x,-distances.y),d=max(0.,signedDistance/1024.),window,phase=contourArc(p,window);
+ vec4 virtualMetrics=rimMetrics;virtualMetrics.y=.125;
+ float band=min(d,rimMetrics.x*.5),inset=window>.5?rimMetrics.x-band:band;
+ vec2 mapped=contourVirtualUV(phase,inset);
+ if(shade>.6){
+  shade=.75;
+  if(rimMetrics.w>0.&&d<rimMetrics.w){
+   vec3 normal=normalize(vec3(-gradient.x,gradient.y,1.)),light=normalize(vec3(-.4-view.x,.5+view.y,1.));
+   shade=clamp(.25+.9*dot(normal,light),.25,1.);
+  }
+ }
+ // Nearest-boundary phase is discontinuous on the medial axis. Keep loop
+ // decoration in its edge band, and shade broad faces in registered UVs.
+ float reflect=pow(.5+.5*cos((uv.x*.7+uv.y*.42-view.x*.4+view.y*.3)*6.283185),9.);
+ vec3 face=finish<.5?low*.9:low*(.52+.35*shade)+hi*(.08+.25*reflect)*shade;
+ float edgeWeight=1.-smoothstep(rimMetrics.x*.24,rimMetrics.x*.5,d);
+ return vec4(mix(face,rimColor(low,hi,mapped,view,finish_time,virtualMetrics,finish,animation,shade),edgeWeight),mix(1.,rimCoverage(mapped,virtualMetrics,finish),edgeWeight));
+}
+vec4 contourGlow(vec3 low,vec3 hi,vec2 uv,vec2 view,float finish_time,vec4 rimMetrics,float finish,vec2 animation){
+ if(!contourHasMaterial())return rimAura(low,hi,uv,view,finish_time,rimMetrics,finish,animation);
+ vec2 p=vec2(uv.x-.5,.75-uv.y*1.5),distance=contourDistance(p);float d=min(distance.x,-distance.y);
+ if(d>=0.)return vec4(0.);
+ float window,phase=contourArc(p,window);vec4 virtualMetrics=rimMetrics;virtualMetrics.y=.125;
+ return rimAura(low,hi,contourVirtualUV(phase,d/1024.),view,finish_time,virtualMetrics,finish,animation);
+}
+
 void fragment(){
 	if((face_mode==0&&!front_visible)||(face_mode==1&&front_visible)){discard;}
-	vec2 aperture=at_plane(card_point,.045-metrics.w);bool inside=in_outline(aperture,metrics.x);
-	if((background||clipped)&&!inside){discard;}
-	if(back_side&&!in_outline(at_plane(card_point,.045-metrics.z+metrics.w),metrics.x)){discard;}
-	if(foreground_pass>0.0){if(foreground_pass<1.5&&!inside){discard;}if(foreground_pass>1.5){if(inside){discard;}vec2 e=vec2(.5,.75)-metrics.x;if((aperture.y>e.y&&pop_sides.x<.5)||(aperture.x>e.x&&pop_sides.y<.5)||(aperture.y< -e.y&&pop_sides.z<.5)||(aperture.x< -e.x&&pop_sides.w<.5)){discard;}}}
 	vec2 coord=source_rect.xy+registered_uv*source_rect.zw;if(back_side){coord.x=1.0-coord.x;}
+	bool replace_coverage=background&&material_replace>.5&&component_material.x>0.0&&material_style!=5&&(component_material.w<1.5||component_material.w>2.5);
+	bool source_coverage=frame_part<.5&&!(custom_effect&&surfaceTransparent)&&!replace_coverage;
+	vec2 support_coord=clamp(coord,vec2(0.0),vec2(1.0));
+	if(source_coverage&&(_cardscape_source_alpha_bounds.z!=0.0||_cardscape_source_alpha_bounds.w!=0.0)&&(any(lessThan(support_coord,_cardscape_source_alpha_bounds.xy))||any(greaterThan(support_coord,_cardscape_source_alpha_bounds.zw)))){discard;}
 	vec4 c=texture(art,coord);
+	if(frame_part<.5&&c.a<.015&&!(custom_effect&&surfaceTransparent)&&!replace_coverage){discard;}
+	// Only clipped and foreground surfaces require the aperture distance read.
+	vec2 aperture=vec2(0.);bool inside=true;
+	if(background||clipped||foreground_pass>0.0){aperture=at_plane(card_point,.045-metrics.w);inside=in_outline(aperture,metrics.x);}
+	if((background||clipped)&&!inside){discard;}
+	if(back_side&&!in_outline(at_plane(card_point,.045-metrics.z+metrics.w),contour_counts.y>.5?0.0:metrics.x)){discard;}
+	if(foreground_pass>0.0){if(foreground_pass<1.5&&!inside){discard;}if(foreground_pass>1.5){if(inside){discard;}vec2 e=vec2(.5,.75)-metrics.x;if((aperture.y>e.y&&pop_sides.x<.5)||(aperture.x>e.x&&pop_sides.y<.5)||(aperture.y< -e.y&&pop_sides.z<.5)||(aperture.x< -e.x&&pop_sides.w<.5)){discard;}}}
 // Five-tap frost diffusion. Coverage remains the source alpha.
 if(material_style==26&&component_material.x>0.&&((background&&(component_material.w<1.5||component_material.w>2.5))||(back_side&&(component_material.w<.5||(component_material.w>1.5&&component_material.w<2.5)||component_material.w>4.5))||(frame_part<.5&&!back_side&&component_material.w>2.5))){
  float frost=finishFrost(UV*vec2(1.,1.5));vec2 radius=(.006+.014*frost)*source_rect.zw;
@@ -1090,10 +1171,12 @@ if(material_style==26&&component_material.x>0.&&((background&&(component_materia
 }
 
 	vec2 view_angle=vec2(atan(-card_eye.x,card_eye.z),atan(card_eye.y,length(card_eye.xz)));
-	if(frame_part>1.5){c=rimAura(frame_color,frame_accent,UV,view_angle,clock,metrics,frame_finish,frame_animation);if(c.a<.001)discard;}else{
-	if(frame_part>0.0)c=vec4(rimColor(frame_color,frame_accent,UV,view_angle,clock,metrics,frame_finish,frame_animation,COLOR.b),rimCoverage(UV,metrics,float(frame_finish)));
+	if(frame_part>1.5){c=contour_texture>.5?contourGlow(frame_color,frame_accent,UV,view_angle,clock,metrics,frame_finish,frame_animation):rimAura(frame_color,frame_accent,UV,view_angle,clock,metrics,frame_finish,frame_animation);if(c.a<.001)discard;}else{
+	if(frame_part>0.0)c=contour_texture>.5?contourRim(frame_color,frame_accent,UV,view_angle,clock,metrics,frame_finish,frame_animation,COLOR.b):vec4(rimColor(frame_color,frame_accent,UV,view_angle,clock,metrics,frame_finish,frame_animation,COLOR.b),rimCoverage(UV,metrics,float(frame_finish)));
+	if(contour_counts.y>.5&&frame_part>0.0&&frame_part<1.5&&!contour_wall){vec2 shape=contour_at(vec2(UV.x-.5,.75-UV.y*1.5));c.a*=shape.x*(1.0-shape.y);}
+	if(contour_counts.y>.5&&contour_wall)c.a=1.0;
 	if(foreground_pass>1.5){c.a*=1.0-smoothstep(.02,.5,texture(inset_tex,UV).r/max(c.a,.001));}
-	if(background&&material_replace>.5&&component_material.x>0.0&&material_style!=5&&(component_material.w<1.5||component_material.w>2.5)){c.a=1.0;}if(c.a<.015&&!(custom_effect&&surfaceTransparent)){discard;}
+	if(replace_coverage){c.a=1.0;}if(c.a<.015&&!(custom_effect&&surfaceTransparent)){discard;}
 	c.rgb=pow(clamp((c.rgb-.5)*adjustment.y+.5+adjustment.x,0.0,1.0),vec3(1.0/adjustment.w));float lum=dot(c.rgb,vec3(.2126,.7152,.0722));c.rgb=clamp(mix(vec3(lum),c.rgb,adjustment.z),0.0,1.0);
 	bool material_applies=component_material.x>0.0&&(component_material.w>4.5||(component_material.w>3.5&&frame_part<.5&&!back_side)||(component_material.w>2.5&&component_material.w<3.5&&!back_side)||(component_material.w<.5&&(background||back_side))||(component_material.w>.5&&component_material.w<1.5&&background)||(component_material.w>1.5&&component_material.w<2.5&&back_side));if(material_applies&&material_style!=5){bool replace_art=material_replace>.5&&background;vec2 finish_uv=replace_art?vec2(card_point.x+.5,.5-card_point.y/1.5):UV;vec3 result=finishColor(c.rgb,finish_uv,clock*component_material.y,view_angle,float(material_style),component_material.z,material_color,material_accent,replace_art);c.rgb=finishComposite(c.rgb,result,material_color,component_material.x,replace_art);}
 	if(foreground_pass>0.0){float e=texture(emission_tex,UV).r,phase=texture(phase_tex,UV).r;float stream=pow(.5+.5*sin(phase*30.0-clock*3.1*flow_speed+UV.y*11.0),3.0);c.rgb+=vec3(.45,.77,1.0)*e*stream*flow_gain;c.rgb+=armor_color*texture(foil_tex,UV).r*sweep(UV.x*.82+UV.y*.18,armor_sweep);}

@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, dirname, basename } from 'node:path';
 import { stripTypeScriptTypes } from 'node:module';
-import { transform } from 'esbuild';
+import { transform, build } from 'esbuild';
 import { classicRenderer } from './classic-renderer.mts';
 
 /** Shared by clean builds and Electron/worker development watchers. */
@@ -48,6 +48,37 @@ export async function compileRuntimeFile(
     target.replace(/\.ts$/, extension),
   );
   await mkdir(dirname(output), { recursive: true });
+  if (
+    directory === 'renderer' &&
+    ['contour-boolean-engine.ts', 'contour-bevel-engine.ts'].includes(
+      basename(name),
+    )
+  ) {
+    const result = await build({
+      entryPoints: [resolve(root, directory, name)],
+      bundle: true,
+      write: false,
+      format: 'iife',
+      globalName:
+        basename(name) === 'contour-bevel-engine.ts'
+          ? 'CardContourBevelEngine'
+          : 'CardContourBooleanEngine',
+      platform: 'browser',
+      define: { global: 'globalThis' },
+      target: 'chrome120',
+      legalComments: 'inline',
+      footer: {
+        js:
+          'if(typeof module==="object"&&module.exports)module.exports=' +
+          (basename(name) === 'contour-bevel-engine.ts'
+            ? 'CardContourBevelEngine'
+            : 'CardContourBooleanEngine') +
+          ';',
+      },
+    });
+    await writeFile(output, result.outputFiles[0].text);
+    return;
+  }
   const classic =
     directory === 'renderer'
       ? await classicRenderer(root, name, source)

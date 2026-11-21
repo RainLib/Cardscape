@@ -86,6 +86,20 @@ export interface TitleArtwork {
   variants: TitleVariant[];
   sweep?: Partial<SweepSettings>;
 }
+export interface CharacterMotionEffect {
+  enabled: boolean;
+  strength: number;
+  speed: number;
+}
+export interface CharacterEffects {
+  breakout: { enabled: boolean };
+  wordmark: { enabled: boolean; layerId?: string; occluderId?: string };
+  bodyMotion?: 'sash' | 'hair' | 'cape';
+  sash: CharacterMotionEffect;
+  hair: CharacterMotionEffect;
+  cape: CharacterMotionEffect;
+  glow: CharacterMotionEffect & { color: string };
+}
 export interface EmbeddedFont {
   name: string;
   family: string;
@@ -162,6 +176,7 @@ export interface CardDocument {
   back?: string;
   backScene?: ImageResource;
   effects: CardEffects;
+  characterEffects?: CharacterEffects;
   characterRig?: CharacterRig;
   cosmetics?: Partial<Cosmetics>;
   cosmeticPreview?: Partial<CosmeticPreview>;

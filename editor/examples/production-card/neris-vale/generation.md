@@ -2,9 +2,9 @@
 
 [Neris Vale](neris-vale.cardworkshop) is an original sea-cartographer card assembled with the [Card Atelier skill](../../../skills/card-atelier/SKILL.md). The workshop contains the registered character master, hidden-paint candidate, editable split parts, masks, and both image wordmarks.
 
-The frame aperture holds the torso and far arm. The hair, leading hand, cape, and sash can cross the marked edges. The hand and brass cuff share a rigid plane. The sleeve and coat behind the split regions have painted support that can show during a tilt. The wordmark sits in front of the coat and behind the free end of the sash.
+The frame aperture holds the torso and far arm. The hair, leading hand, cape, and sash can cross the marked edges. The hand and brass cuff share a rigid plane with a shallow offset from the sleeve, so they stay attached as the card turns. The sleeve and coat behind the split regions have painted support that can show during a tilt. The wordmark sits in front of the coat and behind the free end of the sash.
 
-The **Motion** mask holds the sash at its belt anchor and increases the wind displacement toward its tip. The **Emission** and **Phase** masks move light around the engraved rose on the buckle and cuff. The cuff and the two letterforms use separate highlight sweeps. **Sea Breeze** is a 3.6-second idle action. **Show Both Faces** turns the card over to its compass-rose reverse.
+The built-in **Neris Vale** character preset drives the sash, loose hair, and trailing cape independently. The hair stays connected to the portrait and follows a tapered **Motion** mask. The sash and cape use fixed attachment points. The **Emission** and **Phase** masks move light around the engraved rose on the buckle and cuff. The cuff and the two letterforms use separate highlight sweeps. **Sea Breeze** is a 3.6-second idle action. **Show Both Faces** turns the card over to its compass-rose reverse.
 
 The README captures come from the exported WebGL player. The full-card loop rotates the English version. The Chinese close-up holds the card angle fixed so the sash, engraving, and lettering can be inspected independently of the camera.
 

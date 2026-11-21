@@ -39,12 +39,16 @@ npm start
 
 [Foil materials and subject masks](docs/laser-foil.md)
 
-## Build a frame-breaking character
+## Apply the Neris Vale character preset
 
-1. Open the [Neris Vale workshop](examples/production-card/neris-vale/neris-vale.cardworkshop) and drag the live preview. Watch the near hand move across the rim while the torso and distant scenery stay inside the window.
-2. In **Spatial layers** (空间层级), inspect the rear cape, continuous portrait, rigid forearm, and pinned silk sash. The **Inset** mask controls which parts cross the rim. The portrait layer retains painted sleeve and coat support for angles that expose the joins.
-3. Hold the card at one angle and play **Sea Breeze**. The **Motion** mask keeps the silk anchored at the belt. **Emission** limits the glow to the engravings, and **Phase** sets the light's direction around them.
-4. Use **Card display language** (卡片显示语言) in the preview toolbar to switch between English and Chinese. In **Appearance → Hero wordmark** (外观与等级 → 英雄字标), select the wordmark to move or resize it. The sash renders in front of the name and changes how much it covers as it moves.
+1. In **Appearance → Effect Library → Character Effects** (外观与等级 → 效果组件库 → 人物动效), select **Neris Vale** (奈莉丝 · 人物动效) and apply it. The **Character Effects** panel opens with separate switches for frame break, wordmark occlusion, sash, hair, cape, and ornament glow.
+2. Choose **Import / Replace Character** (导入 / 替换人物) and open a transparent portrait. Replacing the portrait resets the character masks and removes parts split from the previous portrait. The effect settings remain available to use with the new art.
+3. Click **Select Character Area** (圈选人物区域), trace the part that should cross a rim, then press Enter. Choose **Break Out Selection Only** (仅让选区破框) and turn on the edges it may cross. Black in the **Inset** mask allows an area to cross the rim. White keeps it inside the aperture.
+4. Select a sash, loose hair, or cape and use the matching split button. In **Spatial layers** (空间层级), set each split part's fixed point and free end. To keep connected strands intact, choose **Hair** under **Continuous portrait motion** (连续人物层的运动), paint a soft gradient in **Motion** from the roots to the tips, and protect the face in **Rigid**. Each motion has its own strength and speed. Use a shallow Z offset at sleeve joins and keep hands and held objects rigid.
+5. Under **Wordmark occlusion** (字标遮挡), choose the wordmark and a front part that may cover it. Use **Appearance → Hero wordmark** (外观与等级 → 英雄字标) to import and position your lettering. **Card display language** (卡片显示语言) switches between saved variants.
+6. Paint **Emission** on the ornaments that should light up. Use a gradient on **Phase** to set the order the light follows, then adjust its color, strength, and speed. Play at a fixed tilt to check the local animation, or apply a foil preset to combine both effects.
+
+The [Neris Vale workshop](examples/production-card/neris-vale/neris-vale.cardworkshop) includes the finished masks, parts, wordmarks, and sleeve and coat underpainting for inspection.
 
 ## Animate a card entrance
 

@@ -79,6 +79,7 @@ test('browser scripts assemble runtime without CommonJS and retain nested valida
     'contour-material-glsl',
     'laser-foil-glsl',
     'runtime-core',
+    'character-effects',
     'runtime-validation',
     'runtime-model',
   ];

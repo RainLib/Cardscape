@@ -13,6 +13,7 @@ import type { RuntimeSample } from '../../shared/runtime';
 import contourFields from './contour-field-renderer.ts';
 import laserFoil from '../workshop/laser-foil.ts';
 import particleWorld from './particle-world-model.ts';
+import characterEffects from './character-effects.ts';
 import type {
   ExternalView,
   SurfaceOptions,
@@ -367,6 +368,8 @@ export const moduleApi = (() => {
           'contourEdges[0]',
           'flow',
           'flowSpeed',
+          'flowColor',
+          'characterFlutter',
           'shift',
           'emissionTex',
           'phaseTex',
@@ -395,6 +398,7 @@ export const moduleApi = (() => {
           'cardEye',
           'foregroundPass',
           'popOutSides',
+          'popOutBounds',
           'foilTex',
           'armorSweep',
           'armorColor',
@@ -1119,6 +1123,7 @@ export const moduleApi = (() => {
       z: number,
       frame = 0,
       foregroundPass = 0,
+      motionGain = 1,
     ) {
       const viewDocument = doc;
       if (!viewDocument) return;
@@ -1257,6 +1262,14 @@ export const moduleApi = (() => {
       gl.uniform1f(u.opacity, (layer?.opacity ?? 1) * (pl.opacity ?? 1));
       gl.uniform1f(u.fg, characterLayer(layer) ? 1 : 0);
       gl.uniform1f(u.foregroundPass, foregroundPass);
+      const flutter = layer && foregroundPass
+        ? viewDocument.characterEffects?.[characterEffects.motionType(layer, viewDocument.characterEffects)]
+        : undefined;
+      gl.uniform2f(
+        u.characterFlutter,
+        effectsEnabled && flutter?.enabled ? flutter.strength * motionGain : 0,
+        (flutter?.speed ?? 1) * (2 * Math.PI / 3.6),
+      );
       const sweep = importedCardTitle.resolve(
           layer || {},
           viewDocument.locale,
@@ -2302,17 +2315,19 @@ export const moduleApi = (() => {
       gl.uniform1f(u.t, effectsEnabled ? time : 0);
       gl.uniform1f(
         u.moving,
-        effectsEnabled
+        effectsEnabled && !viewDocument.characterEffects
           ? (viewDocument.effects.cape ? 1 : 0) *
               viewDocument.deformation.wind *
               act.motion
           : 0,
       );
-      gl.uniform1f(u.flowSpeed, viewDocument.effects.flowSpeed ?? 1);
+      const glow = viewDocument.characterEffects?.glow;
+      gl.uniform3fv(u.flowColor, glow ? frames.rgb(glow.color) : [.45, .77, 1]);
+      gl.uniform1f(u.flowSpeed, glow ? glow.speed * (2 * Math.PI / 3.6 / 3.1) : viewDocument.effects.flowSpeed ?? 1);
       gl.uniform1f(
         u.flow,
         effectsEnabled && detail.materials
-          ? (viewDocument.effects.flow ? 1 : 0) * act.emission
+          ? (glow ? (glow.enabled ? glow.strength : 0) : +!!viewDocument.effects.flow) * act.emission
           : 0,
       );
       gl.uniform1f(
@@ -2321,6 +2336,7 @@ export const moduleApi = (() => {
           (viewDocument.cosmeticPreview?.motion === false ? 0 : act.bend),
       );
       const style = frames.resolve(viewDocument);
+      gl.uniform4fv(u.popOutBounds, runtime.popOutBounds(style));
       gl.uniform2fv(u.contourCounts, contourData.counts);
       contourFieldRenderer.bind(style, u);
       if (style.contour) gl.uniform4fv(u['contourEdges[0]'], contourData.edges);
@@ -2365,10 +2381,9 @@ export const moduleApi = (() => {
       gl.uniform1i(u.regionTex, 6);
       const front = Math.cos(facing) * Math.cos(tilt) > 0.03;
       const baseLayers = importedCardStats.paintOrder(viewDocument.layers);
-      const ordered = runtime.orderedLayers(
-        baseLayers,
-        effectiveAction,
-        sampled.progress,
+      const ordered = characterEffects.order(
+        runtime.orderedLayers(baseLayers, effectiveAction, sampled.progress),
+        viewDocument.characterEffects?.wordmark,
       );
       canvas.dataset.drawOrder = JSON.stringify(ordered.map((l) => l.id));
       const layers = ordered.filter(
@@ -2557,8 +2572,9 @@ export const moduleApi = (() => {
         )) {
           if (characterLayer(layer)) {
             const id = layer.kind === 'foreground' ? 'foreground' : layer.id;
-            part(layer, id, 0, 0, 1);
-            part(layer, id, 0, 0, 2);
+            part(layer, id, 0, 0, 1, act.motion);
+            if (viewDocument.characterEffects?.breakout.enabled !== false)
+              part(layer, id, 0, 0, 2, act.motion);
           } else if (
             !embedded &&
             layer.role === 'baseplate' &&
@@ -2757,7 +2773,7 @@ export const moduleApi = (() => {
           foregroundDepthMode: 'planar',
           insetSampling: 'projected-aperture',
           foregroundPasses: String(
-            2 *
+            (viewDocument.characterEffects?.breakout.enabled === false ? 1 : 2) *
               viewDocument.layers.filter((l) => l.visible && characterLayer(l))
                 .length,
           ),

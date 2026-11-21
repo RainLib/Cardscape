@@ -1,3 +1,4 @@
+import type { FrameStyle } from '../../shared/render-models';
 import type { CardLayer, CardSlot } from '../../shared/document';
 import type {
   CharacterAction,
@@ -547,31 +548,51 @@ const api = (() => {
     const k = (z - eye[2]) / (point[2] - eye[2]);
     return [eye[0] + (point[0] - eye[0]) * k, eye[1] + (point[1] - eye[1]) * k];
   }
+  function popOutBounds(style: { width: number; contour?: FrameStyle['contour'] }): [number, number, number, number] {
+    const aperture = style.contour?.windows.flat();
+    if (aperture?.length) {
+      const xs = aperture.map(([x]) => x / 1024 - .5);
+      const ys = aperture.map(([, y]) => .75 - y / 1024);
+      return [Math.max(...ys), Math.max(...xs), Math.min(...ys), Math.min(...xs)];
+    }
+    const inset = style.width / 1024;
+    return [.75 - inset, .5 - inset, -.75 + inset, -.5 + inset];
+  }
   function popOutAllowed(
     p: ArrayLike<number>,
-    style: { width: number },
+    style: Parameters<typeof popOutBounds>[0],
     composition = compositionDefaults,
   ) {
-    const x = (p[0] + 0.5) * 1024,
-      y = (0.75 - p[1]) * 1024,
-      w = style.width;
+    if (!Object.values(composition).some(Boolean)) return false;
+    const [top, right, bottom, left] = popOutBounds(style);
     return !(
-      (!composition.top && y < w) ||
-      (!composition.bottom && y > 1536 - w) ||
-      (!composition.left && x < w) ||
-      (!composition.right && x > 1024 - w)
+      (!composition.top && p[1] > top) ||
+      (!composition.bottom && p[1] < bottom) ||
+      (!composition.left && p[0] < left) ||
+      (!composition.right && p[0] > right)
     );
   }
   function vertex(body = geometryBody, diagnostic = false) {
     return `attribute vec3 p;attribute vec2 uv;attribute vec4 fx;attribute float guard;attribute float join;
-uniform vec2 angle,backgroundExtent,attachmentParams;uniform vec4 attachmentTransform;uniform vec4 transform,rootTransform,frameMetrics,spatialParams;uniform float aspect,depth,t,moving,fg,bg,bend,windSpeed,layerRotation,rigidSurface;
+uniform vec2 angle,backgroundExtent,attachmentParams,characterFlutter;uniform vec4 attachmentTransform;uniform vec4 transform,rootTransform,frameMetrics,spatialParams;uniform float aspect,depth,t,moving,fg,bg,bend,windSpeed,layerRotation,rigidSurface;
 varying vec2 v;varying vec4 effects;varying vec3 local;${diagnostic ? 'varying float connectionWeight;' : ''}
 vec3 deformCard(vec3 q,vec2 uv,float time,float bend){
 #line 1
 ${body}
 #line 1001
 }
-void main(){vec3 q=p;effects=fx;v=uv;if(bg>.5){q.xy*=backgroundExtent;v=(uv-.5)*backgroundExtent+.5;}if(fg>.5){q.z=spatialParams.x>.5?0.:.045+.045*depth;float wave=sin(t*1.3*windSpeed+uv.x*11.+uv.y*8.);if(rigidSurface<.5){q.z+=wave*.016*fx.x*moving*depth;q.x+=wave*.005*fx.x*moving*depth;}}
+void main(){vec3 q=p;effects=fx;v=uv;if(bg>.5){q.xy*=backgroundExtent;v=(uv-.5)*backgroundExtent+.5;}if(fg>.5){
+ q.z=spatialParams.x>.5?0.:.045+.045*depth;
+ if(rigidSurface<.5){
+  float wave=sin(t*1.3*windSpeed+uv.x*11.+uv.y*8.);
+  q.z+=wave*.016*fx.x*moving*depth;q.x+=wave*.005*fx.x*moving*depth;
+  if(characterFlutter.x>0.){
+   float phase=t*characterFlutter.y-uv.y*9.3-uv.x*2.6;
+   float gust=sin(phase)+.20*sin(phase*2.+.6);
+   q+=vec3(.054*gust,.027*cos(phase+.38),.041*gust)*fx.x*(1.-guard)*characterFlutter.x;
+  }
+ }
+}
 float connected=attachmentParams.x,weight=connected>.5?join:1.;${diagnostic ? 'connectionWeight=weight;' : ''}float rotation=mix(attachmentParams.y,layerRotation,weight);float c=cos(rotation),s=sin(rotation);vec4 placement=mix(attachmentTransform,transform,weight);q.xy=mat2(c,s,-s,c)*q.xy*placement.z+placement.xy;q.z+=placement.w;if(spatialParams.x>.5)q.xy*=connected>.5?(spatialParams.w-q.z)/(spatialParams.w-.045):spatialParams.z;if(rigidSurface<.5)q=mix(deformCard(q,uv,t,bend),q,fg>.5?1.-fx.x*(1.-guard):0.);local=q;c=cos(angle.x);s=sin(angle.x);q=vec3(c*q.x+s*q.z,q.y,-s*q.x+c*q.z);c=cos(angle.y);s=sin(angle.y);q=vec3(q.x,c*q.y-s*q.z,s*q.y+c*q.z);q=q*rootTransform.w+rootTransform.xyz;float camera=max(.15,spatialParams.w-q.z);float fit=min(1.0,aspect/.85);gl_Position=vec4(q.x*2.9*fit/aspect,q.y*2.9*fit,-q.z*.3,camera);}`;
   }
   function fragmentSource(
@@ -581,8 +602,8 @@ float connected=attachmentParams.x,weight=connected>.5?join:1.;${diagnostic ? 'c
   ) {
     // Empty artwork pixels skip contour/mask work, except procedural frames,
     // replacement backgrounds and hooks allowed to create transparent coverage.
-    return `precision highp float;uniform sampler2D tex,emissionTex,phaseTex,insetTex,customMaskTex,foilTex;uniform float opacity,rootOpacity,frame,flow,flowSpeed,t,fg,bg,back,clip,customEffect,customStrength,customMasked,foregroundPass,surfaceChannel,surfaceTransparent;uniform vec3 surfaceEye;${diagnostic ? 'uniform sampler2D regionTex;uniform float regionMode;varying float connectionWeight;' : ''}
-uniform float materialStyle,materialReplace;uniform vec4 laserControls,laserModes,spatialParams;uniform vec3 laserSurfaceRole,laserOverlays,laserOverlayGains;uniform vec2 laserSignatureAnchor;uniform vec4 componentMaterial;uniform vec3 materialColor,materialAccent;uniform vec2 shift,angle,titleBounds;uniform vec3 frameColor,frameAccent,cardEye,armorColor,titleColor;uniform vec4 frameMetrics,popOutSides,armorSweep,titleSweep;uniform float frameFinish;uniform vec2 frameAnimation;uniform vec4 sourceRect,_cardscapeSourceAlphaBounds,adjustment;uniform vec3 slotEffect;varying vec2 v;varying vec4 effects;varying vec3 local;
+    return `precision highp float;uniform sampler2D tex,emissionTex,phaseTex,insetTex,customMaskTex,foilTex;uniform float opacity,rootOpacity,frame,flow,flowSpeed,t,fg,bg,back,clip,customEffect,customStrength,customMasked,foregroundPass,surfaceChannel,surfaceTransparent;uniform vec3 surfaceEye,flowColor;${diagnostic ? 'uniform sampler2D regionTex;uniform float regionMode;varying float connectionWeight;' : ''}
+uniform float materialStyle,materialReplace;uniform vec4 laserControls,laserModes,spatialParams;uniform vec3 laserSurfaceRole,laserOverlays,laserOverlayGains;uniform vec2 laserSignatureAnchor;uniform vec4 componentMaterial;uniform vec3 materialColor,materialAccent;uniform vec2 shift,angle,titleBounds;uniform vec3 frameColor,frameAccent,cardEye,armorColor,titleColor;uniform vec4 frameMetrics,popOutSides,popOutBounds,armorSweep,titleSweep;uniform float frameFinish;uniform vec2 frameAnimation;uniform vec4 sourceRect,_cardscapeSourceAlphaBounds,adjustment;uniform vec3 slotEffect;varying vec2 v;varying vec4 effects;varying vec3 local;
 // Portable fragment hook: sample raw source RGBA using the hook's UV space.
 vec4 sampleSource(vec2 uv){vec2 coord=sourceRect.xy+(uv+shift)*sourceRect.zw;if(back>.5)coord.x=1.-coord.x;return texture2D(tex,coord);}
 ${prelude}
@@ -1601,7 +1622,7 @@ if(frame<.5&&c.a<.015&&!(customEffect>.5&&surfaceTransparent>.5)&&!replaceCovera
 vec2 aperture=vec2(0.);bool inside=true;
 if(bg>.5||clip>.5||fg>.5${diagnostic ? '||regionMode>3.5' : ''}){aperture=atPlane(local,.045-frameMetrics.w);inside=inOutline(aperture,frameMetrics.x);}
 if((bg>.5||clip>.5)&&!inside)discard;if(back>.5&&!inOutline(atPlane(local,.045-frameMetrics.z+frameMetrics.w),contourCounts.y>.5?0.:frameMetrics.x))discard;
-if(fg>.5){if(foregroundPass<1.5&&!inside)discard;if(foregroundPass>1.5){if(inside)discard;vec2 edge=vec2(.5,.75)-frameMetrics.x;if((aperture.y>edge.y&&popOutSides.x<.5)||(aperture.x>edge.x&&popOutSides.y<.5)||(aperture.y< -edge.y&&popOutSides.z<.5)||(aperture.x< -edge.x&&popOutSides.w<.5))discard;}}
+if(fg>.5){if(foregroundPass<1.5&&!inside)discard;if(foregroundPass>1.5){if(inside||dot(popOutSides,vec4(1.))<.5)discard;if((aperture.y>popOutBounds.x&&popOutSides.x<.5)||(aperture.x>popOutBounds.y&&popOutSides.y<.5)||(aperture.y<popOutBounds.z&&popOutSides.z<.5)||(aperture.x<popOutBounds.w&&popOutSides.w<.5))discard;}}
 // Five-tap frost diffusion. Coverage remains the source alpha.
 if(materialStyle>25.5&&materialStyle<26.5&&componentMaterial.x>0.&&((bg>.5&&(componentMaterial.w<1.5||componentMaterial.w>2.5))||(back>.5&&(componentMaterial.w<.5||(componentMaterial.w>1.5&&componentMaterial.w<2.5)||componentMaterial.w>4.5))||(frame<.5&&back<.5&&componentMaterial.w>2.5))){
  float frost=finishFrost(v*vec2(1.,1.5));vec2 radius=(.006+.014*frost)*sourceRect.zw;
@@ -1656,7 +1677,7 @@ bool materialApplies=componentMaterial.x>0.&&(componentMaterial.w>4.5||(componen
   c.rgb=finishComposite(c.rgb,result,materialColor,componentMaterial.x,replaceArt);
  }
 }
-if(fg>.5){float emission=texture2D(emissionTex,v).r,phase=texture2D(phaseTex,v).r;float stream=pow(.5+.5*sin(phase*30.-t*3.1*flowSpeed+v.y*11.),3.);c.rgb+=vec3(.45,.77,1.)*emission*stream*flow;}
+if(fg>.5){float emission=texture2D(emissionTex,v).r,phase=texture2D(phaseTex,v).r;float stream=pow(.5+.5*sin(phase*30.-t*3.1*flowSpeed+v.y*11.),3.);c.rgb+=flowColor*emission*stream*flow;}
 if(fg>.5&&armorSweep.x>0.)c.rgb+=armorColor*texture2D(foilTex,v).r*sweepLight(v.x+v.y*.18,armorSweep);
 if(titleSweep.x>0.)c.rgb+=titleColor*sweepLight((v.x-titleBounds.x)/max(.001,titleBounds.y-titleBounds.x),titleSweep);
 if(slotEffect.x>.5){float wave=.5+.5*sin(t*slotEffect.z*3.+(slotEffect.x>1.5?v.y*20.:0.));c.rgb+=vec3(.2,.5,.8)*wave*slotEffect.y;}
@@ -1695,6 +1716,7 @@ gl_FragColor=vec4(c.rgb,c.a*opacity*rootOpacity);}`;
     color,
     cameraInCard,
     aperturePoint,
+    popOutBounds,
     popOutAllowed,
     vertex,
     fragment,

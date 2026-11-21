@@ -30,3 +30,17 @@
     repeating-linear-gradient(142deg, #ecf5ff30 0 1px, transparent 1px 4px),
     linear-gradient(112deg, var(--finish-low), #c8a4eb 35%, #84d7e2 58%, var(--finish-high));
 }
+
+.character-fx .character-fx-head {
+  border-top: 1px solid #444951;
+  font-weight: 600;
+  margin-top: 10px;
+  padding-top: 9px;
+}
+
+.finish-tile[class*='character-'] {
+  background:
+    linear-gradient(150deg, transparent 46%, var(--finish-high) 47% 51%, transparent 53%),
+    repeating-linear-gradient(160deg, transparent 0 11px, #b8ecda56 13px 16px, transparent 18px 26px),
+    var(--finish-low);
+}

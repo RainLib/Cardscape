@@ -19,6 +19,7 @@ interface Window {
   atelierCharacterWorkflow: typeof import('../renderer/character/character-workflow.ts').moduleApi.atelierCharacterWorkflow;
   atelierCharacterWorkspace: typeof import('../renderer/character/character-workspace.ts').moduleApi.atelierCharacterWorkspace;
   atelierAppearance: typeof import('../renderer/editing/appearance-panel.ts').moduleApi.atelierAppearance;
+  atelierCharacterEffects: typeof import('../renderer/editing/character-effects-panel.ts').moduleApi.atelierCharacterEffects;
   atelierCardCover: typeof import('../renderer/editing/card-cover.ts').moduleApi.atelierCardCover;
   atelierCosmetics: typeof import('../renderer/editing/cosmetics-panel.ts').moduleApi.atelierCosmetics;
   atelierEditorUI: typeof import('../renderer/editing/editor-polish.ts').moduleApi.atelierEditorUI;

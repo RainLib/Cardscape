@@ -19,6 +19,7 @@ interface RuntimeModel {
   armorDefaults: Record<string, unknown>;
   vertex(body: string): string;
   fragmentSource(body: string, back: boolean, prelude?: string): string;
+  popOutBounds(style: FrameStyle): [number, number, number, number];
   grid(): unknown;
 }
 interface FrameModel {

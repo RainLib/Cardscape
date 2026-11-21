@@ -589,6 +589,7 @@ const api = (() => {
       },
     };
     if (rank >= 0) {
+      const keepCharacterDepth = !!source.characterEffects && !options.level;
       d.frameStyle =
         c.border === 'custom' && (!options.level || options.level === c.level)
           ? importedCardFrame.resolve(source)
@@ -602,7 +603,7 @@ const api = (() => {
         depth: rank >= 2 ? (source.effects?.depth ?? 1) : 0,
       };
       d.composition =
-        rank >= 1
+        rank >= 1 || keepCharacterDepth
           ? {
               top: true,
               right: true,
@@ -611,7 +612,7 @@ const api = (() => {
               ...source.composition,
             }
           : { top: false, right: false, bottom: false, left: false };
-      if (rank < 2) {
+      if (rank < 2 && !keepCharacterDepth) {
         d.spatial = {
           schema: 'card-spatial/1',
           ...source.spatial,
@@ -793,6 +794,16 @@ const api = (() => {
         (m.target !== 'back' || d.assetKind === 'back') &&
         m.style !== 'ink' &&
         m.speed > 0
+      )
+        return true;
+      if (
+        d.characterEffects &&
+        ls.some((layer) => layer.kind === 'foreground' ||
+          ['body', 'rear', 'front'].includes(layer.spatial?.role || '')) &&
+        [d.characterEffects.sash, d.characterEffects.hair,
+          d.characterEffects.cape, d.characterEffects.glow].some(
+          (effect) => effect.enabled && effect.strength > 0,
+        )
       )
         return true;
       if (

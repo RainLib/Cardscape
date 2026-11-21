@@ -3,6 +3,7 @@ import core from './runtime-core.ts';
 import importedCardCharacterAnimation from '../character/character-animation-model.ts';
 import importedCardExportProfile from './export-profile.ts';
 import importedCardTitle from '../editing/title-model.ts';
+import characterEffects from './character-effects.ts';
 function record(value: unknown, message: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw Error(message);
@@ -34,6 +35,7 @@ export function createRuntimeValidator(validators: RuntimeValidators) {
     validators.stats(doc);
     importedCardTitle.validate(doc);
     validators.components(doc);
+    characterEffects.validate(doc.characterEffects);
     if (
       doc.effects?.flowSpeed !== undefined &&
       !range(doc.effects.flowSpeed, 0, 5)

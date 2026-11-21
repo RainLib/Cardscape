@@ -30,6 +30,7 @@ import "./editing/export-panel.ts";
 import "./editing/frame-panel.ts";
 import "./editing/particle-panel.ts";
 import "./editing/appearance-panel.ts";
+import "./editing/character-effects-panel.ts";
 import "./editing/cosmetics-panel.ts";
 import "./editing/material-panel.ts";
 import "./workshop/workshop-tabbar.ts";

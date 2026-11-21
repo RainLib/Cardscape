@@ -269,6 +269,7 @@ export async function exportGodot(
       'cosmetics',
       'cosmeticPreview',
       'effects',
+      'characterEffects',
       'spatial',
       'composition',
       'armor',

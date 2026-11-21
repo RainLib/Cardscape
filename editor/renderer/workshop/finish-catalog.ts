@@ -4,9 +4,11 @@ import importedCardComponents from './component-model.ts';
 import importedCardCosmetics from '../editing/cosmetics-model.ts';
 import importedCardFrame from '../editing/frame-model.ts';
 import laserFoil from './laser-foil.ts';
+import characterEffects from '../rendering/character-effects.ts';
+import spatial from '../rendering/spatial-model.ts';
 
 export interface FinishEntry {
- id: string; kind: 'material' | 'frame' | 'particles'; name: string; group: string;
+ id: string; kind: 'material' | 'frame' | 'particles' | 'character'; name: string; group: string;
  recipe: Record<string, unknown> & { color?: string; accent?: string; backgroundMode?: string; style?: string; finish?: string };
  preset?: string; artwork?: boolean; designId?: string; referenceStatus?: string;
 }
@@ -84,10 +86,24 @@ const originalDesigns:FinishEntry[]=[
 const laserPresets: FinishEntry[] = laserFoil.presets.map((preset) => ({
   ...preset, kind: 'material', group: '镭射',
 }));
-const entries:FinishEntry[]=[...laserPresets,...materials,...rayReferences,...symbioteReferences,...surfaceReferences,...frames,...frameReferences,...gradeFrames,...particles,...referenceParticles,...specialParticles,...originalDesigns];
+const characterPresets:FinishEntry[]=[
+ {id:'character-neris-vale',kind:'character',name:'奈莉丝 · 人物动效',group:'人物动效',recipe:{color:'#163745',accent:'#e7bf7c'}},
+];
+const entries:FinishEntry[]=[...characterPresets,...laserPresets,...materials,...rayReferences,...symbioteReferences,...surfaceReferences,...frames,...frameReferences,...gradeFrames,...particles,...referenceParticles,...specialParticles,...originalDesigns];
 function find(id){const e=entries.find(e=>e.id===id);if(!e)throw Error('效果配方不存在');return e;}
-function value(id,current: any={}){const e=find(id);if(e.kind==='frame'){if(e.artwork)return importedCardFrameArtwork.value({...importedCardFrame.defaults,...e.recipe},importedCardFrameArtwork.current());if(current.document?.id==='stellar-frame-art')current={};const style={...importedCardFrame.resolve({frameStyle:current.style||current}),...e.recipe};return {...(current.schema==='card-frame/1'?current:{}),schema:'card-frame/1',style,...(current.document?{document:{...current.document,frameStyle:style}}:{})};}return e.kind==='material'?importedCardComponents.material({...current,...e.recipe}):importedCardComponents.particles({...importedCardCosmetics.particlePreset(e.preset,current),...e.recipe});}
-function apply(d,id){const e=find(id);if(e.kind==='frame'){const v=value(id,d.componentScenes?.frame||d.frameStyle);if(d.assetKind==='frame'&&e.artwork){const identity={id:d.id,name:d.name};Object.assign(d,v.document,identity);delete d.componentScenes;}else{d.frameStyle=v.style;if(v.document)d.componentScenes={...d.componentScenes,frame:v};else if(d.componentScenes?.frame){d.componentScenes={...d.componentScenes};delete d.componentScenes.frame;}}d.cosmetics={...importedCardCosmetics.config(d.cosmetics),border:'custom'};return d;}d[e.kind]=value(id,d[e.kind]);d.cosmetics={...importedCardCosmetics.config(d.cosmetics),[e.kind==='material'?'finish':'flare']:e.kind==='material'?'original':'authored'};if(d.componentScenes?.[e.kind])d.componentScenes={...d.componentScenes,[e.kind]:{...d.componentScenes[e.kind],...d[e.kind]}};return d;}
+function value(id,current: any={}){const e=find(id);if(e.kind==='character'){
+ const preset=structuredClone(characterEffects.nerisVale);
+ for(const key of ['layerId','occluderId'] as const)
+  if(current.wordmark?.[key])preset.wordmark[key]=current.wordmark[key];
+ if(current.bodyMotion)preset.bodyMotion=current.bodyMotion;
+ return preset;
+ }if(e.kind==='frame'){if(e.artwork)return importedCardFrameArtwork.value({...importedCardFrame.defaults,...e.recipe},importedCardFrameArtwork.current());if(current.document?.id==='stellar-frame-art')current={};const style={...importedCardFrame.resolve({frameStyle:current.style||current}),...e.recipe};return {...(current.schema==='card-frame/1'?current:{}),schema:'card-frame/1',style,...(current.document?{document:{...current.document,frameStyle:style}}:{})};}return e.kind==='material'?importedCardComponents.material({...current,...e.recipe}):importedCardComponents.particles({...importedCardCosmetics.particlePreset(e.preset,current),...e.recipe});}
+function apply(d,id){const e=find(id);if(e.kind==='character'){
+ d.characterEffects=value(id,d.characterEffects);
+ d.spatial={...spatial.defaults,...d.spatial,enabled:true};
+ d.previewMode='authored';
+ return d;
+ }if(e.kind==='frame'){const v=value(id,d.componentScenes?.frame||d.frameStyle);if(d.assetKind==='frame'&&e.artwork){const identity={id:d.id,name:d.name};Object.assign(d,v.document,identity);delete d.componentScenes;}else{d.frameStyle=v.style;if(v.document)d.componentScenes={...d.componentScenes,frame:v};else if(d.componentScenes?.frame){d.componentScenes={...d.componentScenes};delete d.componentScenes.frame;}}d.cosmetics={...importedCardCosmetics.config(d.cosmetics),border:'custom'};return d;}d[e.kind]=value(id,d[e.kind]);d.cosmetics={...importedCardCosmetics.config(d.cosmetics),[e.kind==='material'?'finish':'flare']:e.kind==='material'?'original':'authored'};if(d.componentScenes?.[e.kind])d.componentScenes={...d.componentScenes,[e.kind]:{...d.componentScenes[e.kind],...d[e.kind]}};return d;}
 return {entries,find,value,apply};
 })();
 

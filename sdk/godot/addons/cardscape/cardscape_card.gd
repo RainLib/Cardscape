@@ -62,6 +62,7 @@ var _definition: Dictionary = {}
 var _character_compiled: Dictionary = {}
 var _native_meshes: Dictionary = {}
 var _attachment_masks: Dictionary = {}
+var _pop_bounds := Vector4.ZERO
 var _clock: float = 0.0
 var _particle_reveal_started: float = 0.0
 var _particle_reveal_count: int = 0
@@ -413,6 +414,15 @@ func rebuild() -> void:
 	_contour_counts=Vector2.ZERO
 	_contour_field=_texture(str(_definition.get("contourFieldAsset",""))) if _definition.has("contourFieldAsset") else null
 	var contour: Dictionary=_definition.get("frameStyle",{}).get("contour",{})
+	var edge := float(style.width)/1024.0
+	_pop_bounds = Vector4(.75-edge,.5-edge,-.75+edge,-.5+edge)
+	if not contour.get("windows",[]).is_empty():
+		_pop_bounds = Vector4(-INF,-INF,INF,INF)
+		for window in contour.windows:
+			for point in window:
+				var x := float(point[0])/1024.0-.5
+				var y := .75-float(point[1])/1024.0
+				_pop_bounds = Vector4(maxf(_pop_bounds.x,y),maxf(_pop_bounds.y,x),minf(_pop_bounds.z,y),minf(_pop_bounds.w,x))
 	if not contour.is_empty():
 		var rings: Array=[contour.outline]
 		rings.append_array(contour.windows)
@@ -466,7 +476,8 @@ func rebuild() -> void:
 			_native_meshes[layer.id]={"mesh":shared_mesh,"spec":skin,"rest":shared_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]}
 		if fg:
 			_surface(layer, shared_mesh, z, -60+order*2, 1.0, bg)
-			_surface(layer, shared_mesh, z, -60+order*2, 2.0, bg)
+			if _definition.get("characterEffects",{}).get("breakout",{}).get("enabled",true):
+				_surface(layer, shared_mesh, z, -60+order*2, 2.0, bg)
 		else:
 			_surface(layer, shared_mesh, z, -90 if layer.get("material_overlay",false) else -100 if bg else -60+order*2, 0.0, bg)
 	var frame_visible := false
@@ -608,7 +619,8 @@ func _mesh(data: Dictionary, foreground: bool = false, cloth: Dictionary = {}, d
 			weight = motion_img.get_pixel(clampi(roundi(uvs[i].x*(motion_img.get_width()-1)),0,motion_img.get_width()-1),clampi(roundi(uvs[i].y*(motion_img.get_height()-1)),0,motion_img.get_height()-1)).r
 		if cloth_image:
 			weight=cloth_image.get_pixel(clampi(roundi(uvs[i].x*(cloth_image.get_width()-1)),0,cloth_image.get_width()-1),clampi(roundi(uvs[i].y*(cloth_image.get_height()-1)),0,cloth_image.get_height()-1)).r*float(cloth.attachment.motion)
-		uv2.append(Vector2(weight*(1.0-locks[i]),locks[i]))
+		var lock := 0.0 if cloth_image and _definition.has("characterEffects") else locks[i]
+		uv2.append(Vector2(weight*(1.0-lock),lock))
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = positions
@@ -714,6 +726,12 @@ func _surface(layer: Dictionary, mesh: Mesh, z: float, priority: int, pass_id: f
 	var node := MeshInstance3D.new()
 	node.name = str(layer.id) + ("-inside" if pass_id==1.0 else "-outside" if pass_id==2.0 else "")
 	node.set_meta("layer_id", str(layer.id))
+	if pass_id > 0.0:
+		var anatomical_part: String = layer.get("anatomy",{}).get("part","")
+		var wind: String = anatomical_part if anatomical_part in ["hair","cape"] else "sash"
+		if layer.kind == "foreground":
+			wind = _definition.get("characterEffects",{}).get("bodyMotion",wind)
+		node.set_meta("character_wind",wind)
 	node.set_meta("background_art",bg and layer.get("role","")!="baseplate" and not layer.get("material_overlay",false) and not layer.get("reverse",false))
 	node.set_meta("reverse",bool(layer.get("reverse",false)))
 	node.set_meta("material_overlay",bool(layer.get("material_overlay",false)))
@@ -842,6 +860,47 @@ func _sample(frames: Array, progress: float, fallback: float) -> float:
 			return lerpf(float(left.value),float(right.value),t)
 	return float(frames.back().value)
 
+func _wordmark_order(layers: Array, setting: Dictionary) -> Array:
+	if setting.is_empty():
+		return layers
+	var marks := layers.filter(func(layer: Dictionary) -> bool:
+		if not layer.get("visible",true):
+			return false
+		var role: String = layer.get("role","")
+		return (layer.kind == "text" and role not in ["cost","power","stat-cost","stat-power"]) or (layer.kind == "image" and role == "wordmark")
+	)
+	var occluders := layers.filter(func(layer: Dictionary) -> bool:
+		return layer.get("visible",true) and layer.kind == "image" and layer.get("spatial",{}).get("role","") == "front"
+	)
+	if marks.is_empty() or occluders.is_empty():
+		return layers
+	var mark: Dictionary = marks.back()
+	var part: Dictionary = occluders.back()
+	if setting.has("layerId"):
+		var exact := marks.filter(func(layer: Dictionary) -> bool: return layer.id == setting.layerId)
+		if exact.is_empty():
+			return layers
+		mark = exact[0]
+	else:
+		var illustrated := marks.filter(func(layer: Dictionary) -> bool: return layer.has("titleArt") or layer.get("role","") == "wordmark")
+		var plain := marks.filter(func(layer: Dictionary) -> bool: return layer.id == "title")
+		if not illustrated.is_empty():
+			mark = illustrated[0]
+		elif not plain.is_empty():
+			mark = plain[0]
+	if setting.has("occluderId"):
+		var exact := occluders.filter(func(layer: Dictionary) -> bool: return layer.id == setting.occluderId)
+		if exact.is_empty():
+			return layers
+		part = exact[0]
+	else:
+		var sashes := occluders.filter(func(layer: Dictionary) -> bool: return layer.get("anatomy",{}).get("part","") == "skirt")
+		if not sashes.is_empty():
+			part = sashes[0]
+	layers.erase(mark)
+	layers.insert(layers.find(part) + (0 if setting.enabled else 1),mark)
+	return layers
+
 func _process(delta: float) -> void:
 	if effects_playing and not effects_paused:
 		_clock += delta
@@ -906,6 +965,8 @@ func _update(_delta: float) -> void:
 	var paint_layers: Array=_definition.layers.duplicate()
 	paint_layers.reverse()
 	paint_layers=CharacterAnimation.ordered_layers(paint_layers,character_action,character_progress)
+	var character_effects: Dictionary = _definition.get("characterEffects",{})
+	paint_layers = _wordmark_order(paint_layers,character_effects.get("wordmark",{}))
 	var paint_order: Dictionary={}
 	for i in range(paint_layers.size()):paint_order[paint_layers[i].id]=-60+i*2
 	var character_pose: Dictionary = pose.layers if effects_playing and _definition.get("cosmeticPreview",{}).get("motion",true) else {}
@@ -951,19 +1012,27 @@ func _update(_delta: float) -> void:
 	# Compute card-wide values once, while still writing every frame so gameplay
 	# uniform overrides retain their existing next-update semantics.
 	var deformation: Dictionary=_definition.get("deformation",{})
+	var glow: Dictionary = character_effects.get("glow",{})
+	var rate := TAU / 3.6
+	var glow_gain := (float(glow.strength) if glow.enabled else 0.0) if not glow.is_empty() else float(effects.get("flow",false))
 	var common_parameters: Dictionary={
 		&"laser_camera":_camera_distance(),
 		&"card_eye":eye,&"surfaceEye":eye,&"front_visible":front,&"clock":_clock,&"root_opacity":root_alpha,&"depth":depth_strength,
 		&"geometry_bend":float(deformation.get("bend",0))+(extra_bend if _definition.get("cosmeticPreview",{}).get("motion",true) else 0.0),
-		&"motion_gain":motion*float(deformation.get("wind",1)) if effects_playing and effects.get("cape",false) else 0.0,
-		&"flow_speed":float(effects.get("flowSpeed",1)),&"flow_gain":flow if effects_playing and _detail_effects.materials and effects.get("flow",false) else 0.0,
+		&"motion_gain":motion*float(deformation.get("wind",1)) if effects_playing and character_effects.is_empty() and effects.get("cape",false) else 0.0,
+		&"flow_speed":float(glow.speed)*rate/3.1 if not glow.is_empty() else float(effects.get("flowSpeed",1)),
+		&"flow_gain":flow*glow_gain if effects_playing and _detail_effects.materials else 0.0,
 		&"wind_speed":float(deformation.get("speed",1)),
 		&"metrics":Vector4(float(style.width)/1024.0,float(style.corner)/1024.0,float(style.depth)/1024.0,minf(float(style.bevel),minf(float(style.depth)*.45,16.0 if style.has("contour") else float(style.width)*.4))/1024.0),
 		&"pop_sides":Vector4(float(composition.get("top",true)),float(composition.get("right",true)),float(composition.get("bottom",false)),float(composition.get("left",true))),
+		&"pop_bounds":_pop_bounds,
 		&"frame_color":Color(style.color),&"frame_accent":Color(style.accent),&"frame_finish":finish_index,
 		&"frame_animation":Vector2(["none","pulse","flow","infinity"].find(style.get("animation","none")) if effects_playing and _detail_effects.materials else 0,float(style.get("animationSpeed",.6))),
 		&"armor_sweep":_sweep(armor) if _detail_effects.materials else Vector4.ZERO,&"armor_color":Color(armor.get("color","#badfff"))
 	}
+	if not glow.is_empty():
+		var tint := Color(str(glow.color))
+		common_parameters[&"flow_color"] = Vector3(tint.r,tint.g,tint.b)
 	var front_material := _material_parameters(material,false)
 	var back_material := _material_parameters(_definition.get("backScene",{}).get("material",material),true)
 	for surface in _surfaces:
@@ -993,6 +1062,9 @@ func _update(_delta: float) -> void:
 					mat.set_shader_parameter("attachment_transform",parent.transform)
 					break
 		for name in common_parameters:mat.set_shader_parameter(name,common_parameters[name])
+		if surface.has_meta("character_wind") and not character_effects.is_empty():
+			var wind: Dictionary = character_effects[surface.get_meta("character_wind")]
+			mat.set_shader_parameter("character_flutter",Vector2(float(wind.strength)*motion if effects_playing and wind.enabled else 0.0,float(wind.speed)*rate))
 		var surface_material: Dictionary=back_material if surface.get_meta("reverse",false) else front_material
 		for name in surface_material.parameters:mat.set_shader_parameter(name,surface_material.parameters[name])
 		mat.set_shader_parameter("material_replace",1.0 if surface_material.replace and not surface.get_meta("material_overlay",false) else 0.0)

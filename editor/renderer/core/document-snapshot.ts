@@ -8,6 +8,9 @@ export function snapshot(doc: CardDocument): CardDocument {
       ? structuredClone(doc.characterRig)
       : undefined,
     cosmetics: doc.cosmetics ? { ...doc.cosmetics } : undefined,
+    characterEffects: doc.characterEffects
+      ? structuredClone(doc.characterEffects)
+      : undefined,
     material: doc.material ? { ...doc.material } : undefined,
     particles: doc.particles ? structuredClone(doc.particles) : undefined,
     emissionRegions: doc.emissionRegions

@@ -111,6 +111,7 @@ export interface AssetManifest {
   cosmetics?: unknown;
   cosmeticPreview?: unknown;
   effects?: unknown;
+  characterEffects?: CardDocument['characterEffects'];
   spatial?: unknown;
   composition?: unknown;
   armor?: unknown;

@@ -208,6 +208,7 @@ export async function exportCard(
           : {}),
         previewMode: doc.previewMode || 'sample',
         effects: doc.effects,
+        characterEffects: doc.characterEffects,
         cosmetics: doc.cosmetics,
         material: doc.material,
         particles,

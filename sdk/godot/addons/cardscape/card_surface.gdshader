@@ -28,6 +28,7 @@ uniform float surfaceChannel = 0.0;
 uniform bool surfaceTransparent = false;
 uniform vec4 metrics = vec4(.0234375,.046875,.025390625,.0048828125);
 uniform vec4 pop_sides = vec4(1.0,1.0,0.0,1.0);
+uniform vec4 pop_bounds = vec4(.7265625,.4765625,-.7265625,-.4765625);
 uniform vec3 frame_color : source_color = vec3(.53,.45,.31);
 uniform vec3 frame_accent : source_color = vec3(.83,.73,.53);
 uniform float frame_finish = 1.0;
@@ -38,6 +39,8 @@ uniform float root_opacity = 1.0;
 uniform float motion_gain = 1.0;
 uniform float flow_gain = 1.0;
 uniform float flow_speed = 1.0;
+uniform vec3 flow_color = vec3(.45,.77,1.0);
+uniform vec2 character_flutter = vec2(0.0);
 uniform float wind_speed = 1.0;
 uniform float geometry_bend = 0.0;
 uniform vec3 slot_effect = vec3(0.0,0.0,1.0);
@@ -92,7 +95,13 @@ return color;
 void vertex(){
 	registered_uv=UV;
 	if(background){VERTEX.xy*=background_extent;registered_uv=(UV-.5)*background_extent+.5;}
-	if(foreground_pass>0.0&&!rigid_part){float weight=UV2.x;float wave=sin(clock*1.3*wind_speed+UV.x*11.0+UV.y*8.0);VERTEX.z+=wave*.016*weight*motion_gain*depth;VERTEX.x+=wave*.005*weight*motion_gain*depth;VERTEX=mix(VERTEX,deformCard(VERTEX,UV,clock,geometry_bend),weight*(1.0-UV2.y));}
+	if(foreground_pass>0.0&&!rigid_part){float weight=UV2.x;float wave=sin(clock*1.3*wind_speed+UV.x*11.0+UV.y*8.0);VERTEX.z+=wave*.016*weight*motion_gain*depth;VERTEX.x+=wave*.005*weight*motion_gain*depth;
+		if(character_flutter.x>0.0){
+			float phase=clock*character_flutter.y-UV.y*9.3-UV.x*2.6;
+			float gust=sin(phase)+.20*sin(phase*2.0+.6);
+			VERTEX+=vec3(.054*gust,.027*cos(phase+.38),.041*gust)*weight*character_flutter.x;
+		}
+		VERTEX=mix(VERTEX,deformCard(VERTEX,UV,clock,geometry_bend),weight*(1.0-UV2.y));}
 	card_point=(layer_transform*vec4(VERTEX,1.0)).xyz;
 	if(attached&&!rigid_part){float weight=texture(attachment_tex,UV).r;card_point=mix((attachment_transform*vec4(VERTEX,1.0)).xyz,card_point,weight);VERTEX=(inverse(layer_transform)*vec4(card_point,1.0)).xyz;}
 }
@@ -1170,7 +1179,7 @@ void fragment(){
 	if(background||clipped||foreground_pass>0.0){aperture=at_plane(card_point,.045-metrics.w);inside=in_outline(aperture,metrics.x);}
 	if((background||clipped)&&!inside){discard;}
 	if(back_side&&!in_outline(at_plane(card_point,.045-metrics.z+metrics.w),contour_counts.y>.5?0.0:metrics.x)){discard;}
-	if(foreground_pass>0.0){if(foreground_pass<1.5&&!inside){discard;}if(foreground_pass>1.5){if(inside){discard;}vec2 e=vec2(.5,.75)-metrics.x;if((aperture.y>e.y&&pop_sides.x<.5)||(aperture.x>e.x&&pop_sides.y<.5)||(aperture.y< -e.y&&pop_sides.z<.5)||(aperture.x< -e.x&&pop_sides.w<.5)){discard;}}}
+	if(foreground_pass>0.0){if(foreground_pass<1.5&&!inside){discard;}if(foreground_pass>1.5){if(inside||dot(pop_sides,vec4(1.0))<.5){discard;}if((aperture.y>pop_bounds.x&&pop_sides.x<.5)||(aperture.x>pop_bounds.y&&pop_sides.y<.5)||(aperture.y<pop_bounds.z&&pop_sides.z<.5)||(aperture.x<pop_bounds.w&&pop_sides.w<.5)){discard;}}}
 // Five-tap frost diffusion. Coverage remains the source alpha.
 if(material_style==26&&component_material.x>0.&&((background&&(component_material.w<1.5||component_material.w>2.5))||(back_side&&(component_material.w<.5||(component_material.w>1.5&&component_material.w<2.5)||component_material.w>4.5))||(frame_part<.5&&!back_side&&component_material.w>2.5))){
  float frost=finishFrost(UV*vec2(1.,1.5));vec2 radius=(.006+.014*frost)*source_rect.zw;
@@ -1226,7 +1235,7 @@ if(material_style==26&&component_material.x>0.&&((background&&(component_materia
 			c.rgb=finishComposite(c.rgb,result,material_color,component_material.x,replace_art);
 		}
 	}
-	if(foreground_pass>0.0){float e=texture(emission_tex,UV).r,phase=texture(phase_tex,UV).r;float stream=pow(.5+.5*sin(phase*30.0-clock*3.1*flow_speed+UV.y*11.0),3.0);c.rgb+=vec3(.45,.77,1.0)*e*stream*flow_gain;c.rgb+=armor_color*texture(foil_tex,UV).r*sweep(UV.x*.82+UV.y*.18,armor_sweep);}
+	if(foreground_pass>0.0){float e=texture(emission_tex,UV).r,phase=texture(phase_tex,UV).r;float stream=pow(.5+.5*sin(phase*30.0-clock*3.1*flow_speed+UV.y*11.0),3.0);c.rgb+=flow_color*e*stream*flow_gain;c.rgb+=armor_color*texture(foil_tex,UV).r*sweep(UV.x*.82+UV.y*.18,armor_sweep);}
 	c.rgb+=title_color*sweep((UV.x-title_bounds.x)/max(.001,title_bounds.y-title_bounds.x),title_sweep)*c.a;
 	if(slot_effect.x>.5){float wave=.5+.5*sin(clock*slot_effect.z*3.0+(slot_effect.x>1.5?UV.y*20.0:0.0));c.rgb+=vec3(.2,.5,.8)*wave*slot_effect.y;}
 	if(custom_effect){vec4 mask=vec4(texture(motion_tex,UV).r,texture(inset_tex,UV).r,texture(emission_tex,UV).r,texture(phase_tex,UV).r);float strength=clamp(custom_strength*(custom_masked?texture(custom_mask_tex,UV).r:1.0),0.0,1.0);c=mix(c,surfaceEffect(c,UV,clock,mask),strength);}

@@ -220,9 +220,11 @@ export const moduleApi = (() => {
   } = createMaskAssets(imageFrom, (id, pixels) =>
     window.cardPreview.updateMask(id, pixels),
   );
-  function blankMaskCanvas() {
+  function blankMaskCanvas(color = 'black') {
     const blank = canvasFor();
-    blank.getContext('2d').fillRect(0, 0, 1024, 1536);
+    const context = blank.getContext('2d');
+    context.fillStyle = color;
+    context.fillRect(0, 0, 1024, 1536);
     return blank;
   }
   async function loadDocument(document, resetHistory = true) {
@@ -567,8 +569,9 @@ export const moduleApi = (() => {
         ? W.resolve(workshop, workshop.activeCardId)
         : null,
     );
+    const resolved = window.atelierComponents?.resolve(doc, workshop) || doc;
     window.cardPreview.setDocument(
-      window.atelierComponents?.resolve(doc, workshop) || doc,
+      window.atelierFinishLibrary?.resolvePreview(resolved, documentToken, revision) || resolved,
     );
     for (const layer of doc.layers.filter((l) => l.kind === 'text')) {
       const key = JSON.stringify([
@@ -1263,6 +1266,7 @@ export const moduleApi = (() => {
     window.atelierParticles?.refresh();
     window.atelierCosmetics?.refresh();
     window.atelierMaterial?.refresh();
+    window.atelierCharacterEffects?.refresh();
   }
   function setTool(next, character = false) {
     if (!character) window.atelierCharacterRig?.deactivate();
@@ -3466,6 +3470,40 @@ export const moduleApi = (() => {
         folders.reorder(d, active().id, next),
       );
     };
+  function clearLayerReferences(ids: Set<string>, retainedId?: string) {
+    for (const action of doc.actions || []) {
+      for (const frame of action.drawOrder || [])
+        frame.layers = frame.layers.filter((id) => !ids.has(id));
+      for (const id of ids) {
+        if (action.layerTracks) delete action.layerTracks[id];
+        if (action.deformTracks) delete action.deformTracks[id];
+      }
+      if (action.particleEvents)
+        action.particleEvents = action.particleEvents.filter(
+          (event) => !ids.has(event.particles.emitter?.layerId),
+        );
+    }
+    if (doc.characterRig) {
+      doc.characterRig.bindings = doc.characterRig.bindings.filter(
+        (binding) => !ids.has(binding.layerId),
+      );
+      if (doc.characterRig.meshes)
+        doc.characterRig.meshes = doc.characterRig.meshes.filter(
+          (mesh) => !ids.has(mesh.layerId),
+        );
+    }
+    if (doc.emissionRegions)
+      doc.emissionRegions = doc.emissionRegions.filter(
+        (region) => !ids.has(region.layerId),
+      );
+    if (ids.has(doc.shader.fragmentTarget) && doc.shader.fragmentTarget !== retainedId)
+      doc.shader.fragmentTarget = 'all';
+    const wordmark = doc.characterEffects?.wordmark;
+    if (wordmark) {
+      if (ids.has(wordmark.layerId)) delete wordmark.layerId;
+      if (ids.has(wordmark.occluderId)) delete wordmark.occluderId;
+    }
+  }
   $('delete-layer').onclick = () => {
     const layer = active();
     if (
@@ -3475,32 +3513,7 @@ export const moduleApi = (() => {
       return;
     mutate('删除图层（可撤销）', () => {
       doc.layers = doc.layers.filter((l) => l.id !== layer.id);
-      for (const action of doc.actions || []) {
-        if (action.drawOrder)
-          for (const frame of action.drawOrder)
-            frame.layers = frame.layers.filter((id) => id !== layer.id);
-        if (action.layerTracks) delete action.layerTracks[layer.id];
-        if (action.deformTracks) delete action.deformTracks[layer.id];
-        if (action.particleEvents)
-          action.particleEvents = action.particleEvents.filter(
-            (event) => event.particles.emitter?.layerId !== layer.id,
-          );
-      }
-      if (doc.characterRig) {
-        doc.characterRig.bindings = doc.characterRig.bindings.filter(
-          (b) => b.layerId !== layer.id,
-        );
-        if (doc.characterRig.meshes)
-          doc.characterRig.meshes = doc.characterRig.meshes.filter(
-            (m) => m.layerId !== layer.id,
-          );
-      }
-      if (doc.emissionRegions)
-        doc.emissionRegions = doc.emissionRegions.filter(
-          (r) => r.layerId !== layer.id,
-        );
-      if (doc.shader.fragmentTarget === layer.id)
-        doc.shader.fragmentTarget = 'all';
+      clearLayerReferences(new Set([layer.id]));
       selected = [doc.layers[0].id];
       target = 'image';
     });
@@ -3666,6 +3679,14 @@ export const moduleApi = (() => {
       replacing = active();
     if (role === 'replace' && (replacing.kind !== 'image' || replacing.locked))
       throw Error('请选择未锁定的叠加图像图层');
+    const previousCharacter = role === 'foreground' && doc.characterEffects
+      ? doc.layers.find((layer) => layer.kind === 'foreground')
+      : undefined;
+    const oldParts = previousCharacter
+      ? doc.layers.filter((layer) => layer.splitSourceId === previousCharacter.id)
+      : [];
+    if (previousCharacter?.locked || oldParts.some((layer) => layer.locked))
+      throw Error('请先解锁原人物及其拆层，再替换人物');
     const c = canvasFor();
     const cc = c.getContext('2d');
     const scale =
@@ -3735,6 +3756,20 @@ export const moduleApi = (() => {
           });
           images.set(layer.id, normalized);
           if (role === 'foreground') {
+            if (previousCharacter) {
+              const removed = new Set<string>(oldParts.map((part) => part.id));
+              doc.layers = doc.layers.filter((part) => !removed.has(part.id));
+              clearLayerReferences(new Set([layer.id, ...removed]), layer.id);
+              for (const id of removed) images.delete(id);
+              delete layer.underpaint;
+              delete layer.ownershipMask;
+              delete layer.ownershipEncoding;
+              delete layer.motionAnchor;
+              delete layer.anatomy;
+              delete layer.pivot;
+              delete layer.rotation;
+              delete layer.splitEdgeOriginal;
+            }
             layer.master = result.image;
             doc.previewMode = 'authored';
             doc.foregroundMesh ||= await bridge.invoke('process', {
@@ -3751,7 +3786,8 @@ export const moduleApi = (() => {
                 p.data[i] =
                   p.data[i + 1] =
                   p.data[i + 2] =
-                    id === 'coverage' ? pixels.data[i + 3] : 0;
+                    id === 'coverage' ? pixels.data[i + 3] :
+                    id === 'inset' && doc.characterEffects ? 255 : 0;
                 p.data[i + 3] = 255;
               }
               mctx.putImageData(p, 0, 0);
@@ -3760,6 +3796,7 @@ export const moduleApi = (() => {
             }
             selection = null;
             selectionMask = null;
+            selectionLayer = null;
             lassoPoints = [];
           }
           selected = [layer.id];
@@ -5290,7 +5327,7 @@ export const moduleApi = (() => {
           : '拖动蓝色固定点和黄色自由端；两点间至少16px',
       );
     },
-    async splitSelection(role, part, side = 'center') {
+    async splitSelection(role, part, side = 'center', animate = false) {
       if (active()?.kind !== 'foreground' || active().locked || !selection)
         throw Error('在未锁定的人物母版上建立选区后拆层');
       const token = documentToken,
@@ -5299,12 +5336,13 @@ export const moduleApi = (() => {
         mask = await localSelection();
       if (token !== documentToken || version !== revision || id !== active().id)
         throw Error('选区准备时工程已变化');
+      const newLayerId = 'part-' + crypto.randomUUID();
       return applyProductionCommands(
         [
           {
             op: 'splitLayer',
             layerId: id,
-            newLayerId: 'part-' + crypto.randomUUID(),
+            newLayerId,
             name:
               (importedCardSpatial.parts[part]?.name || '衣料') +
               ' / ' +
@@ -5314,6 +5352,9 @@ export const moduleApi = (() => {
             selectionMask: mask,
             feather: 0,
           },
+          ...(animate && importedCardSpatial.parts[part]?.mode === 'cloth'
+            ? [{ op: 'attachment' as const, layerId: newLayerId, motion: 1 }]
+            : []),
         ],
         undefined,
         '选区拆为' + (role === 'rear' ? '后层' : '前层'),
@@ -5636,6 +5677,26 @@ export const moduleApi = (() => {
             : '建立选区后点击“选区写入当前 Mask”',
       );
     },
+    async markBreakoutSelection() {
+      const layer = active();
+      if (layer?.kind !== 'foreground' || layer.locked || selectionLayer !== layer.id || !selection)
+        throw Error('请先在未锁定的人物上圈选要破框的区域');
+      const binding = [documentToken, revision, layer.id];
+      const mask = await localSelection();
+      if (binding[0] !== documentToken || binding[1] !== revision || binding[2] !== active()?.id)
+        throw Error('选区准备时工程已变化');
+      await processTask(
+        '仅让选区破框',
+        'mask_combine',
+        { image: blankMaskCanvas('white').toDataURL('image/png'), selection: mask, mode: 'subtract' },
+        async (result) => {
+          await registerMask('inset', result.image);
+          doc.masks.inset = result.image;
+          target = 'inset';
+          showMask = true;
+        },
+      );
+    },
     clearSubjectMask() {
       if (
         !doc?.masks.subject ||
@@ -5770,6 +5831,7 @@ export const moduleApi = (() => {
           d.cosmetics,
           d.componentScenes,
           d.effects,
+          d.characterEffects,
           d.locale,
           d.composition,
           d.armor,

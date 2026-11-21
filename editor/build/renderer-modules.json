@@ -348,6 +348,10 @@
     "global": "CardRuntimeCore",
     "default": true
   },
+  "renderer/rendering/character-effects.ts": {
+    "global": "CardCharacterEffects",
+    "default": true
+  },
   "renderer/rendering/laser-foil-glsl.ts": {
     "global": "CardLaserFoilGLSL",
     "default": true

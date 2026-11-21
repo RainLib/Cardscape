@@ -33,12 +33,14 @@ Build a card from a single image or assemble separate layers for the character, 
     <td align="center"><img src="docs/media/neris-vale-details.webp" width="320" alt="A fixed-angle crop of the Chinese wordmark with a fluttering silk sash and a pulse of light in the brass compass buckle"></td>
   </tr>
   <tr>
-    <td><strong>Neris Vale</strong><br>The leading hand and cuff project through the brass rim. The torso stays inside the card as the observatory and sea shift behind the figure.</td>
-    <td><strong>Local motion and light</strong><br>The sash is pinned at the belt and flutters over the illustrated wordmark. Light travels along the brass engravings while the card holds its angle. Switch between the English and Simplified Chinese wordmarks in the editor.</td>
+    <td><strong>Neris Vale</strong><br>The hand and cuff project through the brass rim with a shallow depth offset at the sleeve. The cape and loose hair move around fixed roots.</td>
+    <td><strong>Local motion and light</strong><br>The sash flutters over the illustrated wordmark. Light travels along the brass engravings while the card holds its angle. Switch between the English and Simplified Chinese wordmarks in the editor.</td>
   </tr>
 </table>
 
-Both loops were captured from Cardscape's WebGL player. Open the workshop from Home to adjust the parts, breakout mask, and lettering independently. [Neris Vale workshop](editor/examples/production-card/neris-vale/neris-vale.cardworkshop) · [Artwork notes](editor/examples/production-card/neris-vale/generation.md)
+Apply **Neris Vale** from **Appearance → Effect Library → Character Effects** to use these effects on your own artwork. Mark the regions for your portrait, choose which layer crosses the wordmark, and tune the sash, hair, cape, and glow independently. The character effects can be combined with foil, frames, and particles. [Preset walkthrough](editor/README.md#apply-the-neris-vale-character-preset)
+
+Both loops were captured from Cardscape's WebGL player. Open the workshop from Home to explore the finished card. [Neris Vale workshop](editor/examples/production-card/neris-vale/neris-vale.cardworkshop) · [Artwork notes](editor/examples/production-card/neris-vale/generation.md)
 
 ## The workspace
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/branding/cardscape-banner.webp" width="1280" alt="Cardscape. Animated 2.5D cards with depth, motion, and light.">
+  <img src="docs/branding/cardscape-banner.webp" width="1280" alt="Cardscape, an animated 2.5D card editor. Neris Vale reaches beyond her frame beside Moonveil Stag's aurora foil.">
 </p>
 
 # Cardscape

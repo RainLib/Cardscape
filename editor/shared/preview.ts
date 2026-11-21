@@ -29,6 +29,16 @@ export interface ShaderResult {
   stage?: string;
   message?: string;
 }
+export interface PreviewCapture {
+  frame(pose: {
+    yaw: number;
+    pitch: number;
+    x: number;
+    y: number;
+    time: number;
+  }): void;
+  dispose(): void;
+}
 export interface PreviewAPI {
   setDocument(document: CardDocument): void;
   setTexture(
@@ -107,6 +117,7 @@ export interface PreviewAPI {
   setRenderOverrides(value: Partial<CardDocument>): void;
   setEmitterContext(value: CardDocument | null): void;
   drawExternal(options: ExternalView): SurfaceResult;
+  createCapture(canvas: HTMLCanvasElement): PreviewCapture;
   dispose(): void;
 }
 

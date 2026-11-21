@@ -242,3 +242,16 @@ body[data-character-page] #character-ik-panel,body[data-character-page] #charact
 .ik-constraint-row{display:flex;gap:5px;align-items:center;margin:3px 0}.ik-constraint-row button{flex:1;text-align:left;font-size:10px}.ik-constraint-row button[aria-pressed=true]{background:#40546c}.ik-limit-row{display:grid;grid-template-columns:16px minmax(0,1fr) 50px 50px;align-items:center;gap:4px;font-size:10px;margin:5px 0}.inspector .ik-limit-row input[type=number]{width:50px}#ik-chain-info{color:#b8d6ef;overflow-wrap:anywhere}
 
 #spine-import-dialog{width:min(920px,94vw);max-height:88vh;overflow:auto;padding:16px;background:#292d33;color:#dfe7f1}#spine-import-dialog>header{display:flex;justify-content:space-between;align-items:center}#spine-import-dialog input[type=number]{width:65px}.spine-map-row{display:flex;gap:5px;align-items:center;margin:7px 0}.spine-map-row label{display:flex;flex:1;min-width:0;font-size:11px}.spine-map-row select{flex:1;min-width:0}.spine-map-row input{width:58px!important}#spine-import-report{white-space:pre-wrap;overflow-wrap:anywhere;background:#20242a;padding:10px;font:11px/1.6 system-ui;max-height:240px;overflow:auto}
+
+.preview-panel #author-model-canvas[data-material-style='laser-foil'] {
+  background: radial-gradient(ellipse at 50% 45%, #344052 0, #222a38 38%, #111722 75%, #0e141d 100%);
+}
+
+.laser-overlay-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px auto;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+.laser-overlay-row select,
+.laser-overlay-row input { min-width: 0; width: 100%; }

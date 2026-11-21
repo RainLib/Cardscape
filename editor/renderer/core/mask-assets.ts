@@ -8,6 +8,7 @@ export const maskColors = {
   rigid: [244, 119, 132],
   coverage: [112, 190, 236],
   foil: [241, 214, 120],
+  subject: [255, 110, 119],
 } as const;
 export const maskNames = {
   motion: '运动',
@@ -17,7 +18,11 @@ export const maskNames = {
   rigid: '刚性保护',
   coverage: '可见轮廓',
   foil: '盔甲反光',
+  subject: '镭射主体保护',
 } as const;
+export const requiredMaskIds = Object.keys(maskNames).filter(
+  (id) => id !== 'subject',
+);
 export type MaskId = keyof typeof maskNames;
 export interface MaskSurface {
   canvas: HTMLCanvasElement;
@@ -39,10 +44,16 @@ export function createMaskAssets(
 ) {
   const masks = new Map<string, MaskSurface>();
   const maskVersions = new WeakMap<HTMLCanvasElement, number>();
-  async function registerMask(id: string, source: string | HTMLImageElement) {
+  async function registerMask(
+    id: string,
+    source: string | HTMLImageElement | HTMLCanvasElement,
+  ) {
     if (!Object.hasOwn(maskNames, id)) throw Error('未知 Mask：' + id);
     const image = typeof source === 'string' ? await imageFrom(source) : source;
-    if (image.naturalWidth !== 1024 || image.naturalHeight !== 1536)
+    const width = 'naturalWidth' in image ? image.naturalWidth : image.width;
+    const height =
+      'naturalHeight' in image ? image.naturalHeight : image.height;
+    if (width !== 1024 || height !== 1536)
       throw Error('Mask 必须与母版同为 1024 × 1536');
     const canvas = canvasFor(),
       ctx = canvas.getContext('2d', { willReadFrequently: true })!;

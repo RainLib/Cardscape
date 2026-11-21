@@ -23,6 +23,25 @@ import type {
 } from './render-models';
 import type { CharacterRig, CharacterAction } from './character';
 import type { LayerNode } from './layer-tree';
+export interface LaserLayoutFields {
+  style: 'original' | 'foil' | 'fullart' | 'gallery' | 'graded';
+  zoom: number;
+  x: number;
+  y: number;
+  title: string;
+  caption: string;
+  gradeLabel: string;
+  grade: string;
+  serial: string;
+  rarity: string;
+}
+export interface LaserLayoutState extends LaserLayoutFields {
+  layerId: string;
+  source: string;
+  sourceMask?: string;
+  previousFrame?: Partial<FrameStyle>;
+  previousBorder?: Cosmetics['border'];
+}
 export type LayerKind =
   | 'image'
   | 'foreground'
@@ -158,6 +177,7 @@ export interface CardDocument {
   composition?: Record<string, unknown>;
   armor?: Record<string, unknown>;
   frameStyle?: Partial<FrameStyle>;
+  laserLayout?: LaserLayoutState;
   frameStyles?: Array<Partial<FrameStyle>>;
   meshGuides?: unknown[];
   deformation?: {

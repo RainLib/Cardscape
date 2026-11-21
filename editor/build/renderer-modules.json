@@ -167,6 +167,14 @@
     "global": "CardInspection",
     "default": true
   },
+  "renderer/rendering/card-capture.ts": {
+    "global": "CardCapture",
+    "exports": ["encode", "widths"]
+  },
+  "renderer/rendering/card-showcase.ts": {
+    "global": "CardShowcase",
+    "exports": ["createShowcase"]
+  },
   "renderer/rendering/mesh-rigidity.ts": {
     "global": "MeshRigidity",
     "default": true
@@ -239,6 +247,14 @@
     "global": "CardComponents",
     "default": true
   },
+  "renderer/workshop/laser-foil.ts": {
+    "global": "CardLaserFoil",
+    "default": true
+  },
+  "renderer/workshop/laser-layout.ts": {
+    "global": "CardLaserLayout",
+    "default": true
+  },
   "renderer/workshop/finish-catalog.ts": {
     "global": "CardFinishCatalog",
     "default": true
@@ -301,7 +317,12 @@
   },
   "renderer/core/mask-assets.ts": {
     "global": "CardMaskAssets",
-    "exports": ["createMaskAssets", "maskNames", "maskColors"]
+    "exports": [
+      "createMaskAssets",
+      "maskNames",
+      "maskColors",
+      "requiredMaskIds"
+    ]
   },
   "renderer/editing/document-factory.ts": {
     "global": "CardDocumentFactory",
@@ -325,6 +346,10 @@
   },
   "renderer/rendering/runtime-core.ts": {
     "global": "CardRuntimeCore",
+    "default": true
+  },
+  "renderer/rendering/laser-foil-glsl.ts": {
+    "global": "CardLaserFoilGLSL",
     "default": true
   },
   "renderer/rendering/runtime-validation.ts": {

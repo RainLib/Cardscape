@@ -229,6 +229,7 @@ export async function exportCard(
           coverage: 'grayscale visibility, separate from PNG alpha',
           rigid: '0=free, 1=protected',
           foil: '0=protected skin/cloth, 1=armor periodic highlight',
+          subject: 'optional card-registered mask: white preserves source from laser foil',
         },
         meshGuides: doc.meshGuides || [],
         foregroundMesh: doc.foregroundMesh ? 'foreground-mesh.json' : null,

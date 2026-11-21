@@ -1,0 +1,39 @@
+.card-showcase {
+  flex-shrink: 0;
+  padding: 5px 9px;
+  font-size: 11px;
+  background: #292d31;
+  border-bottom: 1px solid #484d54;
+}
+.card-showcase summary { cursor: pointer; width: fit-content; padding-block: 2px; }
+.card-showcase-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 6px;
+  padding-top: 5px;
+}
+.card-showcase-controls label { display: grid; gap: 2px; }
+.card-showcase-controls output { color: #d7ccad; align-self: center; }
+.card-showcase-exit { display: none; }
+.card-showcase-clean .card-showcase-exit {
+  display: block;
+  position: fixed;
+  z-index: 1201;
+  top: 14px;
+  right: 14px;
+}
+.card-showcase-clean .card-showcase { display: none; }
+.card-showcase-clean #preview-panel {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: #151821;
+}
+.card-showcase-clean #preview-panel > :not(canvas):not(.card-showcase) { display: none !important; }
+.card-showcase-clean #preview-panel > canvas { flex: 1; height: 100%; }
+.card-showcase-clean > header,
+.card-showcase-clean > footer,
+.card-showcase-clean > .player-zoom { display: none; }
+.card-showcase-clean > main { flex: 1; }

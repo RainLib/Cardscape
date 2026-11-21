@@ -126,6 +126,7 @@
     "renderer/editing/workspace-layout.ts",
     "renderer/rendering/preview.ts",
     "types/geometry.d.ts",
+    "types/gifenc.d.ts",
     "types/legacy-geometry.d.ts",
     "electron/authoring-service.ts",
     "electron/chat-service.ts",

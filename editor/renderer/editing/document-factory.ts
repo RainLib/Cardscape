@@ -1,7 +1,7 @@
 import type { CardDocument, TextStyle } from '../../shared/document';
 import type { ProcessResult } from '../../shared/editor-services';
 import { canvasFor } from '../core/image-assets.ts';
-import { maskNames } from '../core/mask-assets.ts';
+import { requiredMaskIds } from '../core/mask-assets.ts';
 import runtime from '../rendering/runtime-model.ts';
 import cosmetics from './cosmetics-model.ts';
 import spatial from '../rendering/spatial-model.ts';
@@ -16,7 +16,7 @@ export async function createBlankDocument(
     clear = canvas.toDataURL('image/png');
   const masks: Record<string, string> = {};
   const colors = new Map<string, string>();
-  for (const id of Object.keys(maskNames)) {
+  for (const id of requiredMaskIds) {
     const color = id === 'coverage' ? 'white' : 'black';
     let encoded = colors.get(color);
     if (!encoded) {

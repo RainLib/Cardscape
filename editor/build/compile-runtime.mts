@@ -48,21 +48,19 @@ export async function compileRuntimeFile(
     target.replace(/\.ts$/, extension),
   );
   await mkdir(dirname(output), { recursive: true });
-  if (
-    directory === 'renderer' &&
-    ['contour-boolean-engine.ts', 'contour-bevel-engine.ts'].includes(
-      basename(name),
-    )
-  ) {
+  const bundled = {
+    'contour-boolean-engine.ts': 'CardContourBooleanEngine',
+    'contour-bevel-engine.ts': 'CardContourBevelEngine',
+    'card-capture.ts': 'CardCapture',
+  }[basename(name)];
+  if (directory === 'renderer' && bundled) {
     const result = await build({
       entryPoints: [resolve(root, directory, name)],
       bundle: true,
       write: false,
       format: 'iife',
-      globalName:
-        basename(name) === 'contour-bevel-engine.ts'
-          ? 'CardContourBevelEngine'
-          : 'CardContourBooleanEngine',
+      globalName: bundled,
+      minify: bundled === 'CardCapture',
       platform: 'browser',
       define: { global: 'globalThis' },
       target: 'chrome120',
@@ -70,9 +68,7 @@ export async function compileRuntimeFile(
       footer: {
         js:
           'if(typeof module==="object"&&module.exports)module.exports=' +
-          (basename(name) === 'contour-bevel-engine.ts'
-            ? 'CardContourBevelEngine'
-            : 'CardContourBooleanEngine') +
+          bundled +
           ';',
       },
     });

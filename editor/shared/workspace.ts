@@ -35,6 +35,8 @@ export interface WorkspaceHost {
   say(message: string): void;
   selectLayer(id: string): boolean;
   chooseMask(channel: string, tool?: string): void;
+  clearSubjectMask(): void;
+  applySelectionToMask(): Promise<void>;
   spaceMask(channel: string): { canvas: HTMLCanvasElement } | undefined;
   setMaskBrush(white: boolean): void;
   setMaskDisplay(mode: string): void;

@@ -14,6 +14,7 @@ const api = (() => {
     inspect: '内外遮挡检查',
     rotate: '360° 正背面',
     move: '整卡移动',
+    float: '自动悬浮',
   };
   function config(value: InspectionOptions = {}) {
     return {
@@ -29,6 +30,14 @@ const api = (() => {
       angle = p * Math.PI * 2;
     if (c.mode === 'rotate')
       return { yaw: p * 360, pitch: 0, x: 0, y: 0, progress: p };
+    if (c.mode === 'float')
+      return {
+        yaw: 17.5 * Math.sin(angle),
+        pitch: 10.5 * Math.sin(angle + 0.65),
+        x: 0,
+        y: 20 * Math.sin(angle),
+        progress: p,
+      };
     if (c.mode === 'move')
       return {
         yaw: 18 * Math.sin(angle),

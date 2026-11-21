@@ -12,6 +12,23 @@ export interface SceneMetadata extends Record<string, unknown> {
   layerRasters?: Record<string, string>;
   titleRasters?: Record<string, Record<string, string>>;
 }
+export interface LaserFoilOverlay {
+  pattern: string;
+  strength: number;
+}
+export interface LaserFoilSettings {
+  pattern: string;
+  tone: string;
+  signature: string;
+  particles: string;
+  protectSubject: boolean;
+  rainbow: number;
+  foil: number;
+  glare: number;
+  sparkle: number;
+  overlays?: LaserFoilOverlay[];
+  signatureAnchor?: [number, number];
+}
 export interface Material extends SceneMetadata {
   schema: string;
   enabled: boolean;
@@ -23,6 +40,7 @@ export interface Material extends SceneMetadata {
   color: string;
   accent: string;
   backgroundMode: string;
+  laser?: LaserFoilSettings;
 }
 export interface Reveal {
   enabled: boolean;

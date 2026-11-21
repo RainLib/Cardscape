@@ -22,6 +22,7 @@ export async function prepare(doc: CardDocument, options: AssetPreparation) {
   for (const id of Object.keys(options.maskNames)) {
     const source =
       doc.masks[id] || (id === 'foil' ? options.fallbackMask() : null);
+    if (id === 'subject' && !source) continue;
     if (!source) throw Error('工程缺少 ' + options.maskNames[id] + ' Mask');
     requests.push(['mask:' + id, source]);
   }

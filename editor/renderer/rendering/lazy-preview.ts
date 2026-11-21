@@ -86,6 +86,7 @@ export function createLazyPreview(factory: () => PreviewAPI): PreviewAPI {
     'setRenderOverrides',
     'setEmitterContext',
     'drawExternal',
+    'createCapture',
   ]);
   return new Proxy({} as PreviewAPI, {
     get(target, key) {

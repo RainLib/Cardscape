@@ -1,5 +1,6 @@
 import { element } from '../core/dom.ts';
 import type { PreviewControlBindings } from '../../shared/preview-controls';
+import { createShowcase } from './card-showcase.ts';
 function required<T>(value: T | null): T {
   if (value === null) throw Error('缺少预览控制条元素');
   return value;
@@ -22,6 +23,19 @@ export const moduleApi = (() => {
   zoom.id = 'preview-zoom-tools';
   zoom.innerHTML = `<button id="preview-zoom-out" aria-label="缩小 3D 预览">−</button><label><input id="preview-zoom" type="number" min="25" max="300" step="5" value="100" aria-label="3D 预览缩放百分比">%</label><button id="preview-zoom-in" aria-label="放大 3D 预览">＋</button><button id="preview-zoom-fit" title="恢复 100% 适应窗口">适应</button>`;
   required(panel.querySelector('.panel-heading')).after(zoom);
+  const root = document.querySelector<HTMLElement>('#card-showcase');
+  const showcase = root
+    ? createShowcase(root, {
+        preview,
+        canvas: () => panel.querySelector('#author-model-canvas'),
+        title: () => host.state().document?.name || 'Cardscape',
+        identity: () => {
+          const state = host.state();
+          return state.documentToken + '/' + state.revision;
+        },
+        prepare: () => bindings.atelierWorkspace.ensurePreview(),
+      })
+    : undefined;
   let lastKey = '';
   function setZoom(value: number) {
     preview.setZoom(value);
@@ -34,6 +48,7 @@ export const moduleApi = (() => {
   }
   function refresh(s = host.state()) {
     const d = s.document;
+    showcase?.refresh(Boolean(d));
     if (!d) return;
     const a = bindings.atelierAnimation.context().action,
       key = JSON.stringify([

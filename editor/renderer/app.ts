@@ -4,9 +4,14 @@ import type { ResourceKind, ResourceBinding } from '../shared/projects';
 import type { WorkshopValue } from '../shared/workshop';
 import type { CharacterHost } from '../shared/character-panels';
 import { createBlankDocument as blankDocument } from './editing/document-factory.ts';
-import { createMaskAssets, maskNames, maskColors } from './core/mask-assets.ts';
+import {
+  createMaskAssets,
+  maskNames,
+  maskColors,
+  requiredMaskIds,
+} from './core/mask-assets.ts';
 import { element as $ } from './core/dom.ts';
-import type { CardDocument, CardLayer } from '../shared/document';
+import type { CardDocument, CardLayer, LaserLayoutFields } from '../shared/document';
 import type { RasterSource } from './core/image-assets.ts';
 import { createDocumentRenderer } from './rendering/document-renderer.ts';
 import { encoder } from './session-model.ts';
@@ -30,6 +35,7 @@ import importedCardTitle from './editing/title-model.ts';
 import importedCardTransform from './editing/transform-model.ts';
 import importedCardComponents from './workshop/component-model.ts';
 import importedCardFrame from './editing/frame-model.ts';
+import laserLayout from './workshop/laser-layout.ts';
 import importedCardSpatial from './rendering/spatial-model.ts';
 import importedCardFrameRaster from './editing/frame-raster.ts';
 import importedCardAnimationAuthoring from './animation/animation-authoring-model.ts';
@@ -214,6 +220,11 @@ export const moduleApi = (() => {
   } = createMaskAssets(imageFrom, (id, pixels) =>
     window.cardPreview.updateMask(id, pixels),
   );
+  function blankMaskCanvas() {
+    const blank = canvasFor();
+    blank.getContext('2d').fillRect(0, 0, 1024, 1536);
+    return blank;
+  }
   async function loadDocument(document, resetHistory = true) {
     loading = true;
     if (tool === 'emitter') setTool('move');
@@ -242,11 +253,7 @@ export const moduleApi = (() => {
           cc.fillRect(0, 0, 1024, 1536);
           return blank.toDataURL('image/png');
         },
-        fallbackMask: () => {
-          const blank = canvasFor();
-          blank.getContext('2d').fillRect(0, 0, 1024, 1536);
-          return blank.toDataURL('image/png');
-        },
+        fallbackMask: () => blankMaskCanvas().toDataURL('image/png'),
         progress: (completed, total) =>
           window.atelierHome.progress(
             '解码素材 ' + completed + ' / ' + total,
@@ -310,10 +317,13 @@ export const moduleApi = (() => {
       window.cardPreview.beginUpdate();
       try {
         let maskCount = 0;
-        for (const id of Object.keys(maskNames)) {
+        const maskIds = Object.keys(maskNames).filter((id) =>
+          prepared.has('mask:' + id),
+        );
+        for (const id of maskIds) {
           window.atelierHome.progress(
             '恢复 ' + maskNames[id] + ' Mask',
-            70 + (++maskCount / Object.keys(maskNames).length) * 20,
+            70 + (++maskCount / maskIds.length) * 20,
           );
           await window.atelierHome.paint();
           await registerMask(id, prepared.get('mask:' + id));
@@ -378,7 +388,7 @@ export const moduleApi = (() => {
       for (const l of changes.images)
         requests.set(l.src, l.kind === 'text' ? 'text' : 'image');
       if (changes.back && document.back) requests.set(document.back, 'image');
-      for (const id of Object.keys(maskNames))
+      for (const id of requiredMaskIds)
         if (!document.masks[id])
           throw Error('工程缺少 ' + maskNames[id] + ' Mask');
       for (const id of changes.masks) requests.set(document.masks[id], 'mask');
@@ -435,6 +445,7 @@ export const moduleApi = (() => {
         for (const id of changes.removedMasks) {
           masks.delete(id);
           window.cardPreview.removeMask(id);
+          if (target === id) target = 'image';
         }
         for (const changed of changes.images) {
           const l = doc.layers.find((l) => l.id === changed.id),
@@ -1212,8 +1223,14 @@ export const moduleApi = (() => {
       ? `${Math.round(selection.w)} × ${Math.round(selection.h)} 选区${selectionMask && selectionLayer === layer.id ? ' · 粉色区域' : ''}`
       : '无选区';
     $('close-lasso').disabled = lassoPoints.length < 3 || busy;
+    const subjectSelection = $('selection-target').value === 'subject';
     $('apply-selection').disabled =
-      !selection || layer.kind !== 'foreground' || busy || layer.locked;
+      !selection ||
+      (subjectSelection
+        ? !images.has(layer.id)
+        : layer.kind !== 'foreground') ||
+      busy ||
+      layer.locked;
     $('extract-selection').disabled =
       !selection || !images.has(layer.id) || busy;
     $('select-alpha').disabled = !images.has(layer.id) || busy;
@@ -1558,7 +1575,7 @@ export const moduleApi = (() => {
       context.save();
       context.beginPath();
       context.rect(-8192, -8192, 17408, 17920);
-      importedCardFrame.windowPath(context,style,true);
+      importedCardFrame.windowPath(context, style, true);
       context.clip('evenodd');
       context.beginPath();
       const left = pop.left ? -8192 : style.width,
@@ -1637,9 +1654,12 @@ export const moduleApi = (() => {
     if (!animationFeedback && showMask && masks.has(target)) {
       const pl = importedCardRuntime.placement(doc, active());
       ctx.save();
-      ctx.translate(512 + pl.x, 768 + pl.y);
-      ctx.rotate(pl.rotation);
-      ctx.scale(pl.scale, pl.scale);
+      ctx.translate(512, 768);
+      if (target !== 'subject') {
+        ctx.translate(pl.x, pl.y);
+        ctx.rotate(pl.rotation);
+        ctx.scale(pl.scale, pl.scale);
+      }
       ctx.drawImage(
         maskDisplayMode === 'gray'
           ? masks.get(target).canvas
@@ -1859,10 +1879,12 @@ export const moduleApi = (() => {
       value.map = mask?.canvas;
       value.version = mask ? maskVersions.get(mask.canvas) : 0;
       value.maskId = regionMaskId;
-      message = importedCardSpatial.character(layer)
+      const supported =
+        regionMaskId === 'subject' || importedCardSpatial.character(layer);
+      message = supported
         ? maskNames[regionMaskId] + ' · 橙色为有效区域'
         : '请选择人物或已拆出的衣料层';
-      if (!importedCardSpatial.character(layer)) value.map = null;
+      if (!supported) value.map = null;
     } else if (regionMode === 'selection') {
       if (selection && selectionLayer === layer.id) {
         const key = JSON.stringify([
@@ -2042,8 +2064,8 @@ export const moduleApi = (() => {
       mask = masks.get(target);
     if (!mask || layer.locked) return;
     const overlayPixels = mask.overlayPixels;
-    const box = layerBox(layer),
-      q = localPoint(p, layer),
+    const subject = target === 'subject',
+      q = subject ? p : localPoint(p, layer),
       radius = Number($('brush-size').value) / 2,
       strength = Number($('brush-strength').value) / 100;
     const x0 = Math.max(0, Math.floor(q.x - radius)),
@@ -2054,7 +2076,11 @@ export const moduleApi = (() => {
     const coverage = masks.get('coverage')?.pixels.data;
     for (let y = y0; y <= y1; y++)
       for (let x = x0; x <= x1; x++) {
-        const pixel = selection ? worldPoint(x, y, layer) : null,
+        const pixel = selection
+            ? subject
+              ? { x, y }
+              : worldPoint(x, y, layer)
+            : null,
           pixelDocX = pixel?.x,
           pixelDocY = pixel?.y;
         if (
@@ -2065,16 +2091,24 @@ export const moduleApi = (() => {
             pixelDocY > selection.y + selection.h)
         )
           continue;
-        if (
-          selectionMask &&
-          selectionLayer === layer.id &&
-          selectionMask.data[(y * 1024 + x) * 4] < 1
-        )
-          continue;
+        if (selectionMask && selectionLayer === layer.id) {
+          const selected = subject ? localPoint({ x, y }, layer) : { x, y };
+          if (
+            selected.x < 0 ||
+            selected.x >= 1024 ||
+            selected.y < 0 ||
+            selected.y >= 1536 ||
+            selectionMask.data[
+              (Math.floor(selected.y) * 1024 + Math.floor(selected.x)) * 4
+            ] < 1
+          )
+            continue;
+        }
         const distance = Math.hypot(x - q.x, y - q.y) / radius;
         if (distance >= 1) continue;
         const i = (y * 1024 + x) * 4;
-        if (target !== 'coverage' && coverage && coverage[i] < 1) continue;
+        if (!subject && target !== 'coverage' && coverage && coverage[i] < 1)
+          continue;
         const protectedValue =
           target === 'motion' && $('rigid-protection').checked && guard
             ? guard[i] / 255
@@ -2390,6 +2424,8 @@ export const moduleApi = (() => {
         say('当前图层已锁定');
         return;
       }
+      if (target === 'subject' && !masks.has('subject'))
+        void registerMask('subject', blankMaskCanvas());
       gesture = { kind: 'brush', before: snapshot(), last: p, target };
       stamp(p);
       return;
@@ -2620,7 +2656,7 @@ export const moduleApi = (() => {
       doc.masks[g.target] = masks.get(g.target).canvas.toDataURL('image/png');
       if (cancel) {
         doc = g.before;
-        await registerMask(g.target, doc.masks[g.target]);
+        await registerMask(g.target, doc.masks[g.target] || blankMaskCanvas());
         draw();
         return;
       }
@@ -2962,13 +2998,21 @@ export const moduleApi = (() => {
           : null,
     };
   }
-  async function localSelection() {
+  async function localSelection(cardSpace = false) {
     if (!selection || selectionLayer !== active().id)
       throw Error('请在当前图层重新建立选区');
     if (selectionMask) {
       const c = canvasFor();
       c.getContext('2d').putImageData(selectionMask, 0, 0);
-      return c.toDataURL('image/png');
+      if (!cardSpace) return c.toDataURL('image/png');
+      const registered = blankMaskCanvas(),
+        ctx = registered.getContext('2d');
+      const pl = importedCardRuntime.placement(doc, active());
+      ctx.translate(512 + pl.x, 768 + pl.y);
+      ctx.rotate(pl.rotation);
+      ctx.scale(pl.scale, pl.scale);
+      ctx.drawImage(c, -512, -768);
+      return registered.toDataURL('image/png');
     }
     const c = canvasFor(),
       cc = c.getContext('2d');
@@ -2982,7 +3026,8 @@ export const moduleApi = (() => {
       [selection.x + selection.w, selection.y + selection.h],
       [selection.x, selection.y + selection.h],
     ].entries()) {
-      const q = localPoint({ x: p[0], y: p[1] }, active());
+      const point = { x: p[0], y: p[1] };
+      const q = cardSpace ? point : localPoint(point, active());
       i ? cc.lineTo(q.x, q.y) : cc.moveTo(q.x, q.y);
     }
     cc.closePath();
@@ -3070,44 +3115,55 @@ export const moduleApi = (() => {
     lassoPoints = [];
     say('已根据透明通道选择实际轮廓；可继续提取 Mask');
   };
-  $('apply-selection').onclick = async () => {
+  async function applySelectionToMask() {
+    if (!doc || loading || busy || gesture || freeTransform || applying) return;
     try {
-      if (active().kind !== 'foreground' || active().locked)
-        throw Error('选择未锁定的连续人物层');
+      const id = $('selection-target').value;
+      const subject = id === 'subject';
+      if (
+        (subject ? !images.has(active().id) : active().kind !== 'foreground') ||
+        active().locked
+      )
+        throw Error(
+          subject ? '请选择未锁定的图片层' : '选择未锁定的连续人物层',
+        );
       if (
         !['mask-weight-value', 'mask-gradient-start'].every(
           (id) => $<HTMLInputElement>(id).validity.valid,
         )
       )
         throw Error('灰度权重需要0–255');
-      const id = $('selection-target').value,
-        args: {
-          image: string;
-          selection: string;
-          mode: string;
-          gradient: string;
-          value: number;
-          startValue: number;
-          start?: number[];
-          end?: number[];
-          coverage?: string;
-          guard?: string;
-        } = {
-          image: doc.masks[id],
-          selection: await localSelection(),
-          mode: $('selection-mode').value,
-          gradient: $<HTMLSelectElement>('selection-gradient').value,
-          value: Number($<HTMLInputElement>('mask-weight-value').value) / 255,
-          startValue:
-            Number($<HTMLInputElement>('mask-gradient-start').value) / 255,
-        };
+      const args: {
+        image: string;
+        selection: string;
+        mode: string;
+        gradient: string;
+        value: number;
+        startValue: number;
+        start?: number[];
+        end?: number[];
+        coverage?: string;
+        guard?: string;
+      } = {
+        image:
+          doc.masks[id] ||
+          (subject ? blankMaskCanvas().toDataURL('image/png') : ''),
+        selection: await localSelection(subject),
+        mode: $('selection-mode').value,
+        gradient: $<HTMLSelectElement>('selection-gradient').value,
+        value: Number($<HTMLInputElement>('mask-weight-value').value) / 255,
+        startValue:
+          Number($<HTMLInputElement>('mask-gradient-start').value) / 255,
+      };
+      if (args.gradient === 'line' && subject)
+        throw Error('主体标注请选择画布方向或均匀权重');
       if (args.gradient === 'line') {
         const a = active().motionAnchor;
         if (!a) throw Error('先在画布设置固定点与自由端');
         args.start = a.root;
         args.end = a.tip;
       }
-      if (id !== 'coverage') args.coverage = doc.masks.coverage;
+      if (id !== 'coverage' && !subject) args.coverage = doc.masks.coverage;
       if (id === 'motion' && $('rigid-protection').checked)
         args.guard = doc.masks.rigid;
       await processTask(
@@ -3125,7 +3181,9 @@ export const moduleApi = (() => {
     } catch (e) {
       say(e.message);
     }
-  };
+  }
+  $('apply-selection').onclick = () => applySelectionToMask();
+  $('selection-target').onchange = () => syncProperties();
   $('extract-selection').onclick = async () => {
     try {
       const source = { ...active() },
@@ -3417,11 +3475,16 @@ export const moduleApi = (() => {
       return;
     mutate('删除图层（可撤销）', () => {
       doc.layers = doc.layers.filter((l) => l.id !== layer.id);
-      for(const action of doc.actions||[]){
-        if(action.drawOrder)for(const frame of action.drawOrder)frame.layers=frame.layers.filter(id=>id!==layer.id);
-        if(action.layerTracks)delete action.layerTracks[layer.id];
-        if(action.deformTracks)delete action.deformTracks[layer.id];
-        if(action.particleEvents)action.particleEvents=action.particleEvents.filter(event=>event.particles.emitter?.layerId!==layer.id);
+      for (const action of doc.actions || []) {
+        if (action.drawOrder)
+          for (const frame of action.drawOrder)
+            frame.layers = frame.layers.filter((id) => id !== layer.id);
+        if (action.layerTracks) delete action.layerTracks[layer.id];
+        if (action.deformTracks) delete action.deformTracks[layer.id];
+        if (action.particleEvents)
+          action.particleEvents = action.particleEvents.filter(
+            (event) => event.particles.emitter?.layerId !== layer.id,
+          );
       }
       if (doc.characterRig) {
         doc.characterRig.bindings = doc.characterRig.bindings.filter(
@@ -3680,7 +3743,7 @@ export const moduleApi = (() => {
             });
             window.cardPreview.setDocument(doc);
             const pixels = cc.getImageData(0, 0, 1024, 1536);
-            for (const id of Object.keys(maskNames)) {
+            for (const id of requiredMaskIds) {
               const mc = canvasFor(),
                 mctx = mc.getContext('2d'),
                 p = mctx.createImageData(1024, 1536);
@@ -5092,6 +5155,26 @@ export const moduleApi = (() => {
       importedCardRuntime.validate(value);
     },
     loadImage: imageFrom,
+    async applyLaserLayout(fields: LaserLayoutFields | null) {
+      if (!doc || busy || loading || applying || gesture || freeTransform)
+        throw Error('请先结束当前编辑操作');
+      if (!fields && !doc.laserLayout) return;
+      const token = documentToken, version = revision;
+      const next = await laserLayout.build(doc, fields, imageFrom, masks.get('subject')?.canvas);
+      if (documentToken !== token || revision !== version || busy || loading || applying || gesture || freeTransform)
+        throw Error('卡面已变化，请重新应用装裱');
+      importedCardFrame.validate(next);
+      const before = snapshot();
+      applying = true;
+      try {
+        await updateDocument(next);
+        push(before, fields ? '应用镭射装裱' : '移除镭射装裱');
+        renderLayers();
+      } finally {
+        applying = false;
+        syncProperties();
+      }
+    },
     imageCacheStats: () => imageAssets.stats(),
     async applyCharacterImport(next, context) {
       const check = () => {
@@ -5518,14 +5601,27 @@ export const moduleApi = (() => {
         !maskNames[id]
       )
         return;
+      const subject = id === 'subject';
+      const candidates = (doc?.layers || []).filter((layer) =>
+        subject
+          ? images.has(layer.id) &&
+            layer.kind !== 'text' &&
+            layer.visible !== false
+          : layer.kind === 'foreground',
+      );
       const layer =
-        active()?.kind === 'foreground'
-          ? active()
-          : doc?.layers.find((l) => l.kind === 'foreground');
+        candidates.find((l) => l.id === active()?.id) ||
+        (subject
+          ? candidates.find((l) => !l.locked && l.kind === 'background') ||
+            candidates.find((l) => !l.locked)
+          : null) ||
+        candidates[0];
       if (!layer) {
-        say('请先导入连续人物层');
+        say(subject ? '请先导入要标注主体的图片' : '请先导入连续人物层');
         return;
       }
+      if (subject && !masks.has(id)) void registerMask(id, blankMaskCanvas());
+      if (subject) $<HTMLDetailsElement>('mask-selection-tools').open = true;
       window.atelierWorkspace?.view('split');
       showMask = toolName === 'brush';
       $('selection-target').value = String(id);
@@ -5534,12 +5630,31 @@ export const moduleApi = (() => {
       syncProperties();
       say(
         layer.locked
-          ? '人物层已锁定，先解锁再制作 Mask'
+          ? '图层已锁定，先解锁再制作 Mask'
           : toolName === 'brush'
             ? '正在绘制 ' + maskNames[id] + ' Mask · X 切换黑白'
             : '建立选区后点击“选区写入当前 Mask”',
       );
     },
+    clearSubjectMask() {
+      if (
+        !doc?.masks.subject ||
+        loading ||
+        busy ||
+        gesture ||
+        freeTransform ||
+        applying
+      )
+        return;
+      mutate('清除镭射主体标注', () => {
+        delete doc.masks.subject;
+        if (doc.laserLayout) delete doc.laserLayout.sourceMask;
+        masks.delete('subject');
+        window.cardPreview.removeMask('subject');
+        if (target === 'subject') target = 'image';
+      });
+    },
+    applySelectionToMask,
     unlockMaskLayer() {
       if (
         loading ||
@@ -5547,7 +5662,7 @@ export const moduleApi = (() => {
         gesture ||
         freeTransform ||
         applying ||
-        active()?.kind !== 'foreground'
+        (active()?.kind !== 'foreground' && !images.has(active()?.id))
       )
         return;
       const layer = active();

@@ -622,6 +622,12 @@ export const moduleApi = (() => {
       white: '参与扫光',
       black: '不反光',
     },
+    subject: {
+      name: '镭射主体保护',
+      tip: '白色区域保留原色。用魔棒或智能选区圈出主体，写入后可用画笔修整。标注固定在卡面坐标。',
+      white: '保留原色',
+      black: '参与镭射',
+    },
     rigid: {
       name: '刚性保护',
       tip: '涂手、护腕和武器，避免拖动和摆动变形。',
@@ -638,18 +644,32 @@ export const moduleApi = (() => {
   function refreshMasks(
     next: WorkspaceState & { document: CardDocument; layer: CardLayer },
   ) {
+    if (
+      next.target === 'subject' ||
+      (next.layer.kind === 'foreground' && next.target !== 'image')
+    )
+      maskChannel = next.target;
+    const subject = maskChannel === 'subject';
+    const artwork = next.document.layers.filter(
+      (l) => l.visible && l.src && l.kind !== 'text',
+    );
     const people = next.document.layers.filter((l) => l.kind === 'foreground'),
-      same = next.layer.kind === 'foreground',
-      person = same ? next.layer : people[0],
+      sources = subject ? artwork : people,
+      same = sources.some((l) => l.id === next.layer.id),
+      person = same ? next.layer : sources[0],
       locked = same && next.layer.locked,
       enabled = same && !locked && !next.busy;
-    if (same && next.target !== 'image') maskChannel = next.target;
     const guide = maskGuides[maskChannel];
     $('mask-owner').textContent = '';
-    options('mask-layer', people, person?.id, '');
-    $('mask-layer').disabled = next.busy || !people.length;
+    options('mask-layer', sources, person?.id, '');
+    $('mask-source-label').textContent = subject
+      ? '定位主体所在图层'
+      : '定位人物 Mask 母版';
+    $('mask-layer').disabled = next.busy || !sources.length;
     $('mask-state-note').textContent = !person
-      ? '请先导入人物图层'
+      ? subject
+        ? '请先导入要标注主体的图片'
+        : '请先导入人物图层'
       : !same
         ? '定位人物母版后开始制作'
         : locked
@@ -668,12 +688,15 @@ export const moduleApi = (() => {
     $('mask-region-highlight').disabled = !person || next.busy;
     $('mask-person-select').disabled = !person || next.busy;
     $('mask-person-select').hidden = same;
+    $('mask-person-select').textContent = subject ? '定位图片层' : '定位人物层';
     $('mask-person-unlock').hidden = !locked;
     $('mask-person-unlock').disabled = next.busy;
     for (const b of document.querySelectorAll<HTMLButtonElement>(
       '[data-mask-channel]',
     )) {
-      b.disabled = !person || next.busy;
+      b.disabled =
+        next.busy ||
+        !(b.dataset.maskChannel === 'subject' ? artwork.length : people.length);
       const on = b.dataset.maskChannel === maskChannel;
       b.classList.toggle('active', on);
       b.setAttribute('aria-pressed', String(on));
@@ -682,12 +705,17 @@ export const moduleApi = (() => {
       'mask-start-brush',
       'mask-start-smart',
       'mask-start-rect',
+      'mask-start-wand',
       'mask-write-mode',
       'mask-write-gradient',
       'mask-brush-size',
       'mask-brush-strength',
     ] as const)
       $(id).disabled = !enabled;
+    $('mask-start-wand').hidden = !subject;
+    $('mask-clear-subject').hidden = !subject;
+    $('mask-clear-subject').disabled =
+      next.busy || !next.document.masks.subject;
     for (const b of document.querySelectorAll<HTMLButtonElement>(
       '[data-mask-paint]',
     )) {
@@ -778,6 +806,7 @@ export const moduleApi = (() => {
   };
   $('mask-person-select').onclick = () => host.chooseMask(maskChannel);
   $('mask-person-unlock').onclick = () => host.unlockMaskLayer();
+  $('mask-clear-subject').onclick = () => host.clearSubjectMask();
   document.querySelectorAll<HTMLButtonElement>('[data-mask-channel]').forEach(
     (b) =>
       (b.onclick = () => {
@@ -789,13 +818,14 @@ export const moduleApi = (() => {
     ['mask-start-brush', 'brush'],
     ['mask-start-smart', 'smart'],
     ['mask-start-rect', 'select'],
+    ['mask-start-wand', 'wand'],
   ] as const)
     $(id).onclick = () => host.chooseMask(maskChannel, name);
   $('mask-write-selection').onclick = () => {
     $('selection-target').value = maskChannel;
     $('selection-mode').value = $('mask-write-mode').value;
     $('selection-gradient').value = $('mask-write-gradient').value;
-    $('apply-selection').click();
+    void host.applySelectionToMask();
   };
   $('mask-toggle-preview').onclick = () => {
     if (host.state().target === 'image') host.chooseMask(maskChannel);

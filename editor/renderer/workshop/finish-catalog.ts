@@ -3,6 +3,7 @@ import importedCardFrameArtwork from '../editing/frame-artwork.ts';
 import importedCardComponents from './component-model.ts';
 import importedCardCosmetics from '../editing/cosmetics-model.ts';
 import importedCardFrame from '../editing/frame-model.ts';
+import laserFoil from './laser-foil.ts';
 
 export interface FinishEntry {
  id: string; kind: 'material' | 'frame' | 'particles'; name: string; group: string;
@@ -80,7 +81,10 @@ const originalDesigns:FinishEntry[]=[
  {id:'original-particles-p01',designId:'P01',kind:'particles',name:'星核交叠',group:'原创',referenceStatus:'original',preset:'starcore',recipe:{enabled:true,visual:'starcore',count:32,size:.075,speed:.035,spread:.4,lifetime:7,radius:.055,opacity:.88,color:'#80d7ff',palette:'solid',stretch:1,blend:'normal',trajectory:'halo',placement:'behind',z:-.08}},
  {id:'original-material-b05',designId:'B05',kind:'material',name:'深海焦散',group:'背景',referenceStatus:'original',recipe:{enabled:true,style:'caustics',target:'background',backgroundMode:'replace',color:'#07344c',accent:'#91f5e5',strength:1,speed:1,frequency:4}}
 ];
-const entries:FinishEntry[]=[...materials,...rayReferences,...symbioteReferences,...surfaceReferences,...frames,...frameReferences,...gradeFrames,...particles,...referenceParticles,...specialParticles,...originalDesigns];
+const laserPresets: FinishEntry[] = laserFoil.presets.map((preset) => ({
+  ...preset, kind: 'material', group: '镭射',
+}));
+const entries:FinishEntry[]=[...laserPresets,...materials,...rayReferences,...symbioteReferences,...surfaceReferences,...frames,...frameReferences,...gradeFrames,...particles,...referenceParticles,...specialParticles,...originalDesigns];
 function find(id){const e=entries.find(e=>e.id===id);if(!e)throw Error('效果配方不存在');return e;}
 function value(id,current: any={}){const e=find(id);if(e.kind==='frame'){if(e.artwork)return importedCardFrameArtwork.value({...importedCardFrame.defaults,...e.recipe},importedCardFrameArtwork.current());if(current.document?.id==='stellar-frame-art')current={};const style={...importedCardFrame.resolve({frameStyle:current.style||current}),...e.recipe};return {...(current.schema==='card-frame/1'?current:{}),schema:'card-frame/1',style,...(current.document?{document:{...current.document,frameStyle:style}}:{})};}return e.kind==='material'?importedCardComponents.material({...current,...e.recipe}):importedCardComponents.particles({...importedCardCosmetics.particlePreset(e.preset,current),...e.recipe});}
 function apply(d,id){const e=find(id);if(e.kind==='frame'){const v=value(id,d.componentScenes?.frame||d.frameStyle);if(d.assetKind==='frame'&&e.artwork){const identity={id:d.id,name:d.name};Object.assign(d,v.document,identity);delete d.componentScenes;}else{d.frameStyle=v.style;if(v.document)d.componentScenes={...d.componentScenes,frame:v};else if(d.componentScenes?.frame){d.componentScenes={...d.componentScenes};delete d.componentScenes.frame;}}d.cosmetics={...importedCardCosmetics.config(d.cosmetics),border:'custom'};return d;}d[e.kind]=value(id,d[e.kind]);d.cosmetics={...importedCardCosmetics.config(d.cosmetics),[e.kind==='material'?'finish':'flare']:e.kind==='material'?'original':'authored'};if(d.componentScenes?.[e.kind])d.componentScenes={...d.componentScenes,[e.kind]:{...d.componentScenes[e.kind],...d[e.kind]}};return d;}

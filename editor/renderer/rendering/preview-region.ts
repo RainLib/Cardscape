@@ -12,6 +12,11 @@ const api = (() => {
       | undefined,
   ) {
     if (!layer || !state || state.mode === 'none') return 0;
+    if (state.mode === 'mask' && state.maskId === 'subject')
+      return state.map &&
+        ['image', 'background', 'foreground'].includes(layer.kind)
+        ? 5
+        : 0;
     const owner = doc.layers.find((l) => l.id === state.layerId);
     if (!owner) return 0;
     const shared =

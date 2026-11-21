@@ -15,6 +15,7 @@ import CardRemoteAssets from './remote-assets.ts';
 import CardTitle from '../editing/title-model.ts';
 import CardAdaptiveTextures from './adaptive-textures.ts';
 import CardExportProfile from './export-profile.ts';
+import { createShowcase } from './card-showcase.ts';
 (async () => {
   'use strict';
   const cardPreview = (window as unknown as { cardPreview: PreviewAPI })
@@ -343,6 +344,17 @@ import CardExportProfile from './export-profile.ts';
       ' 个 Slot · 拖动旋转查看';
     document.body.dataset.ready = 'true';
     cardPreview.setActive(true);
+    const showcase = document.querySelector?.<HTMLElement>('#card-showcase');
+    if (showcase)
+      createShowcase(showcase, {
+        preview: cardPreview,
+        canvas: () => document.querySelector('#author-model-canvas'),
+        title: () => manifest.name || 'Cardscape',
+        identity: () => doc.locale,
+        initialMode: doc.material?.style === 'laser-foil' ? 'hover' : 'drag',
+        locale: doc.locale,
+        prepareCapture: () => textures.set('large'),
+      });
   } catch (error) {
     $('player-status').textContent =
       '载入失败：' + (error instanceof Error ? error.message : String(error));

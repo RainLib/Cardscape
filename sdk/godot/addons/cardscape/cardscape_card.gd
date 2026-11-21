@@ -7,7 +7,9 @@ const ActionTrail = preload("res://addons/cardscape/action_trail.gd")
 const ParticleWorldHistory = preload("res://addons/cardscape/particle_world.gd")
 const ParticlePhysics = preload("res://addons/cardscape/particle_physics.gd")
 const FRAME_FINISHES: Array[String] = ["flat","metal","glow","cosmic","distressed","web","candy","ice","snow","wrapping","fire","fire-iridescent","chains","glyphs","refraction","overloaded","neonnights","distressed-copper","distressed-rainbow","orbit-silver","twin-aurora","pax","brains","candy-halloween","halloween-stickers"]
-const MATERIAL_STYLES: Array[String] = ["iridescent","holographic","foil","prism","gold","ink","copper","steel","goldprism","blackprism","cosmic","glass","fire","water","rays","refraction","psychedelic","foilmetallic","goldmetallic","gildedprism","glasscircuits","wakandanglass","galacticstorm","bananas","symbiote","circuits","frosted","raysrainbow","caustics","rayspurple"]
+const MATERIAL_STYLES: Array[String] = ["iridescent","holographic","foil","prism","gold","ink","copper","steel","goldprism","blackprism","cosmic","glass","fire","water","rays","refraction","psychedelic","foilmetallic","goldmetallic","gildedprism","glasscircuits","wakandanglass","galacticstorm","bananas","symbiote","circuits","frosted","raysrainbow","caustics","rayspurple","laser-foil"]
+const LASER_PATTERNS: Array[String] = ["plain","cosmos","sunburst","silk","crystal","pastel","kintsugi","sakura","frost","aurora","shatter","neon","inferno","lightning","grating","contours","mercury"]
+const LASER_SIGNATURES: Array[String] = ["off","auto","star","streak"]
 ## Game owns placement/state; each instance owns its materials and overrides.
 signal action_finished(id: String)
 @export var library: CardscapeLibrary:
@@ -800,6 +802,11 @@ func _surface(layer: Dictionary, mesh: Mesh, z: float, priority: int, pass_id: f
 	mat.set_shader_parameter("custom_mask_tex",_texture(_definition.get("maskAssets",{}).get(shader.fragmentMask,"")))
 	for name in ["motion","inset","emission","phase","foil"]:
 		mat.set_shader_parameter(name+"_tex",_texture(_definition.get("maskAssets",{}).get(name,"")))
+	var subject_mask := _texture(_definition.get("maskAssets",{}).get("subject","")) if not layer.get("reverse",false) else null
+	if subject_mask:
+		mat.set_shader_parameter("laser_subject_tex",subject_mask)
+	var protected_subject: bool = pass_id>0.0 or layer.kind=="text" or layer.get("role","") in ["cost","power","stat-cost","stat-power"]
+	mat.set_shader_parameter("laser_surface_role",Vector4(float(protected_subject),float(subject_mask!=null),float(layer.kind=="frame" or layer.get("role","")=="frame-artwork"),float(registered)))
 	if layer.has("sourceWindow") and _texture(asset):
 		var r: Dictionary = layer.sourceWindow
 		var original_size: Variant=_definition.get("exportProfile",{}).get("textures",{}).get(asset,{}).get("sourceSize",[])
@@ -945,6 +952,7 @@ func _update(_delta: float) -> void:
 	# uniform overrides retain their existing next-update semantics.
 	var deformation: Dictionary=_definition.get("deformation",{})
 	var common_parameters: Dictionary={
+		&"laser_camera":_camera_distance(),
 		&"card_eye":eye,&"surfaceEye":eye,&"front_visible":front,&"clock":_clock,&"root_opacity":root_alpha,&"depth":depth_strength,
 		&"geometry_bend":float(deformation.get("bend",0))+(extra_bend if _definition.get("cosmeticPreview",{}).get("motion",true) else 0.0),
 		&"motion_gain":motion*float(deformation.get("wind",1)) if effects_playing and effects.get("cape",false) else 0.0,
@@ -1020,9 +1028,24 @@ func _update(_delta: float) -> void:
 		available_particles = maxi(0,available_particles-child._particle_count-child._particle_event_count)
 
 func _material_parameters(value: Dictionary, reverse: bool) -> Dictionary:
-	return {&"replace":_detail_effects.materials and value.get("backgroundMode","overlay")=="replace",&"style_index":MATERIAL_STYLES.find(value.get("style","iridescent")),&"parameters":{
+	var result := {&"replace":_detail_effects.materials and value.get("backgroundMode","overlay")=="replace",&"style_index":MATERIAL_STYLES.find(value.get("style","iridescent")),&"parameters":{
 		&"component_material":Vector4(float(value.get("strength",.3)) if effects_playing and _detail_effects.materials and value.get("enabled",false) else 0,float(value.get("speed",.25)),float(value.get("frequency",4)),5 if reverse else 1 if value.get("target","both")=="background" else 2 if value.get("target","both")=="back" else 3 if value.get("target","")=="front" else 4 if value.get("target","")=="artwork" else 0),
 		&"material_color":Color(value.get("color","#78cfff")),&"material_accent":Color(value.get("accent","#fa8dde")),&"holographic":value.get("style","")=="holographic"}}
+	if value.get("style","")=="laser-foil":
+		var laser: Dictionary=value.get("laser",{})
+		result.parameters[&"laser_controls"]=Vector4(float(laser.get("rainbow",1)),float(laser.get("foil",1)),float(laser.get("glare",1)),float(laser.get("sparkle",1)))
+		result.parameters[&"laser_modes"]=Vector4(maxi(0,LASER_PATTERNS.find(laser.get("pattern","cosmos"))),float(laser.get("tone","auto")=="auto"),maxi(0,LASER_SIGNATURES.find(laser.get("signature","auto"))),float(laser.get("protectSubject",true)))
+		var overlays: Array=laser.get("overlays",[])
+		var styles := Vector3(-1,-1,-1)
+		var gains := Vector3.ZERO
+		for i in mini(overlays.size(),3):
+			styles[i]=LASER_PATTERNS.find(overlays[i].get("pattern",""))
+			if styles[i]>=0: gains[i]=clampf(float(overlays[i].get("strength",0)),0,1)
+		result.parameters[&"laser_overlays"]=styles
+		result.parameters[&"laser_overlay_gains"]=gains
+		var anchor: Array=laser.get("signatureAnchor",[])
+		result.parameters[&"laser_signature_anchor"]=Vector2(float(anchor[0]),float(anchor[1])) if anchor.size()==2 else Vector2(-1.0,-1.0)
+	return result
 
 func _particle_config() -> Dictionary:
 	if not _particle_event_config.is_empty(): return _particle_event_config

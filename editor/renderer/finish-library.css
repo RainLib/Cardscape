@@ -23,3 +23,10 @@
 .finish-tile[data-frame-finish=distressed-copper]::before{background:linear-gradient(130deg,#53c8b5,#744f35 35%,#ad8863 55%,#327e71)}
 .finish-tile[data-frame-finish=distressed-rainbow]::before{background:linear-gradient(130deg,#63d9d4,#9c66c0,#4672b9,#db9d7e,#84ece0)}
 .finish-tile[data-frame-finish=neonnights]::before{background:linear-gradient(90deg,#ff48cf 0 16%,#283e4b 18% 82%,#ff48cf 84%);box-shadow:0 0 5px #ff48cf80}
+
+.finish-tile.finish-laser {
+  background:
+    linear-gradient(132deg, transparent 33%, #ffffffb8 49%, transparent 57%),
+    repeating-linear-gradient(142deg, #ecf5ff30 0 1px, transparent 1px 4px),
+    linear-gradient(112deg, var(--finish-low), #c8a4eb 35%, #84d7e2 58%, var(--finish-high));
+}

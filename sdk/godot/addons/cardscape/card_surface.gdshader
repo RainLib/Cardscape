@@ -63,6 +63,14 @@ uniform vec3 material_accent : source_color = vec3(.98,.55,.87);
 uniform bool holographic = false;
 uniform int material_style = 0;
 uniform float material_replace = 0.0;
+uniform sampler2D laser_subject_tex : filter_linear, repeat_disable;
+uniform vec4 laser_controls = vec4(1.0, .75, 1.1, 1.0);
+uniform vec4 laser_modes = vec4(1.0);
+uniform vec4 laser_surface_role = vec4(0.0);
+uniform float laser_camera = 2.7;
+uniform vec3 laser_overlays = vec3(-1.0);
+uniform vec3 laser_overlay_gains = vec3(0.0);
+uniform vec2 laser_signature_anchor = vec2(-1.0);
 varying vec3 card_point;
 varying vec2 registered_uv;
 // Portable fragment hook: sample raw source RGBA using the hook's UV space.
@@ -116,6 +124,8 @@ vec2 contourRead(vec2 p,out vec2 gradient){return contour_read(p,gradient);}
 vec2 contourDistance(vec2 p){return contour_distance(p);}
 float contourArc(vec2 p,out float window){return contour_arc(p,window);}
 bool contourHasMaterial(){return contour_field_info.w>.5;}
+#include "res://addons/cardscape/laser_foil.gdshaderinc"
+
 // Shared procedural finish and rim functions; mirrored in the Godot shader.
 float finishHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float finishNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(finishHash(i),finishHash(i+vec2(1.,0.)),f.x),mix(finishHash(i+vec2(0.,1.)),finishHash(i+vec2(1.,1.)),f.x),f.y);}
@@ -1145,6 +1155,7 @@ vec4 contourGlow(vec3 low,vec3 hi,vec2 uv,vec2 view,float finish_time,vec4 rimMe
  return rimAura(low,hi,contourVirtualUV(phase,d/1024.),view,finish_time,virtualMetrics,finish,animation);
 }
 
+
 void fragment(){
 	if((face_mode==0&&!front_visible)||(face_mode==1&&front_visible)){discard;}
 	vec2 coord=source_rect.xy+registered_uv*source_rect.zw;if(back_side){coord.x=1.0-coord.x;}
@@ -1178,7 +1189,43 @@ if(material_style==26&&component_material.x>0.&&((background&&(component_materia
 	if(foreground_pass>1.5){c.a*=1.0-smoothstep(.02,.5,texture(inset_tex,UV).r/max(c.a,.001));}
 	if(replace_coverage){c.a=1.0;}if(c.a<.015&&!(custom_effect&&surfaceTransparent)){discard;}
 	c.rgb=pow(clamp((c.rgb-.5)*adjustment.y+.5+adjustment.x,0.0,1.0),vec3(1.0/adjustment.w));float lum=dot(c.rgb,vec3(.2126,.7152,.0722));c.rgb=clamp(mix(vec3(lum),c.rgb,adjustment.z),0.0,1.0);
-	bool material_applies=component_material.x>0.0&&(component_material.w>4.5||(component_material.w>3.5&&frame_part<.5&&!back_side)||(component_material.w>2.5&&component_material.w<3.5&&!back_side)||(component_material.w<.5&&(background||back_side))||(component_material.w>.5&&component_material.w<1.5&&background)||(component_material.w>1.5&&component_material.w<2.5&&back_side));if(material_applies&&material_style!=5){bool replace_art=material_replace>.5&&background;vec2 finish_uv=replace_art?vec2(card_point.x+.5,.5-card_point.y/1.5):UV;vec3 result=finishColor(c.rgb,finish_uv,clock*component_material.y,view_angle,float(material_style),component_material.z,material_color,material_accent,replace_art);c.rgb=finishComposite(c.rgb,result,material_color,component_material.x,replace_art);}
+	bool material_applies=component_material.x>0.0&&(component_material.w>4.5||(component_material.w>3.5&&frame_part<.5&&!back_side)||(component_material.w>2.5&&component_material.w<3.5&&!back_side)||(component_material.w<.5&&(background||back_side))||(component_material.w>.5&&component_material.w<1.5&&background)||(component_material.w>1.5&&component_material.w<2.5&&back_side));if(material_applies&&material_style!=5){
+		bool replace_art=material_replace>.5&&background;
+		if(material_style==30){
+			vec2 registered=card_point.xy;
+			if(laser_surface_role.w>.5)registered*=(laser_camera-.045)/max(.15,laser_camera-card_point.z);
+			vec2 card_uv=vec2(registered.x+.5,.5-registered.y/1.5);
+			float subject=0.0;
+			if(laser_surface_role.y>.5&&!back_side&&all(greaterThanEqual(card_uv,vec2(0.0)))&&all(lessThanEqual(card_uv,vec2(1.0))))subject=texture(laser_subject_tex,card_uv).r;
+			float protection=max(subject,laser_modes.w*laser_surface_role.x);
+			vec3 base=replace_art?material_color*.09:c.rgb;
+			if(protection<.999&&frame_part<.5&&!replace_art){
+				float film_clock=clock*component_material.y;
+				vec3 shift_rgb=laserRefraction(card_uv,view_angle,film_clock,laser_modes.x)*laser_controls.x;
+				if(laser_overlay_gains.x>0.0)shift_rgb+=laserRefraction(card_uv,view_angle,film_clock,laser_overlays.x)*laser_overlay_gains.x;
+				if(laser_overlay_gains.y>0.0)shift_rgb+=laserRefraction(card_uv,view_angle,film_clock,laser_overlays.y)*laser_overlay_gains.y;
+				if(laser_overlay_gains.z>0.0)shift_rgb+=laserRefraction(card_uv,view_angle,film_clock,laser_overlays.z)*laser_overlay_gains.z;
+				if(shift_rgb.z>0.0){
+					vec2 lo=source_rect.xy,hi=lo+source_rect.zw;if(back_side){float left=1.0-hi.x;hi.x=1.0-lo.x;lo.x=left;}
+					vec2 mid=coord+shift_rgb.xy*source_rect.zw;
+					vec2 split=vec2(shift_rgb.z,shift_rgb.z*.32)*source_rect.zw;
+					vec3 refracted=laserRefractedRGB(texture(art,clamp(mid+split,lo,hi)),texture(art,clamp(mid,lo,hi)),
+						texture(art,clamp(mid-split,lo,hi)),texture(art,coord).rgb,adjustment);
+					base=mix(base,refracted,clamp(shift_rgb.z*130.0,0.0,.92)*(1.0-protection));
+				}
+			}
+			vec3 result=laserSurface(base,card_uv,view_angle,clock*component_material.y,component_material.z,laser_controls,laser_modes,material_color,material_accent,laser_surface_role.z,protection,laser_overlays,laser_overlay_gains,laser_signature_anchor);
+			if(protection<.999&&laser_controls.y>.001&&frame_part<.5&&!replace_art){
+				vec2 relief_dir=source_rect.zw*(vec2(.0015,-.0008)+view_angle*.002);
+				result=clamp(result+laserRelief(texture(art,coord-relief_dir),texture(art,coord+relief_dir),laser_controls.y*(1.0-protection)),0.0,1.0);
+			}
+			c.rgb=mix(replace_art?material_color*.09:c.rgb,result,component_material.x);
+		}else{
+			vec2 finish_uv=replace_art?vec2(card_point.x+.5,.5-card_point.y/1.5):UV;
+			vec3 result=finishColor(c.rgb,finish_uv,clock*component_material.y,view_angle,float(material_style),component_material.z,material_color,material_accent,replace_art);
+			c.rgb=finishComposite(c.rgb,result,material_color,component_material.x,replace_art);
+		}
+	}
 	if(foreground_pass>0.0){float e=texture(emission_tex,UV).r,phase=texture(phase_tex,UV).r;float stream=pow(.5+.5*sin(phase*30.0-clock*3.1*flow_speed+UV.y*11.0),3.0);c.rgb+=vec3(.45,.77,1.0)*e*stream*flow_gain;c.rgb+=armor_color*texture(foil_tex,UV).r*sweep(UV.x*.82+UV.y*.18,armor_sweep);}
 	c.rgb+=title_color*sweep((UV.x-title_bounds.x)/max(.001,title_bounds.y-title_bounds.x),title_sweep)*c.a;
 	if(slot_effect.x>.5){float wave=.5+.5*sin(clock*slot_effect.z*3.0+(slot_effect.x>1.5?UV.y*20.0:0.0));c.rgb+=vec3(.2,.5,.8)*wave*slot_effect.y;}

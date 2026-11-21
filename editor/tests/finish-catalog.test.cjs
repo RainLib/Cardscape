@@ -27,6 +27,15 @@ test('Godot runtime separates editing backups and nested component images into r
   assert.equal(exported.textures,1);
  }finally{await fsp.rm(dir,{recursive:true,force:true});}
 });
+
+test('laser layouts use valid portable rounded frames with separate apertures', () => {
+ const layout = require('../dist/renderer/laser-layout.js');
+ for (const style of Object.keys(layout.faces)) {
+  const frameStyle = layout.frame(style);
+  F.validate({frameStyle});
+  assert.equal(frameStyle.contour.windows.length, 1);
+ }
+});
 test('all procedural shapes share the bounded particle batch; sprite requires a real bounded PNG',()=>{assert.deepEqual(B.visuals,C.particleVisuals);const p=C.particles({enabled:true,visual:'sprite',sprite:sprite(),blend:'normal'});C.validateParticles(p);assert.throws(()=>C.validateParticles({...p,sprite:''}),/PNG/);assert.throws(()=>C.validateSprite('https://example.com/x.png'),/PNG/);assert.throws(()=>C.validateSprite('../../secret.png'),/PNG/);const b=Buffer.from(sprite().split(',')[1],'base64');b.writeUInt32BE(4096,16);assert.throws(()=>C.validateSprite('data:image/png;base64,'+b.toString('base64')),/512/);const samples=new Float32Array(256*7),vertices=new Float32Array(256*6*B.stride),n=C.sampleInto(p,1,{},0,samples,48);assert.equal(n,48);assert.equal(B.pack(samples,n,vertices),48*6*B.stride);assert.equal(vertices.byteLength,61440);});
 test('AI registers READY sprite output, retains binding, and rejects other documents atomically',async()=>{const {prepareAuthoring}=require('../dist/electron/authoring-service.cjs'),commands=require('../dist/renderer/editor-commands.js'),d=document(),jobId='12345678-1234-1234-1234-123456789012';commands.validate([{op:'particleSprite',jobId}]);const before=JSON.stringify(d),tools={validate:d=>d,asset:async()=>({job:{documentToken:d.id},image:sprite()})};d.particles=C.particles({emitter:{target:'frame',regionId:'edge'}});const result=await prepareAuthoring({document:d,documentToken:d.id,commands:[{op:'particleSprite',jobId}]},tools);assert.equal(result.document.particles.visual,'sprite');assert.equal(result.document.particles.blend,'normal');assert.equal(result.document.particles.emitter.regionId,'edge');assert.deepEqual(result.usedJobs,[jobId]);assert.equal(d.particles.sprite,'');await assert.rejects(prepareAuthoring({document:d,documentToken:d.id,commands:[{op:'particleSprite',jobId}]},{...tools,asset:async()=>({job:{documentToken:'other'},image:sprite()})}),/其他工程/);assert.equal(d.layers[0].src,JSON.parse(before).layers[0].src);});
 test('shared sprite exports once, stays editable, and resolves through portable player and Godot resources',async()=>{
@@ -64,4 +73,37 @@ test('Prism keeps original relief by default while explicit replacement and neon
  d.material=C.material({...d.material,backgroundMode:'replace',strength:.2});C.validateMaterial(d.material);
  assert.equal(JSON.stringify(d.layers),original);
  for(const id of ['frame-neon-blue','frame-neon-red']){const f=K.value(id).style;assert.equal(f.animation,'none');assert.equal(f.finish,'glow');F.validate({frameStyle:{...f,animation:'flow'}});}
+});
+
+test('laser presets preserve editable parameters and the shared pattern contract', () => {
+ const laser = require('../dist/renderer/laser-foil.js');
+ const glsl = require('../dist/renderer/laser-foil-glsl.js');
+ const sdk = path.join(__dirname, '../../sdk/godot/addons/cardscape');
+ assert.equal(fs.readFileSync(path.join(sdk, 'laser_foil.gdshaderinc'), 'utf8').trim(), glsl.trim());
+ const script = fs.readFileSync(path.join(sdk, 'cardscape_card.gd'), 'utf8');
+ const names = JSON.parse(script.match(/const LASER_PATTERNS: Array\[String\] = (\[.*?\])/)[1]);
+ assert.deepEqual(names, laser.patterns.map(([id]) => id));
+ assert.deepEqual(new Set(laser.presets.map(({recipe}) => recipe.laser.pattern)), new Set(names));
+
+ const doc = document();
+ K.apply(doc, 'material-laser-sakura');
+ assert.equal(doc.material.laser.pattern, 'sakura');
+ assert.equal(M.resolve(doc).particles.visual, 'flower');
+ doc.material.laser.particles = 'off';
+ assert.equal(M.resolve(doc).particles?.enabled, doc.particles?.enabled);
+ doc.particles = C.particles({enabled:true,visual:'glimmer'});
+ doc.material.laser.particles = 'auto';
+ assert.equal(M.resolve(doc).particles.visual, 'glimmer');
+ assert.throws(() => C.validateMaterial({...doc.material,laser:{...doc.material.laser,glare:3}}), /镭射材质参数/);
+ K.apply(doc, 'material-laser-neon-glass');
+ const glass = doc.material;
+ assert.equal(glass.laser.pattern, 'neon');
+ assert.deepEqual(laser.uniforms(glass).overlays, [10, 14, -1]);
+ assert.deepEqual(laser.uniforms(glass).overlayGains, [.64, .40, 0]);
+ glass.laser.signatureAnchor = [.72, .17];
+ const copy = C.material(JSON.parse(JSON.stringify(glass)));
+ C.validateMaterial(copy);
+ assert.deepEqual(laser.uniforms(copy).anchor, [.72, .17]);
+ assert.throws(() => C.validateMaterial({...glass,laser:{...glass.laser,overlays:[...glass.laser.overlays,{pattern:'plain',strength:.3},{pattern:'silk',strength:.2}]} }), /叠加纹样参数/);
+ assert.throws(() => C.validateMaterial({...glass,laser:{...glass.laser,signatureAnchor:[1.2, .4]}}), /亮点坐标/);
 });

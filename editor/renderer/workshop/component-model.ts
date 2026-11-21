@@ -32,6 +32,7 @@ import importedCardRuntime from '../rendering/runtime-core.ts';
 import importedCardSpatial from '../rendering/spatial-model.ts';
 import particleWorld from '../rendering/particle-world-model.ts';
 import particlePhysics from '../rendering/particle-physics-model.ts';
+import laserFoil from './laser-foil.ts';
 
 const api = (() => {
   'use strict';
@@ -67,6 +68,7 @@ const api = (() => {
     'raysrainbow',
     'caustics',
     'rayspurple',
+    laserFoil.style,
   ];
   const particleVisuals = [
     'dust',
@@ -158,7 +160,10 @@ const api = (() => {
     color = (x: unknown) =>
       typeof x === 'string' && /^#[a-fA-F0-9]{6}$/.test(x);
   function material(v: Partial<Material> = {}): Material {
-    return { ...materialDefaults, ...v };
+    const result = { ...materialDefaults, ...v };
+    if (result.style === laserFoil.style)
+      result.laser = laserFoil.settings(v.laser);
+    return result;
   }
   // The active scene is already described by the editor context. A bound material
   // may also carry a complete source document and decoded rasters for rendering.
@@ -178,6 +183,7 @@ const api = (() => {
         layerIds: (v.document.layers || []).map((l) => l.id),
         hasImages: hasMaterialImages(v),
       };
+    if (v.style === laserFoil.style) result.laser = laserFoil.settings(v.laser);
     return result;
   }
   function hasMaterialImages(value: Partial<Material> | null | undefined) {
@@ -313,6 +319,7 @@ const api = (() => {
       !color(v.accent)
     )
       throw Error('外观材质组件参数无效');
+    if (v.laser !== undefined) laserFoil.validate(v.laser);
   }
   function validateSprite(src: unknown) {
     if (typeof src !== 'string' || src.length > 1500000)

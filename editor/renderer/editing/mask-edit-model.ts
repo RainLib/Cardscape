@@ -24,7 +24,7 @@ const api = (() => {
       height: Math.max(a.y + a.height, b.y + b.height) - y,
     };
   }
-  function grayPatch(image: Pixels, rect: Rect | undefined = undefined) {
+  function grayPatch(image: Pixels, rect?: Rect, alpha?: Pixels) {
     const x = Math.max(0, Math.floor(rect?.x ?? 0)),
       y = Math.max(0, Math.floor(rect?.y ?? 0)),
       width = Math.max(
@@ -35,10 +35,15 @@ const api = (() => {
         0,
         Math.min(image.height - y, Math.ceil(rect?.height ?? image.height)),
       );
-    const data = new Uint8Array(width * height);
+    const channels = alpha ? 2 : 1;
+    const data = new Uint8Array(width * height * channels);
     for (let j = 0; j < height; j++)
-      for (let i = 0; i < width; i++)
-        data[j * width + i] = image.data[((y + j) * image.width + x + i) * 4];
+      for (let i = 0; i < width; i++) {
+        const source = ((y + j) * image.width + x + i) * 4;
+        const dest = (j * width + i) * channels;
+        data[dest] = image.data[source];
+        if (alpha) data[dest + 1] = alpha.data[source];
+      }
     return { x, y, width, height, data };
   }
   function brush(

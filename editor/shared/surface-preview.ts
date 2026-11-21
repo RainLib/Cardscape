@@ -175,5 +175,6 @@ export type AdapterKeys =
   | 'setRenderOverrides'
   | 'setEmitterContext'
   | 'drawExternal'
+  | 'createCapture'
   | 'dispose';
 export type SurfaceBase = Omit<PreviewAPI, AdapterKeys>;

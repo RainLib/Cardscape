@@ -7,6 +7,7 @@ import type {
 import type { FrameStyle } from '../../shared/render-models';
 /* Authoring data stays intact; level previews derive a cheap render document. */
 import importedCardComponents from '../workshop/component-model.ts';
+import laserFoil from '../workshop/laser-foil.ts';
 import importedCardFrame from './frame-model.ts';
 
 const api = (() => {
@@ -659,6 +660,14 @@ const api = (() => {
       });
     else if (c.flare !== 'authored')
       d.particles = particlePreset(c.flare, source.particles);
+    if (
+      c.flare === 'authored' &&
+      !d.particles?.enabled &&
+      !source.componentScenes?.particles
+    ) {
+      const ambient = laserFoil.particles(d.material);
+      if (ambient) d.particles = importedCardComponents.particles(ambient);
+    }
     const q = budget(c.quality, options.visibleCards);
     if (d.particles)
       d.particles = importedCardComponents.particles({

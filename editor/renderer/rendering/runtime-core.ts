@@ -16,6 +16,7 @@ import type {
 } from '../../shared/runtime';
 import importedCardCharacterAnimation from '../character/character-animation-model.ts';
 import contourMaterial from './contour-material-glsl.ts';
+import laserFoilGLSL from './laser-foil-glsl.ts';
 // Shared with static raster and back renderer. Simple legacy contours keep the edge path.
 const contourGLSL = `uniform vec4 contourEdges[64];uniform vec2 contourCounts;
 uniform sampler2D contourField;uniform float contourTexture;uniform vec4 contourFieldInfo;
@@ -581,7 +582,7 @@ float connected=attachmentParams.x,weight=connected>.5?join:1.;${diagnostic ? 'c
     // Empty artwork pixels skip contour/mask work, except procedural frames,
     // replacement backgrounds and hooks allowed to create transparent coverage.
     return `precision highp float;uniform sampler2D tex,emissionTex,phaseTex,insetTex,customMaskTex,foilTex;uniform float opacity,rootOpacity,frame,flow,flowSpeed,t,fg,bg,back,clip,customEffect,customStrength,customMasked,foregroundPass,surfaceChannel,surfaceTransparent;uniform vec3 surfaceEye;${diagnostic ? 'uniform sampler2D regionTex;uniform float regionMode;varying float connectionWeight;' : ''}
-uniform float materialStyle,materialReplace;uniform vec4 componentMaterial;uniform vec3 materialColor,materialAccent;uniform vec2 shift,angle,titleBounds;uniform vec3 frameColor,frameAccent,cardEye,armorColor,titleColor;uniform vec4 frameMetrics,popOutSides,armorSweep,titleSweep;uniform float frameFinish;uniform vec2 frameAnimation;uniform vec4 sourceRect,_cardscapeSourceAlphaBounds,adjustment;uniform vec3 slotEffect;varying vec2 v;varying vec4 effects;varying vec3 local;
+uniform float materialStyle,materialReplace;uniform vec4 laserControls,laserModes,spatialParams;uniform vec3 laserSurfaceRole,laserOverlays,laserOverlayGains;uniform vec2 laserSignatureAnchor;uniform vec4 componentMaterial;uniform vec3 materialColor,materialAccent;uniform vec2 shift,angle,titleBounds;uniform vec3 frameColor,frameAccent,cardEye,armorColor,titleColor;uniform vec4 frameMetrics,popOutSides,armorSweep,titleSweep;uniform float frameFinish;uniform vec2 frameAnimation;uniform vec4 sourceRect,_cardscapeSourceAlphaBounds,adjustment;uniform vec3 slotEffect;varying vec2 v;varying vec4 effects;varying vec3 local;
 // Portable fragment hook: sample raw source RGBA using the hook's UV space.
 vec4 sampleSource(vec2 uv){vec2 coord=sourceRect.xy+(uv+shift)*sourceRect.zw;if(back>.5)coord.x=1.-coord.x;return texture2D(tex,coord);}
 ${prelude}
@@ -593,8 +594,14 @@ ${body}
 ${contourGLSL}
 bool inOutline(vec2 p,float inset){if(contourCounts.y>.5){vec2 c=contourAt(p);return inset>0.?c.y>.5:c.x>.5;}vec2 a=abs(p);float cut=max(0.,frameMetrics.y-(2.-sqrt(2.))*inset);return all(lessThanEqual(a,vec2(.5,.75)-inset))&&a.x+a.y<=1.25-2.*inset-cut+0.000001;}
 vec2 atPlane(vec3 point,float z){float d=point.z-cardEye.z;return cardEye.xy+(point.xy-cardEye.xy)*(z-cardEye.z)/(abs(d)<.00001?-.00001:d);}
+vec2 laserCardUV(){
+ vec2 registered=local.xy;
+ if(spatialParams.x>.5)registered*=(spatialParams.w-.045)/max(.15,spatialParams.w-local.z);
+ return vec2(registered.x+.5,.5-registered.y/1.5);
+}
 float sweepLight(float position,vec4 settings){float cycle=mod(t,max(settings.z,.3));float head=-.25+1.6*clamp(cycle/max(settings.y,.3),0.,1.);return exp2(-3.*pow((position-head)/max(settings.w,.02),2.))*step(cycle,settings.y)*settings.x;}
 
+${laserFoilGLSL}
 // Shared procedural finish and rim functions; mirrored in the Godot shader.
 float finishHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float finishNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(finishHash(i),finishHash(i+vec2(1.,0.)),f.x),mix(finishHash(i+vec2(0.,1.)),finishHash(i+vec2(1.,1.)),f.x),f.y);}
@@ -1614,7 +1621,41 @@ if(contourCounts.y>.5&&frame>1.5&&frame<2.5)c.a=1.;
 // partially covered edges of an inset limb do not leave ghosts outside the rim.
 if(fg>.5&&foregroundPass>1.5)c.a*=1.-smoothstep(.02,.5,texture2D(insetTex,v).r/max(c.a,.001));
 if(replaceCoverage)c.a=1.;if(c.a<.015&&!(customEffect>.5&&surfaceTransparent>.5))discard;c.rgb=pow(clamp((c.rgb-.5)*adjustment.y+.5+adjustment.x,0.,1.),vec3(1./adjustment.w));float luminance=dot(c.rgb,vec3(.2126,.7152,.0722));c.rgb=clamp(mix(vec3(luminance),c.rgb,adjustment.z),0.,1.);
-bool materialApplies=componentMaterial.x>0.&&(componentMaterial.w>4.5||(componentMaterial.w>3.5&&frame<.5&&back<.5)||(componentMaterial.w>2.5&&componentMaterial.w<3.5&&back<.5)||(componentMaterial.w<.5&&(bg>.5||back>.5))||(componentMaterial.w>.5&&componentMaterial.w<1.5&&bg>.5)||(componentMaterial.w>1.5&&componentMaterial.w<2.5&&back>.5));if(materialApplies&&abs(materialStyle-5.)>.1){bool replaceArt=materialReplace>.5&&bg>.5;vec2 finishUV=replaceArt?vec2(local.x+.5,.5-local.y/1.5):v;vec3 result=finishColor(c.rgb,finishUV,t*componentMaterial.y,viewAngle,materialStyle,componentMaterial.z,materialColor,materialAccent,replaceArt);c.rgb=finishComposite(c.rgb,result,materialColor,componentMaterial.x,replaceArt);}
+bool materialApplies=componentMaterial.x>0.&&(componentMaterial.w>4.5||(componentMaterial.w>3.5&&frame<.5&&back<.5)||(componentMaterial.w>2.5&&componentMaterial.w<3.5&&back<.5)||(componentMaterial.w<.5&&(bg>.5||back>.5))||(componentMaterial.w>.5&&componentMaterial.w<1.5&&bg>.5)||(componentMaterial.w>1.5&&componentMaterial.w<2.5&&back>.5));if(materialApplies&&abs(materialStyle-5.)>.1){
+ bool replaceArt=materialReplace>.5&&bg>.5;
+ if(abs(materialStyle-30.)<.1){
+  vec2 cardUV=laserCardUV();
+  float subject=0.;
+  if(laserSurfaceRole.y>.5&&back<.5&&all(greaterThanEqual(cardUV,vec2(0.)))&&all(lessThanEqual(cardUV,vec2(1.))))subject=texture2D(foilTex,cardUV).a;
+  float protection=max(subject,laserModes.w*laserSurfaceRole.x);
+  vec3 base=replaceArt?materialColor*.09:c.rgb;
+  if(protection<.999&&frame<.5&&!replaceArt){
+   float clock=t*componentMaterial.y;
+   vec3 shiftRGB=laserRefraction(cardUV,viewAngle,clock,laserModes.x)*laserControls.x;
+   if(laserOverlayGains.x>0.)shiftRGB+=laserRefraction(cardUV,viewAngle,clock,laserOverlays.x)*laserOverlayGains.x;
+   if(laserOverlayGains.y>0.)shiftRGB+=laserRefraction(cardUV,viewAngle,clock,laserOverlays.y)*laserOverlayGains.y;
+   if(laserOverlayGains.z>0.)shiftRGB+=laserRefraction(cardUV,viewAngle,clock,laserOverlays.z)*laserOverlayGains.z;
+   if(shiftRGB.z>0.){
+    vec2 lo=sourceRect.xy,hi=lo+sourceRect.zw;if(back>.5){float left=1.-hi.x;hi.x=1.-lo.x;lo.x=left;}
+    vec2 mid=coord+shiftRGB.xy*sourceRect.zw;
+    vec2 split=vec2(shiftRGB.z,shiftRGB.z*.32)*sourceRect.zw;
+    vec3 refracted=laserRefractedRGB(texture2D(tex,clamp(mid+split,lo,hi)),texture2D(tex,clamp(mid,lo,hi)),
+      texture2D(tex,clamp(mid-split,lo,hi)),texture2D(tex,coord).rgb,adjustment);
+    base=mix(base,refracted,clamp(shiftRGB.z*130.,0.,.92)*(1.-protection));
+   }
+  }
+  vec3 result=laserSurface(base,cardUV,viewAngle,t*componentMaterial.y,componentMaterial.z,laserControls,laserModes,materialColor,materialAccent,laserSurfaceRole.z,protection,laserOverlays,laserOverlayGains,laserSignatureAnchor);
+  if(protection<.999&&laserControls.y>.001&&frame<.5&&!replaceArt){
+   vec2 reliefDir=sourceRect.zw*(vec2(.0015,-.0008)+viewAngle*.002);
+   result=clamp(result+laserRelief(texture2D(tex,coord-reliefDir),texture2D(tex,coord+reliefDir),laserControls.y*(1.-protection)),0.,1.);
+  }
+  c.rgb=mix(replaceArt?materialColor*.09:c.rgb,result,componentMaterial.x);
+ }else{
+  vec2 finishUV=replaceArt?vec2(local.x+.5,.5-local.y/1.5):v;
+  vec3 result=finishColor(c.rgb,finishUV,t*componentMaterial.y,viewAngle,materialStyle,componentMaterial.z,materialColor,materialAccent,replaceArt);
+  c.rgb=finishComposite(c.rgb,result,materialColor,componentMaterial.x,replaceArt);
+ }
+}
 if(fg>.5){float emission=texture2D(emissionTex,v).r,phase=texture2D(phaseTex,v).r;float stream=pow(.5+.5*sin(phase*30.-t*3.1*flowSpeed+v.y*11.),3.);c.rgb+=vec3(.45,.77,1.)*emission*stream*flow;}
 if(fg>.5&&armorSweep.x>0.)c.rgb+=armorColor*texture2D(foilTex,v).r*sweepLight(v.x+v.y*.18,armorSweep);
 if(titleSweep.x>0.)c.rgb+=titleColor*sweepLight((v.x-titleBounds.x)/max(.001,titleBounds.y-titleBounds.x),titleSweep);
@@ -1627,7 +1668,8 @@ ${
 if(regionMode>.5){float amount=.56;vec3 tint=vec3(.15,.85,1.);
 if(regionMode>1.5&&regionMode<2.5){amount=.8*texture2D(regionTex,v).r;tint=vec3(1.,.45,.12);}
 if(regionMode>2.5&&regionMode<3.5){float w=clamp(connectionWeight,0.,1.);tint=w<.5?mix(vec3(.12,.55,1.),vec3(1.,.84,.2),w*2.):mix(vec3(1.,.84,.2),vec3(1.,.28,.62),(w-.5)*2.);amount=.72;}
-if(regionMode>3.5)tint=inside?vec3(.1,.85,.75):vec3(1.,.45,.15);
+if(regionMode>3.5&&regionMode<4.5)tint=inside?vec3(.1,.85,.75):vec3(1.,.45,.15);
+if(regionMode>4.5){vec2 markerUV=laserCardUV();amount=.8*texture2D(regionTex,markerUV).r;tint=vec3(1.,.31,.30);}
 c.rgb=mix(c.rgb,tint,amount);}`
     : ''
 }

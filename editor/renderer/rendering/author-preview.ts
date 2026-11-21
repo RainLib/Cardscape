@@ -11,6 +11,7 @@ import type {
 import type { SceneMetadata } from '../../shared/visual-components';
 import type { RuntimeSample } from '../../shared/runtime';
 import contourFields from './contour-field-renderer.ts';
+import laserFoil from '../workshop/laser-foil.ts';
 import particleWorld from './particle-world-model.ts';
 import type {
   ExternalView,
@@ -145,6 +146,7 @@ export const moduleApi = (() => {
     }
     let external: ExternalView | null = null,
       emitterContext: CardDocument | null = null,
+      capturing = false,
       disposed = false,
       updateDepth = 0,
       weightsPending = false;
@@ -156,7 +158,8 @@ export const moduleApi = (() => {
       );
     };
     const emit = (name: string, detail?: unknown) => {
-      if (!embedded) window.dispatchEvent(new CustomEvent(name, { detail }));
+      if (!embedded && !capturing)
+        window.dispatchEvent(new CustomEvent(name, { detail }));
     };
 
     let sourceDoc: CardDocument | null = null,
@@ -189,7 +192,7 @@ export const moduleApi = (() => {
         string,
         { image: SurfaceImage; source: string }
       >(),
-      maskTextureSizes = new Map<string, [number, number]>(),
+      maskTextureSizes = new Map<string, [number, number, number]>(),
       textureSizes = new Map<string, [number, number]>(),
       titleBounds = new Map<string, [number, number]>();
     function textureDiagnostics() {
@@ -403,6 +406,12 @@ export const moduleApi = (() => {
           'materialAccent',
           'materialStyle',
           'materialReplace',
+          'laserControls',
+          'laserModes',
+          'laserOverlays',
+          'laserOverlayGains',
+          'laserSignatureAnchor',
+          'laserSurfaceRole',
           'spatialParams',
           'backgroundExtent',
           'attachmentParams',
@@ -458,7 +467,12 @@ export const moduleApi = (() => {
       forgetSharedTexture(tex);
       gl.deleteTexture(tex);
     }
-    function upload(id: string, image: SurfaceImage, rect?: PixelRect) {
+    function upload(
+      id: string,
+      image: SurfaceImage,
+      rect?: PixelRect,
+      alpha?: PixelImage,
+    ) {
       if (disposed) return false;
       const w =
           ('naturalWidth' in image ? image.naturalWidth : 0) || image.width,
@@ -538,12 +552,14 @@ export const moduleApi = (() => {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       if ('data' in image && mask) {
-        const patch = importedCardMaskEdit.grayPatch(image, rect);
+        const patch = importedCardMaskEdit.grayPatch(image, rect, alpha);
+        const format = alpha ? gl.LUMINANCE_ALPHA : gl.LUMINANCE;
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
         if (
           rect &&
           maskTextureSizes.get(id)?.[0] === w &&
-          maskTextureSizes.get(id)?.[1] === h
+          maskTextureSizes.get(id)?.[1] === h &&
+          maskTextureSizes.get(id)?.[2] === format
         )
           gl.texSubImage2D(
             gl.TEXTURE_2D,
@@ -552,7 +568,7 @@ export const moduleApi = (() => {
             patch.y,
             patch.width,
             patch.height,
-            gl.LUMINANCE,
+            format,
             gl.UNSIGNED_BYTE,
             patch.data,
           );
@@ -560,20 +576,24 @@ export const moduleApi = (() => {
           gl.texImage2D(
             gl.TEXTURE_2D,
             0,
-            gl.LUMINANCE,
+            format,
             w,
             h,
             0,
-            gl.LUMINANCE,
+            format,
             gl.UNSIGNED_BYTE,
-            importedCardMaskEdit.grayPatch(image).data,
+            rect
+              ? importedCardMaskEdit.grayPatch(image, undefined, alpha).data
+              : patch.data,
           );
-        maskTextureSizes.set(id, [w, h]);
+        maskTextureSizes.set(id, [w, h, format]);
         canvas.dataset.maskUploadBytes = String(
-          rect ? patch.data.length : w * h,
+          rect ? patch.data.length : w * h * (alpha ? 2 : 1),
         );
         canvas.dataset.maskUploadMode = rect ? 'patch' : 'full';
-        canvas.dataset.maskTextureFormat = 'LUMINANCE8';
+        canvas.dataset.maskTextureFormat = alpha
+          ? 'LUMINANCE_ALPHA8'
+          : 'LUMINANCE8';
       } else {
         maskTextureSizes.delete(id);
         if ('data' in image)
@@ -608,6 +628,22 @@ export const moduleApi = (() => {
     black.width = black.height = 1;
     required(black.getContext('2d')).fillRect(0, 0, 1, 1);
     upload('mask-default', black);
+    function updateFoilTexture(rect?: PixelRect) {
+      const foil = maskData.get('foil');
+      const subject = maskData.get('subject');
+      // Preserve the eight-sampler WebGL 1 budget. Armor reads luminance and
+      // the card-level subject reads alpha of the same control texture.
+      if (foil) upload('mask-foil', foil, rect, subject);
+      else if (subject) {
+        const { width, height } = subject;
+        upload(
+          'mask-foil',
+          { width, height, data: new Uint8Array(width * height * 4) },
+          rect,
+          subject,
+        );
+      } else releaseTexture('mask-foil');
+    }
     function refreshCustomMask() {
       if (!doc || doc.shader.fragmentBody === runtime.surfaceBody) return;
       const im = maskData.get(doc.shader.fragmentMask);
@@ -1087,6 +1123,17 @@ export const moduleApi = (() => {
       const viewDocument = doc;
       if (!viewDocument) return;
 
+      if (viewDocument.material?.style === laserFoil.style)
+        gl.uniform3f(
+          u.laserSurfaceRole,
+          +(
+            characterLayer(layer) ||
+            layer?.kind === 'text' ||
+            importedCardStats.isStat(layer)
+          ),
+          +maskData.has('subject'),
+          +(frame > 0 || layer?.role === 'frame-artwork'),
+        );
       gl.uniform1f(
         u.regionMode,
         importedCardPreviewRegion?.pass(viewDocument, layer, region) || 0,
@@ -1870,7 +1917,11 @@ export const moduleApi = (() => {
               ),
           );
       if (!w || !h) return;
-      if (!embedded && (canvas.width !== w || canvas.height !== h)) {
+      if (
+        !embedded &&
+        !capturing &&
+        (canvas.width !== w || canvas.height !== h)
+      ) {
         canvas.width = w;
         canvas.height = h;
       }
@@ -1967,11 +2018,12 @@ export const moduleApi = (() => {
               !!playing?.paused,
             )
           : null;
-      actionAudio.sync(
-        playing ? targetAction || null : null,
-        elapsed,
-        !!playing && !playing.paused && effectsEnabled && !document.hidden,
-      );
+      if (!capturing)
+        actionAudio.sync(
+          playing ? targetAction || null : null,
+          elapsed,
+          !!playing && !playing.paused && effectsEnabled && !document.hidden,
+        );
       renderedAction = effectiveAction
         ? {
             clip: effectiveAction,
@@ -2045,6 +2097,7 @@ export const moduleApi = (() => {
       );
       particleBirthAction = targetAction;
       if (
+        !capturing &&
         targetAction?.particleEvents?.some((e) => e.simulationSpace === 'world')
       ) {
         const source = JSON.stringify([
@@ -2204,6 +2257,15 @@ export const moduleApi = (() => {
       );
       gl.uniform3fv(u.materialColor, frames.rgb(material.color));
       gl.uniform3fv(u.materialAccent, frames.rgb(material.accent));
+      if (material.style === laserFoil.style) {
+        const laser = laserFoil.uniforms(material);
+        gl.uniform4f(u.laserControls, ...laser.controls);
+        gl.uniform4f(u.laserModes, ...laser.mode);
+        gl.uniform3f(u.laserOverlays, ...laser.overlays);
+        gl.uniform3f(u.laserOverlayGains, ...laser.overlayGains);
+        gl.uniform2f(u.laserSignatureAnchor, ...laser.anchor);
+        canvas.dataset.laserPattern = material.laser?.pattern || '';
+      } else delete canvas.dataset.laserPattern;
       canvas.dataset.materialStyle = material.enabled ? material.style : 'none';
       gl.uniform2f(u.angle, facing, tilt);
       gl.uniform4f(
@@ -2782,7 +2844,7 @@ export const moduleApi = (() => {
           yaw: lastView?.yaw ?? 0,
           pitch: lastView?.pitch ?? 0,
         });
-      if (canAnimate() && !raf) raf = requestAnimationFrame(tick);
+      if (!capturing && canAnimate() && !raf) raf = requestAnimationFrame(tick);
     }
     function hasDynamics() {
       return importedCardCosmetics.dynamic(
@@ -2960,7 +3022,8 @@ export const moduleApi = (() => {
       },
       removeMask(id) {
         maskData.delete(id);
-        this.removeTexture('mask-' + id);
+        if (id === 'foil' || id === 'subject') updateFoilTexture();
+        else this.removeTexture('mask-' + id);
         if (doc?.shader.fragmentMask === id) {
           customMaskImage = null;
           this.removeTexture('custom-mask');
@@ -3155,7 +3218,8 @@ export const moduleApi = (() => {
               if (c[k]) gl.deleteBuffer(c[k]);
           joinBuffers.clear();
         }
-        if (['emission', 'phase', 'inset', 'foil'].includes(id))
+        if (id === 'foil' || id === 'subject') updateFoilTexture(rect);
+        else if (['emission', 'phase', 'inset'].includes(id))
           upload('mask-' + id, image, rect);
         if (
           doc?.shader.fragmentMask === id &&
@@ -3459,6 +3523,177 @@ export const moduleApi = (() => {
       setEmitterContext: (value) => {
         if (disposed) return;
         emitterContext = value;
+      },
+      createCapture: (target) => {
+        if (embedded || !generic || !doc || disposed || !active)
+          throw Error('3D 预览尚未就绪');
+        const { width, height } = target;
+        const ctx = required(target.getContext('2d'));
+        const pixels = ctx.createImageData(width, height);
+        const raw = new Uint8Array(pixels.data.length);
+        const framebuffer = gl.createFramebuffer();
+        const depthBuffer = gl.createRenderbuffer();
+        const release = () => {
+          gl.deleteFramebuffer(framebuffer);
+          gl.deleteRenderbuffer(depthBuffer);
+        };
+        let released = false;
+        if (!framebuffer || !depthBuffer) {
+          release();
+          throw Error('无法创建导出缓冲区');
+        }
+        const previousFramebuffer = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+        const previousRenderbuffer = gl.getParameter(gl.RENDERBUFFER_BINDING);
+        // WebGL 1 guarantees an RGBA8 renderable texture, while RGBA4 renderbuffers
+        // would quantize the foil gradients before GIF/video encoding.
+        const texture = gl.createTexture();
+        const previousTexture = gl.getParameter(gl.TEXTURE_BINDING_2D);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        try {
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            width,
+            height,
+            0,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            null,
+          );
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.framebufferTexture2D(
+            gl.FRAMEBUFFER,
+            gl.COLOR_ATTACHMENT0,
+            gl.TEXTURE_2D,
+            texture,
+            0,
+          );
+          gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+          gl.renderbufferStorage(
+            gl.RENDERBUFFER,
+            gl.DEPTH_COMPONENT16,
+            width,
+            height,
+          );
+          gl.framebufferRenderbuffer(
+            gl.FRAMEBUFFER,
+            gl.DEPTH_ATTACHMENT,
+            gl.RENDERBUFFER,
+            depthBuffer,
+          );
+          if (
+            gl.checkFramebufferStatus(gl.FRAMEBUFFER) !==
+            gl.FRAMEBUFFER_COMPLETE
+          )
+            throw Error('当前显卡不支持此导出尺寸');
+        } catch (error) {
+          release();
+          gl.deleteTexture(texture);
+          throw error;
+        } finally {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, previousFramebuffer);
+          gl.bindRenderbuffer(gl.RENDERBUFFER, previousRenderbuffer);
+          gl.bindTexture(gl.TEXTURE_2D, previousTexture);
+        }
+        return {
+          frame(pose) {
+            if (
+              released ||
+              disposed ||
+              gl.isContextLost() ||
+              !doc ||
+              updateDepth
+            )
+              throw Error('3D 预览已退出或正在更新');
+            const previous = {
+              time,
+              playing,
+              inspection,
+              actionTransition,
+              external,
+              detail,
+              lastView,
+              effectsEnabled,
+              active,
+              wire,
+              region,
+            };
+            const currentFramebuffer = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+            capturing = true;
+            time = pose.time;
+            playing = inspection = actionTransition = null;
+            effectsEnabled = active = true;
+            wire = false;
+            region = { mode: 'none' };
+            external = {
+              angle: [(pose.yaw * Math.PI) / 180, (pose.pitch * Math.PI) / 180],
+              root: [pose.x / 1024, -pose.y / 1024, 0, 1, 1],
+              width,
+              height,
+              viewportZoom: 0.86,
+              detail: {
+                level: 'large',
+                materials: true,
+                decorations: true,
+                particles: true,
+              },
+            };
+            gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+            try {
+              draw();
+              gl.readPixels(
+                0,
+                0,
+                width,
+                height,
+                gl.RGBA,
+                gl.UNSIGNED_BYTE,
+                raw,
+              );
+            } finally {
+              gl.bindFramebuffer(gl.FRAMEBUFFER, currentFramebuffer);
+              ({
+                time,
+                playing,
+                inspection,
+                actionTransition,
+                external,
+                detail,
+                lastView,
+                effectsEnabled,
+                active,
+                wire,
+                region,
+              } = previous);
+              capturing = false;
+            }
+            for (let y = 0; y < height; y++) {
+              const row = (height - 1 - y) * width * 4;
+              for (let x = 0; x < width; x++) {
+                const i = (y * width + x) * 4,
+                  j = row + x * 4;
+                const open = 1 - raw[j + 3]! / 255;
+                pixels.data[i] = raw[j]! + 18 * open;
+                pixels.data[i + 1] = raw[j + 1]! + 21 * open;
+                pixels.data[i + 2] = raw[j + 2]! + 31 * open;
+                pixels.data[i + 3] = 255;
+              }
+            }
+            ctx.putImageData(pixels, 0, 0);
+          },
+          dispose() {
+            if (released) return;
+            released = true;
+            release();
+            gl.deleteTexture(texture);
+            draw();
+          },
+        };
       },
       drawExternal: (options) => {
         external = options;

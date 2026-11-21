@@ -39,6 +39,13 @@ npm start
 
 [Foil materials and subject masks](docs/laser-foil.md)
 
+## Build a frame-breaking character
+
+1. Open the [Neris Vale workshop](examples/production-card/neris-vale/neris-vale.cardworkshop) and drag the live preview. Watch the near hand move across the rim while the torso and distant scenery stay inside the window.
+2. In **Spatial layers** (空间层级), inspect the rear cape, continuous portrait, rigid forearm, and pinned silk sash. The **Inset** mask controls which parts cross the rim. The portrait layer retains painted sleeve and coat support for angles that expose the joins.
+3. Hold the card at one angle and play **Sea Breeze**. The **Motion** mask keeps the silk anchored at the belt. **Emission** limits the glow to the engravings, and **Phase** sets the light's direction around them.
+4. Use **Card display language** (卡片显示语言) in the preview toolbar to switch between English and Chinese. In **Appearance → Hero wordmark** (外观与等级 → 英雄字标), select the wordmark to move or resize it. The sash renders in front of the name and changes how much it covers as it moves.
+
 ## Animate a card entrance
 
 ![Moonveil Stag in the Cardscape editor with the Aurora Reveal action and its movement keyframes visible](../docs/media/animation-timeline.webp)

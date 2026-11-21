@@ -25,20 +25,20 @@ Build a card from a single image or assemble separate layers for the character, 
   </tr>
 </table>
 
-### 3D card effects
+### 3D character cards
 
 <table>
   <tr>
-    <td align="center"><img src="docs/media/skyglass-ray-depth.webp" width="320" alt="Skyglass Ray's fins extend over the card frame as the ray shifts relative to the distant cloud terraces"></td>
-    <td align="center"><img src="docs/media/skyglass-ray-flip.webp" width="320" alt="Skyglass Ray turns through 360 degrees, showing its illuminated rim and gold-engraved reverse"></td>
+    <td align="center"><img src="docs/media/neris-vale-tilt.webp" width="320" alt="Neris Vale tilts with her torso inside a brass frame and her gloved hand, hair, and silk crossing the rim"></td>
+    <td align="center"><img src="docs/media/neris-vale-details.webp" width="320" alt="A fixed-angle crop of the Chinese wordmark with a fluttering silk sash and a pulse of light in the brass compass buckle"></td>
   </tr>
   <tr>
-    <td><strong>Parallax and frame break</strong><br>The ray and cloud terraces sit at different depths. Tilt the card to see the fins cross the rim as the landscape shifts behind them.</td>
-    <td><strong>Animated rim and 360° flip</strong><br>A short flare and a shifting spectrum accent a keyframed turn that reveals the engraved back and returns to the front.</td>
+    <td><strong>Neris Vale</strong><br>The leading hand and cuff project through the brass rim. The torso stays inside the card as the observatory and sea shift behind the figure.</td>
+    <td><strong>Local motion and light</strong><br>The sash is pinned at the belt and flutters over the illustrated wordmark. Light travels along the brass engravings while the card holds its angle. Switch between the English and Simplified Chinese wordmarks in the editor.</td>
   </tr>
 </table>
 
-These loops were captured from Cardscape's WebGL player. Open a `.cardworkshop` file from the home screen to inspect its layers, masks, materials, and actions. [Skyglass Ray workshop](editor/examples/production-card/skyglass-ray/skyglass-ray.cardworkshop) · [Artwork notes](editor/examples/production-card/skyglass-ray/generation.md)
+Both loops were captured from Cardscape's WebGL player. Open the workshop from Home to adjust the parts, breakout mask, and lettering independently. [Neris Vale workshop](editor/examples/production-card/neris-vale/neris-vale.cardworkshop) · [Artwork notes](editor/examples/production-card/neris-vale/generation.md)
 
 ## The workspace
 

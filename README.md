@@ -4,7 +4,7 @@
 
 # Cardscape
 
-**A desktop editor for turning illustrations into animated 2.5D cards.**
+**A desktop editor for turning prompts and illustrations into animated 2.5D cards.**
 
 Build a card from a single image or assemble separate layers for the character, scenery, frame, and back. Add parallax, break the frame with foreground art, and make foil catch the light as the card tilts. Save the editable project, then export a loop for sharing, a WebGL player for the browser, or a Godot scene for a game.
 
@@ -50,6 +50,7 @@ Arrange the source artwork and paint masks in the 2D canvas, then check depth an
 
 ## What you can build
 
+- **AI-driven card generation.** Describe a card in the AI Assistant. A configured agent can generate character art, scenery, a card back, and wordmarks, then assemble them into an editable card with layers, masks, and effects. [AI workflow](editor/README.md#generate-a-card-with-ai)
 - **Collectible finishes.** Combine holographic textures, metal tones, directional reflections, glitter, and particles. Use a subject mask to keep the base artwork's hues.
 - **Layered cards.** Arrange image and text layers in depth, draw custom frame outlines and windows, and give the card a back. Preview occlusion and the parts that cross the frame.
 - **Animated characters.** Edit bones, meshes, weights, and IK. Use the timeline to keyframe poses and place particles and sound on actions. Reuse frames, materials, and other components across a workshop.

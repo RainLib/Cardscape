@@ -29,6 +29,14 @@ npm start
 | **Appearance** (外观与等级)         | Apply material, border, and particle presets. Edit the foil layers and how they respond to light.                         |
 | **Animation timeline** (动画时间轴) | Scrub an action, edit its tracks, and synchronize particles and audio.                                                    |
 
+## Generate a card with AI
+
+1. Open a workshop in the desktop editor and open **AI Assistant** (AI 助手). Choose a signed-in Codex CLI or a compatible external agent that supports chat and image tasks. The agent needs access to an image-generation tool to create new artwork.
+2. Click **Full Production** (完整制作) and add your brief to the prompt. Enable **Continuous Production** (连续制作) in **AI Settings → Preferences** (AI 设置 → 偏好) to let the agent advance through artwork generation, layer assembly, masking, and effects.
+3. Review the artwork and check the card in the live preview. Save the workshop to keep the layers, masks, wordmarks, and effects editable.
+
+For example, ask for a moonlit sea cartographer with a fluttering silk sash, a brass wordmark, and a compass-rose card back. [Card Atelier skill](skills/card-atelier/SKILL.md) · [Agent setup and image tasks](AGENT_PROTOCOL.md)
+
 ## Make a holographic card
 
 1. From Home, choose **Open project** (打开工程) and open the [Moonlit Traveler workshop](examples/production-card/moonlit-traveler/moonlit-traveler.cardworkshop). For your own art, start a card and use **Import image** (导入图像) to add a background.
@@ -102,4 +110,4 @@ Run these commands from the `editor` directory.
 
 The Electron main process handles files and worker jobs. The TypeScript renderer owns editing state, the canvas, and the WebGL preview. The Rust worker handles image decoding, mask processing, and geometry. Build output goes to `dist/`. Local projects and exports use `runtime/`. Override the local data directory with `ATELIER_RUNTIME` when testing.
 
-Older projects retain the `card-atelier/*` schema identifiers and `ATELIER_*` environment variable names. The optional Agent integration uses your own provider setup. [TypeScript architecture](docs/typescript-architecture.md) · [Agent protocol](AGENT_PROTOCOL.md) · [Capability audit](CAPABILITY_AUDIT.md) · [Chinese guide and development history](README.zh-CN.md)
+Older projects retain the `card-atelier/*` schema identifiers and `ATELIER_*` environment variable names. [TypeScript architecture](docs/typescript-architecture.md) · [Capability audit](CAPABILITY_AUDIT.md) · [Chinese guide and development history](README.zh-CN.md)

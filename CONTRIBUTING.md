@@ -4,7 +4,7 @@ Bug reports, documentation improvements, sample workshops, and code changes are 
 
 ## Report a bug or suggest a feature
 
-Check for an existing issue. For a bug, include your Cardscape version or commit, operating system, steps to reproduce it, and what you expected to happen. A short clip or a small `.cardproj` or `.cardworkshop` can help reproduce a rendering or animation issue. For a feature, describe the card-making workflow it would improve. [GitHub Issues](https://github.com/RainLib/Cardscape/issues)
+Check for an existing issue, then choose **Bug report** or **Feature request**. For a bug, include your Cardscape version or commit, operating system, steps to reproduce it, and what you expected to happen. A short clip or a ZIP with a small `.cardproj` or `.cardworkshop` can help reproduce a rendering or animation issue. For a feature, describe the card-making workflow it would improve. [Browse issues](https://github.com/RainLib/Cardscape/issues) · [Choose an issue template](https://github.com/RainLib/Cardscape/issues/new/choose)
 
 ## Set up a development branch
 

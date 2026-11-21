@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest a way to improve Cardscape.
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: workflow
+    attributes:
+      label: What are you trying to do?
+      description: Describe the card-making workflow you want to improve and where you get stuck today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like Cardscape to support?
+      description: Describe the behavior you want and how you would use it.
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples or references
+      description: If useful, add a mockup, sample card, or link that illustrates the idea.

@@ -1,0 +1,39 @@
+name: Bug report
+description: Report a problem you encountered in Cardscape.
+labels:
+  - bug
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Cardscape version
+      description: Enter the editor version or the commit you built from.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and editor mode
+      description: Include the OS version and whether you used the desktop app or the browser editor.
+      placeholder: macOS 15 on Apple Silicon, desktop app
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the steps from opening or creating a card to seeing the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Actual and expected behavior
+      description: Describe what happened and what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots, recordings, or sample files
+      description: If useful, add a screenshot, GIF, relevant log output, or a ZIP containing a small sample project.

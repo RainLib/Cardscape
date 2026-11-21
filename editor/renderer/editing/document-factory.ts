@@ -6,11 +6,14 @@ import runtime from '../rendering/runtime-model.ts';
 import cosmetics from './cosmetics-model.ts';
 import spatial from '../rendering/spatial-model.ts';
 import frame from './frame-model.ts';
+import i18n from '../localization/ui-i18n.ts';
+import type { UiLanguage } from '../../shared/contracts';
 
 export async function createBlankDocument(
   name: string,
-  services: { mesh(): Promise<ProcessResult>; textStyle(): Partial<TextStyle> },
+  services: { mesh(): Promise<ProcessResult>; textStyle(): Partial<TextStyle>; language?: UiLanguage },
 ): Promise<CardDocument> {
+  const label = (text: string) => i18n.text(text, services.language || 'en');
   const canvas = canvasFor(),
     ctx = canvas.getContext('2d')!,
     clear = canvas.toDataURL('image/png');
@@ -35,7 +38,7 @@ export async function createBlankDocument(
   const document: CardDocument = {
     schema: 'card-atelier/1',
     cosmetics: { ...cosmetics.defaults, level: 'common' },
-    name: name.trim() || '未命名卡片',
+    name: name.trim() || label('未命名卡片'),
     width: 1024,
     height: 1536,
     previewMode: 'authored',
@@ -60,7 +63,7 @@ export async function createBlankDocument(
     layers: [
       {
         id: 'title',
-        name: '可编辑文字',
+        name: label('可编辑文字'),
         kind: 'text',
         text: '',
         textStyle: services.textStyle(),
@@ -73,7 +76,7 @@ export async function createBlankDocument(
       },
       {
         id: 'frame',
-        name: '立体边框',
+        name: label('立体边框'),
         kind: 'frame',
         x: 0,
         y: 0,
@@ -84,7 +87,7 @@ export async function createBlankDocument(
       },
       {
         id: 'foreground',
-        name: '待导入人物',
+        name: label('待导入人物'),
         kind: 'foreground',
         src: clear,
         master: clear,
@@ -97,7 +100,7 @@ export async function createBlankDocument(
       },
       {
         id: 'background',
-        name: '待导入背景',
+        name: label('待导入背景'),
         kind: 'background',
         src: clear,
         x: 0,

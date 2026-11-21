@@ -113,11 +113,14 @@ export const moduleApi = (() => {
       rows.push([value, '图层不可用']);
     if (
       JSON.stringify(rows) !==
-      JSON.stringify(Array.from(control.options, (o) => [o.value, o.text]))
+      JSON.stringify(Array.from(control.options, (o) => [o.value, o.dataset.sourceLabel ?? o.text]))
     )
-      control.replaceChildren(
-        ...rows.map(([id, name]) => new Option(name, id)),
-      );
+      control.replaceChildren(...rows.map(([id, name]) => {
+        const option = new Option(name, id);
+        option.dataset.sourceLabel = name;
+        if (layers.some((layer) => layer.id === id)) option.dataset.uiContent = '';
+        return option;
+      }));
     control.value = value || '';
   }
 

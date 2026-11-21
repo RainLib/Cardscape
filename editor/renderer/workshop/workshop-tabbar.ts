@@ -43,7 +43,7 @@ function render(){
  for(const id of tabs.open){
   const card=project.cards.find(c=>c.id===id),pinned=tabs.pinned.includes(id),active=!project.editingAsset&&id===project.activeCardId;
   const item=document.createElement('div');item.className='ws-editor-tab';item.dataset.cardId=id;item.dataset.pinned=String(pinned);item.dataset.active=String(active);item.setAttribute('role','presentation');
-  const tab=document.createElement('button');tab.className='ws-tab-name';tab.textContent=card.name;tab.title=card.name+(pinned?' · 已固定':'');tab.dataset.cardId=id;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;tab.disabled=busy||transition;tab.onclick=()=>activate(id);
+  const tab=document.createElement('button');tab.className='ws-tab-name';const name=document.createElement('span');name.dataset.uiContent='';name.textContent=card.name;tab.append(name);tab.title=card.name+(pinned?' · 已固定':'');tab.dataset.cardId=id;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;tab.disabled=busy||transition;tab.onclick=()=>activate(id);
   const actions=document.createElement('span');actions.className='ws-tab-actions';
   for(const [action,label] of [['pin',pinned?'取消固定':'固定'],['close','关闭']] as const){
    const button=document.createElement('button');button.className='ws-tab-action ws-tab-'+action;button.dataset.tabAction=action;button.setAttribute('aria-label',label+'标签 '+card.name);button.title=label+'标签';button.disabled=busy||transition;

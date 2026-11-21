@@ -34,6 +34,7 @@ export const moduleApi = (() => {
           return state.documentToken + '/' + state.revision;
         },
         prepare: () => bindings.atelierWorkspace.ensurePreview(),
+        showLanguagePicker: false,
       })
     : undefined;
   let lastKey = '';
@@ -59,7 +60,11 @@ export const moduleApi = (() => {
     if (key !== lastKey) {
       lastKey = key;
       element<HTMLSelectElement>('preview-action').replaceChildren(
-        ...(d.actions || []).map((a) => new Option(a.name, a.id)),
+        ...(d.actions || []).map((a) => {
+          const option = new Option(a.name, a.id);
+          option.dataset.uiContent = '';
+          return option;
+        }),
       );
       element<HTMLSelectElement>('preview-action').value = a?.id || '';
     }

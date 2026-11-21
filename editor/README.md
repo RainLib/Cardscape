@@ -16,6 +16,12 @@ npm start
 
 `npm start` builds the Electron app before launching it. The default artwork and icons ship with the source tree. On macOS, `启动卡牌工坊.command` is also available after dependencies are installed.
 
+## Interface language
+
+The editor opens in English by default. Choose **English** or **简体中文** in **Interface Language** in the top bar on Home or in the workspace. In the desktop app, you can also use **View → Interface Language**. The interface updates immediately and remembers your choice for the next launch.
+
+Use **Card Language** in the preview toolbar to switch between the card's saved wordmark variants. The interface language is a separate preference.
+
 ## Find your way around
 
 ![The editor in split view with Moonlit Traveler on the 2D canvas and in the live 3D preview](../docs/media/editor-workspace.webp)
@@ -53,7 +59,7 @@ For example, ask for a moonlit sea cartographer with a fluttering silk sash, a b
 2. Choose **Import / Replace Character** (导入 / 替换人物) and open a transparent portrait. Replacing the portrait resets the character masks and removes parts split from the previous portrait. The effect settings remain available to use with the new art.
 3. Click **Select Character Area** (圈选人物区域), trace the part that should cross a rim, then press Enter. Choose **Break Out Selection Only** (仅让选区破框) and turn on the edges it may cross. Black in the **Inset** mask allows an area to cross the rim. White keeps it inside the aperture.
 4. Select a sash, loose hair, or cape and use the matching split button. In **Spatial layers** (空间层级), set each split part's fixed point and free end. To keep connected strands intact, choose **Hair** under **Continuous portrait motion** (连续人物层的运动), paint a soft gradient in **Motion** from the roots to the tips, and protect the face in **Rigid**. Each motion has its own strength and speed. Use a shallow Z offset at sleeve joins and keep hands and held objects rigid.
-5. Under **Wordmark occlusion** (字标遮挡), choose the wordmark and a front part that may cover it. Use **Appearance → Hero wordmark** (外观与等级 → 英雄字标) to import and position your lettering. **Card display language** (卡片显示语言) switches between saved variants.
+5. Under **Wordmark occlusion** (字标遮挡), choose the wordmark and a front part that may cover it. Use **Appearance → Hero wordmark** (外观与等级 → 英雄字标) to import and position your lettering. **Card Language** (卡片显示语言) switches between saved variants.
 6. Paint **Emission** on the ornaments that should light up. Use a gradient on **Phase** to set the order the light follows, then adjust its color, strength, and speed. Play at a fixed tilt to check the local animation, or apply a foil preset to combine both effects.
 
 The [Neris Vale workshop](examples/production-card/neris-vale/neris-vale.cardworkshop) includes the finished masks, parts, wordmarks, and sleeve and coat underpainting for inspection.

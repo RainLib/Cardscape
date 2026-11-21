@@ -11,6 +11,7 @@ import {
   requiredMaskIds,
 } from './core/mask-assets.ts';
 import { element as $ } from './core/dom.ts';
+import i18n from './localization/ui-i18n.ts';
 import type { CardDocument, CardLayer, LaserLayoutFields } from '../shared/document';
 import type { RasterSource } from './core/image-assets.ts';
 import { createDocumentRenderer } from './rendering/document-renderer.ts';
@@ -949,6 +950,7 @@ export const moduleApi = (() => {
       row.append(thumb);
       const name = document.createElement('span');
       name.className = 'layer-name';
+      name.dataset.uiContent = '';
       name.textContent = layer.name;
       row.append(name);
       if (layer.src) {
@@ -1056,7 +1058,10 @@ export const moduleApi = (() => {
         };
         const name = document.createElement('span');
         name.className = 'layer-name';
-        name.textContent = '▱ ' + node.name;
+        const groupName = document.createElement('span');
+        groupName.dataset.uiContent = '';
+        groupName.textContent = '▱ ' + node.name;
+        name.append(groupName);
         name.title = '双击重命名；拖动整组；中部放入组';
         name.ondblclick = (e) => {
           e.stopPropagation();
@@ -2013,7 +2018,7 @@ export const moduleApi = (() => {
       ctx.fill();
       ctx.stroke();
       ctx.font = `${12 / view.zoom}px system-ui`;
-      ctx.fillText(label, p.x + 12 / view.zoom, p.y - 9 / view.zoom);
+      ctx.fillText(i18n.text(label, i18n.language(document.documentElement.lang)), p.x + 12 / view.zoom, p.y - 9 / view.zoom);
       const o = origin();
       handles.push({
         x: o.x + p.x * view.zoom,
@@ -4094,6 +4099,7 @@ export const moduleApi = (() => {
   $('new-cancel').onclick = () => $('new-dialog').close();
   const createBlankDocument = (name: string) =>
     blankDocument(name, {
+      language: i18n.language(document.documentElement.lang),
       mesh: () =>
         bridge.invoke('process', {
           op: 'mesh',
@@ -4116,7 +4122,7 @@ export const moduleApi = (() => {
           ? '空白卡片已加入工坊；可应用共享资源'
           : '空白工程已创建；导入背景、人物、卡背或 PNG 字标',
       );
-    });
+    }, !!name.trim());
   };
   $('sample-project').onclick = async () => {
     if (revision !== savedRevision) {
@@ -4130,7 +4136,7 @@ export const moduleApi = (() => {
           document: structuredClone(template),
         }),
       );
-    });
+    }, false);
   };
   $('import-cancel').onclick = () => $('import-dialog').close();
   $('import-confirm').onclick = async () => {

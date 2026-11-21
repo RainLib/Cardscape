@@ -30,3 +30,9 @@ body:not([data-app-mode=editor]) .menubar [data-command]:not([data-command=new])
 @media(max-width:1100px){.home-content{padding:30px 26px}.home-sidebar{width:190px;padding:30px 20px}.home-grid{gap:14px}}
 
 body[data-app-mode=boot] .menubar{display:none}.home-loading{background:radial-gradient(ellipse at 50% 50%,#24344355,transparent 70%),#1c2025}.home-loading>.splash-card{flex-shrink:0}
+
+#ui-language {
+  appearance: auto;
+  flex: none;
+  max-width: 9rem;
+}

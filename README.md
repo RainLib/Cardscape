@@ -44,7 +44,7 @@ Both loops were captured from Cardscape's WebGL player. Open the workshop from H
 
 ## The workspace
 
-![The Cardscape editor with the flat Moonlit Traveler artwork on the left, a tilted foil preview in the center, and material controls on the right](docs/media/editor-workspace.webp)
+![The English Cardscape workspace with Moonlit Traveler artwork, a tilted foil preview, and material controls](docs/media/editor-workspace.webp)
 
 Arrange the source artwork and paint masks in the 2D canvas, then check depth and lighting in the live WebGL preview. The editor guide walks through marking a subject, stacking foil patterns, scrubbing an action, and exporting the finished card. [Editor guide](editor/README.md)
 
@@ -68,6 +68,8 @@ make start
 ```
 
 For desktop development with hot reload, run `make dev`. Run `make web` for the local browser editor at `http://127.0.0.1:8770/index.html`. Use `make web PORT=8771` to change the port.
+
+The editor opens in English by default. Use **Interface Language** in the top bar to switch to Simplified Chinese. [Language settings](editor/README.md#interface-language)
 
 The editor includes the default art assets. Local smart selection and background removal are optional and can be installed separately. [Setup and development commands](editor/README.md#development)
 

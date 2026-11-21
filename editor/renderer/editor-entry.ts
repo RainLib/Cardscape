@@ -47,3 +47,4 @@ import "./agent/agent-dock.ts";
 import "./agent/agent-panel.ts";
 import "./editing/editor-polish.ts";
 import "./shaders/material-maker-panel.ts";
+import "./localization/interface-language.ts";

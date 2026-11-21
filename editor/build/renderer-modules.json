@@ -344,6 +344,18 @@
     "global": "CardLazyPreview",
     "exports": ["createLazyPreview"]
   },
+  "renderer/localization/ui-catalog.ts": {
+    "global": "CardUiCatalog",
+    "default": true
+  },
+  "renderer/localization/ui-i18n.ts": {
+    "global": "CardUiI18n",
+    "default": true
+  },
+  "renderer/localization/ui-dom.ts": {
+    "global": "CardUiDom",
+    "default": true
+  },
   "renderer/rendering/runtime-core.ts": {
     "global": "CardRuntimeCore",
     "default": true

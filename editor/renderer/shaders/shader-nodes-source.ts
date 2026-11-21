@@ -1,11 +1,22 @@
 import type { ShaderStage } from '../../shared/render-models';
+import i18n from '../localization/ui-i18n.ts';
 import importedCardShaderGraph from './shader-graph-model.ts';
 import {LiteGraph,LGraph,LGraphCanvas} from 'litegraph.js/build/litegraph.core.js';
 import 'litegraph.js/css/litegraph.css';
 const $=id=>(document.getElementById(id) as any),M=importedCardShaderGraph,host=window.cardEditorHost;
+const ui=(label:string)=>i18n.text(label,i18n.language(document.documentElement.lang));
 for(const [key,d] of Object.entries<any>(M.definitions)){
  function Node(){for(const [name,type] of d.inputs||[])this.addInput(name,type);if(d.out)this.addOutput('输出',d.out);this.properties={...d.properties};this.size=[155,75];this.mode=LiteGraph.NEVER;}
- Node.title=d.name;Node.prototype.onDrawForeground=function(ctx){if(this.flags.collapsed)return;const value=this.properties.value??this.properties.color??this.properties.channel;if(value!==undefined){ctx.fillStyle='#a9bac8';ctx.font='12px system-ui';ctx.fillText(String(value),10,this.size[1]-12);}};
+ Node.title=d.name;
+ Node.prototype.getTitle=function(){return this.title&&this.title!==d.name?this.title:ui(d.name);};
+ Node.prototype.onDrawForeground=function(ctx){
+  if(this.flags.collapsed)return;
+  for(const slot of [...(this.inputs||[]),...(this.outputs||[])]){
+   if(!Object.hasOwn(slot,'label'))Object.defineProperty(slot,'label',{get:()=>ui(slot.name),configurable:true});
+  }
+  const value=this.properties.value??this.properties.color??this.properties.channel;
+  if(value!==undefined){ctx.fillStyle='#a9bac8';ctx.font='12px system-ui';ctx.fillText(String(value),10,this.size[1]-12);}
+ };
  LiteGraph.registerNodeType('card/'+key,Node);
 }
 let graph=null,view=null,stage: ShaderStage='fragment',token='',mode='glsl',graphs: Record<string, any>={},applying=false,loading=false,timer: any=0,selected=null,lastShader='',draftSignature='';
@@ -42,3 +53,5 @@ $('shader-node-live').onchange=()=>{if($('shader-node-live').checked)apply();els
 $('shader-node-canvas').addEventListener('keydown',e=>{if(host.state().busy)return;if(['Delete','Backspace'].includes(e.key)){e.preventDefault();e.stopImmediatePropagation();if(selected)graph.remove(selected);renderSelection();}});
 function refresh(next){if(!next.document)return;const nextToken=next.documentToken||next.document.id,s=next.document.shader,signature=shaderIdentity(s);if(nextToken!==token){token=nextToken;clearTimeout(timer);graphs=clone(s.graphs||{});setMode(s.editorMode||'glsl');if(graph)load(graphs[stage]||M.preset(stage));lastShader=signature;}else if(!applying&&signature!==lastShader){graphs=clone(s.graphs||{});setMode(s.editorMode||'glsl');if(graph)load(graphs[stage]||M.preset(stage));lastShader=signature;}if(view)view.read_only=next.busy;for(const id of ['shader-node-add','shader-node-preset','shader-node-apply'] as const)$(id).disabled=next.busy;const picker=$('shader-node-kind'),key=stage;if(picker.dataset.stage!==key){picker.dataset.stage=key;picker.replaceChildren(...Object.entries<any>(M.definitions).filter(([,d]: any)=>!d.stage||d.stage===stage).map(([k,d]: any)=>new Option(d.name,'card/'+k)));}}
 window.atelierShaderNodes={refresh,apply,reset,mode:()=>mode,configuration:config};refresh(host.state());
+
+window.addEventListener('cardscape-language-change',()=>view?.setDirty(true,true));

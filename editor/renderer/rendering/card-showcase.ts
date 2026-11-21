@@ -119,6 +119,7 @@ interface Options {
   prepareCapture?: () => Promise<unknown>;
   initialMode?: Mode;
   locale?: string;
+  showLanguagePicker?: boolean;
 }
 
 export function createShowcase(root: HTMLElement, options: Options) {
@@ -158,6 +159,7 @@ export function createShowcase(root: HTMLElement, options: Options) {
       ...root.querySelectorAll<HTMLButtonElement>('[data-format]'),
     ];
   document.body.append(exit);
+  language.hidden = options.showLanguagePicker === false;
   widthField.replaceChildren(
     ...widths.map((w) => new Option(`${w} × ${w * 1.5}`, String(w))),
   );

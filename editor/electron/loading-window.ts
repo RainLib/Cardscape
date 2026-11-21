@@ -2,7 +2,10 @@ import type {
   BrowserWindow as ElectronWindow,
   IpcMainInvokeEvent,
 } from 'electron';
-import type { SplashState } from '../shared/contracts';
+import type { SplashState, UiLanguage } from '../shared/contracts';
+
+const i18n: typeof import('../renderer/localization/ui-i18n').default =
+  require('../renderer/ui-i18n.js');
 interface LoadingOptions {
   BrowserWindow: typeof ElectronWindow;
   main: ElectronWindow;
@@ -10,9 +13,11 @@ interface LoadingOptions {
   url: string;
   version: string;
   background?: boolean;
+  language?: () => UiLanguage;
 }
 type SplashUpdate = {
   name?: unknown;
+  authoredName?: boolean;
   stage?: unknown;
   percent?: unknown;
   version?: string;
@@ -24,6 +29,7 @@ export function normalize(
 ): SplashState {
   return {
     name: String(state.name ?? previous.name ?? '准备创作空间').slice(0, 120),
+    authoredName: state.name == null ? previous.authoredName : state.authoredName === true,
     stage: String(state.stage ?? previous.stage ?? '正在启动…').slice(0, 160),
     percent:
       typeof state.percent === 'number' && Number.isFinite(state.percent)
@@ -39,6 +45,7 @@ export function createLoadingWindow({
   url,
   version,
   background = false,
+  language = () => 'en',
 }: LoadingOptions) {
   let win: ElectronWindow | null = null,
     ready: Promise<void> | null = null,
@@ -47,6 +54,7 @@ export function createLoadingWindow({
     state = normalize({ version }),
     closing = false,
     loading = false;
+  const view = () => ({ ...state, uiLanguage: language() });
   function ensure() {
     if (win && !win.isDestroyed()) return ready;
     win = new BrowserWindow({
@@ -60,7 +68,7 @@ export function createLoadingWindow({
       closable: false,
       frame: false,
       backgroundColor: '#111b25',
-      title: 'Cardscape · 正在准备',
+      title: i18n.text('Cardscape · 正在准备', language()),
       webPreferences: {
         preload,
         contextIsolation: true,
@@ -93,7 +101,7 @@ export function createLoadingWindow({
       win.focus();
     }
     shownAt = Date.now();
-    win.webContents.send('atelier:splash-state', state);
+    win.webContents.send('atelier:splash-state', view());
     console.log(
       'LOADING_WINDOW_VISIBLE',
       JSON.stringify({ id: win.id, name: state.name, background }),
@@ -102,7 +110,7 @@ export function createLoadingWindow({
   function update(next: SplashUpdate) {
     state = normalize(next, state);
     if (win && !win.isDestroyed() && !closing)
-      win.webContents.send('atelier:splash-state', state);
+      win.webContents.send('atelier:splash-state', view());
   }
   async function finish() {
     const current = generation;
@@ -152,7 +160,7 @@ export function createLoadingWindow({
     finish,
     focus,
     destroy,
-    state: () => ({ ...state }),
+    state: view,
     isSender: (event: Pick<IpcMainInvokeEvent, 'sender' | 'senderFrame'>) =>
       !!win &&
       event.sender === win.webContents &&

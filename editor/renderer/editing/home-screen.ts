@@ -17,7 +17,10 @@ function mode(value){
 }
 function progress(message,percent){$('home-loading-stage').textContent=message;if(percent!==undefined){$('home-progress').value=percent;$('home-loading-percent').textContent=Math.round(percent)+'%';}native('progress',{stage:message,percent}).catch(()=>{});}
 function error(message){$('home-error').textContent=message||'';$('home-error').hidden=!message;}
-function date(at){return new Intl.DateTimeFormat('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(at);}
+function date(at){return new Intl.DateTimeFormat(document.documentElement.lang,{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(at);}
+function loadingName(label: string, authoredName: boolean){
+ const caption=$('home-loading-name');caption.toggleAttribute('data-ui-content',authoredName);caption.textContent=label;
+}
 function render(){
  const grid=$('home-recents');grid.replaceChildren();const query=$('home-search').value.trim().toLocaleLowerCase();let count=0;
  for(const entry of entries){for(const card of entry.cards.length?[...entry.cards].sort((a,b)=>Number(b.id===entry.activeCardId)-Number(a.id===entry.activeCardId)):[{name:entry.name}]){
@@ -26,8 +29,8 @@ function render(){
   const art=document.createElement('span');art.className='home-card-art';
   const kind=entry.kind==='workshop'?'工坊卡片':entry.kind==='project'?(entry.file?.endsWith('.cardworkshop')?'卡片工坊':'卡片工程'):entry.file?'独立卡片':'未保存草稿';
   art.append(window.atelierCardCover.create({src:card.thumbnail,name:card.name,kind}));
-  const info=document.createElement('span');info.className='home-card-info';const name=document.createElement('b');name.textContent=card.name;name.title=card.name;
-  const project=document.createElement('span');project.textContent=entry.kind==='workshop'?entry.name:entry.kind==='project'?'工程 · 打开后选择卡片':entry.file?'独立卡片工程':'未保存草稿';project.title=entry.file||entry.name;
+  const info=document.createElement('span');info.className='home-card-info';const name=document.createElement('b');name.dataset.uiContent='';name.textContent=card.name;name.title=card.name;
+  const project=document.createElement('span');project.textContent=entry.kind==='workshop'?entry.name:entry.kind==='project'?'工程 · 打开后选择卡片':entry.file?'独立卡片工程':'未保存草稿';project.title=entry.file||entry.name;if(entry.kind==='workshop')project.dataset.uiContent='';
   const meta=document.createElement('small');meta.textContent=!entry.available?'文件已移走，请重新打开':(entry.dirty?'含未保存修改 · ':'')+date(entry.at);
   info.append(name,project,meta);tile.append(art,info);tile.onclick=()=>run(card.name,()=>host().openRecent(entry.id,card.id));grid.append(tile);
  }}
@@ -35,19 +38,20 @@ function render(){
  $('home-resume').hidden=!host()?.state().document;
 }
 async function refresh(){const result=await host().invoke('home-list');entries=result.entries;render();}
-async function run(label,task){
- if(running)return false;running=true;returnMode=document.body.dataset.appMode;error('');$('home-loading-name').textContent=label;progress('读取工程…',8);mode('loading');
- try{await native('show',{name:label,stage:'读取工程…',percent:8});await paint();await host().flushSession();const result=await task();if(result===false){mode(returnMode);return false;}progress('准备完成',100);await paint();mode('editor');host().opened();return true;}
+async function run(label,task,authoredName=true){
+ if(running)return false;running=true;returnMode=document.body.dataset.appMode;error('');loadingName(label,authoredName);progress('读取工程…',8);mode('loading');
+ try{await native('show',{name:label,authoredName,stage:'读取工程…',percent:8});await paint();await host().flushSession();const result=await task();if(result===false){mode(returnMode);return false;}progress('准备完成',100);await paint();mode('editor');host().opened();return true;}
  catch(e){mode('home');render();error('无法打开：'+e.message);console.error('HOME_OPEN_ERROR',e.message);return false;}
  finally{running=false;}
 }
 async function show(){
  if(running||document.body.dataset.appMode==='loading')return;
  if(host().state().busy){host().say('请先结束当前处理、笔划或变换');return;}
- running=true;$('home-loading-name').textContent='返回首页';progress('同步当前编辑的恢复副本…',30);mode('loading');
+ running=true;loadingName('返回首页',false);progress('同步当前编辑的恢复副本…',30);mode('loading');
  try{await native('show',{name:'返回首页',stage:'同步当前编辑的恢复副本…',percent:30});await paint();await host().flushSession();mode('home');error('');await refresh();$('home-search').focus();}catch(e){mode('editor');host().say(e.message);}finally{running=false;}
 }
 $('home-search').oninput=render;
+window.addEventListener('cardscape-language-change',()=>{if(document.body.dataset.appMode==='home')render();});
 $('home-new').onclick=()=>host().command('new');$('home-open').onclick=()=>host().command('open');
 $('home-refresh').onclick=()=>refresh().then(()=>error('')).catch(e=>error(e.message));
 $('home-resume').onclick=()=>{mode('editor');host().opened(false);};

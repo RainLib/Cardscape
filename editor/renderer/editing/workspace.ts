@@ -426,6 +426,7 @@ export const moduleApi = (() => {
         hand: '空格临时抓手',
         zoom: '滚轮缩放 · ⌘/Ctrl 0 适合',
       }[name] || '';
+    $('options-tip').parentElement!.dataset.help = $('options-tip').textContent;
     if (lastTool !== name) {
       $('selection-options-panel').hidden = ![
         'select',
@@ -681,6 +682,8 @@ export const moduleApi = (() => {
     $('mask-channel-help').textContent = guide.tip;
     $('mask-white-help').textContent = guide.white;
     $('mask-black-help').textContent = guide.black;
+    $('mask-channel-help').parentElement!.dataset.help =
+      `${guide.tip}\n白：${guide.white}\n黑：${guide.black}`;
     const map = host.spaceMask(maskChannel)?.canvas,
       ctx = $('mask-map').getContext('2d');
     ctx?.clearRect(0, 0, 80, 120);
@@ -801,7 +804,7 @@ export const moduleApi = (() => {
     bindings.cardPreview.setEffectsEnabled(true);
     syncPreviewLayout();
     saveLayout();
-    if ($('toggle-play').textContent === '播放') $('toggle-play').click();
+    if (!bindings.atelierAnimation.isPlaying()) $('toggle-play').click();
     host.say('右侧播放最终效果；拖动卡片查看框内外和视差');
   };
   $('mask-person-select').onclick = () => host.chooseMask(maskChannel);

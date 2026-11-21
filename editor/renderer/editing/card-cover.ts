@@ -7,7 +7,7 @@ function create({src='',name='未命名卡片',kind='卡片',compact=false}: any
  const label=document.createElement('span');label.className='card-cover-kind';label.textContent=kind;
  const mark=document.createElementNS('http://www.w3.org/2000/svg','svg');mark.setAttribute('viewBox','0 0 64 72');mark.classList.add('card-cover-mark');mark.setAttribute('focusable','false');
  mark.innerHTML='<path d="M14 15 22 7h28l7 7v43l-7 7H22l-8-8Z"/><path d="m8 22-3 4v35l7 7h29l5-5"/><path d="m24 43 8-15 8 15-8 9Z"/><path d="M24 19h17M24 57h17"/>';
- const title=document.createElement('span');title.className='card-cover-name';title.textContent=name;
+ const title=document.createElement('span');title.className='card-cover-name';title.dataset.uiContent='';title.textContent=name;
  const hint=document.createElement('span');hint.className='card-cover-hint';hint.textContent='暂无封面';
  fallback.append(label,mark,title,hint);cover.append(fallback);
  if(src){

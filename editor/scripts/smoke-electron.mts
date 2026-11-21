@@ -6,6 +6,7 @@ import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import type { InlineConfig, ViteDevServer } from 'vite';
+import type { UiLanguage } from '../shared/contracts';
 import type { CardDocument } from '../shared/document';
 import { smokeCharacterEditing } from './smoke-character.mts';
 import { smokeCharacterPanels } from './smoke-character-panels.mts';
@@ -20,6 +21,7 @@ const runtime = await mkdtemp(join(tmpdir(), 'cardscape-smoke-'));
 const require = createRequire(import.meta.url);
 const errors: string[] = [];
 const development = process.argv.includes('--dev');
+const angle = process.platform === 'darwin' ? 'metal' : 'swiftshader';
 let server: ViteDevServer | undefined;
 let developmentURL: string | undefined;
 if (development) {
@@ -31,7 +33,7 @@ if (development) {
 }
 const started = performance.now();
 const application = await electron.launch({
-  executablePath: require('electron') as string, args: [root, '--force-device-scale-factor=1', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-gpu-watchdog'], timeout: 60000,
+  executablePath: require('electron') as string, args: [root, '--force-device-scale-factor=1', `--use-angle=${angle}`, '--enable-unsafe-swiftshader', '--disable-gpu-watchdog'], timeout: 60000,
   env: { ...process.env, ATELIER_RUNTIME: runtime, ATELIER_BACKGROUND: '1', ...(developmentURL ? {ELECTRON_RENDERER_URL: developmentURL} : {}) }
 });
 application.process().stdout?.on('data', data => process.stdout.write(data));
@@ -50,12 +52,25 @@ try {
   await page.waitForFunction(() => document.body.dataset.ready === 'true', null, { timeout: 60000, polling: 100 });
   assert.equal(await page.locator('body').getAttribute('data-app-mode'), 'home');
   await application.evaluate(({ BrowserWindow }) => { for (const window of BrowserWindow.getAllWindows()) window.webContents.setBackgroundThrottling(false); });
+  assert.equal(await page.locator('html').getAttribute('lang'), 'en');
+  assert.equal(await page.locator('#home-new').textContent(), 'New Card');
+  const nativeLocale = (label: UiLanguage) => application.evaluate(({ Menu }, names) => {
+    const view = Menu.getApplicationMenu()?.items.find(item => item.label === names.view);
+    const submenu = view?.submenu?.items.find(item => item.label === names.language);
+    return submenu?.submenu?.items.find(item => item.checked)?.label;
+  }, label === 'en' ? { view: 'View', language: 'Interface Language' } : { view: '视图', language: '界面语言' });
+  assert.equal(await nativeLocale('en'), 'English');
+  await page.locator('#ui-language').selectOption('zh-CN');
+  await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
+  assert.equal(await nativeLocale('zh-CN'), '简体中文');
+  assert.equal(await readFile(join(runtime, 'ui-language'), 'utf8'), 'zh-CN\n');
   console.log('SMOKE_HOME_READY');
   const homeMs = performance.now() - started;
   await page.waitForLoadState('load');
   requests.length = 0;
   await page.reload();
   await page.waitForFunction(() => document.body.dataset.ready === 'true', null, { timeout: 60000, polling: 100 });
+  await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
   const startupRequests = [...requests];
   assert.ok(startupRequests.length > 0, 'The network assertion must observe actual requests');
   assert.equal(await page.locator('.cm-editor').count(), 0);
@@ -70,6 +85,17 @@ try {
   console.log('SMOKE_EDITOR_READY');
   await page.waitForFunction(() => document.querySelector<HTMLCanvasElement>('#author-model-canvas')?.dataset.mode === 'authored-grid', null, { timeout: 30000, polling: 100 });
   await page.waitForFunction(() => !!window.atelierIKPanel && !window.cardEditorHost.state().busy, null, { timeout: 30000, polling: 100 });
+  const cardState = () => page.evaluate(() => {
+    const { document, revision } = window.cardEditorHost.state();
+    return { name: document.name, locale: document.locale, revision };
+  });
+  const originalCard = await cardState();
+  await page.locator('#ui-language').selectOption('en');
+  await page.waitForFunction(() => document.documentElement.lang === 'en');
+  assert.equal(await page.locator('[data-command="export"]').first().textContent(), 'Export');
+  assert.deepEqual(await cardState(), originalCard);
+  await page.locator('#ui-language').selectOption('zh-CN');
+  await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
   await smokeIrregularEditing(page);
   await page.evaluate(() => {
     const host = window.cardEditorHost, panel = window.atelierIKPanel;
@@ -202,7 +228,7 @@ try {
     }
   });
   await writeFile(join(root, 'qa', output + '.png'), Buffer.from(screenshot, 'base64'));
-  const result = { mode: development ? 'development' : 'production', renderer: 'SwiftShader (functional validation, not a hardware benchmark)', homeMs: Math.round(homeMs), openMs: Math.round(openMs), startupRequests: startupRequests.length, errors, ...metrics };
+  const result = { mode: development ? 'development' : 'production', renderer: `ANGLE ${angle} (functional validation)`, homeMs: Math.round(homeMs), openMs: Math.round(openMs), startupRequests: startupRequests.length, errors, ...metrics };
   await writeFile(join(root, 'qa', output + '.json'), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
 } catch (error) {

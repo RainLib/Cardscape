@@ -783,6 +783,7 @@ export interface EditorElements {
  "tool-name": HTMLElementTagNameMap["span"];
  "transform-controls": HTMLElementTagNameMap["input"];
  "transform-hint": HTMLElementTagNameMap["div"];
+ "ui-language": HTMLElementTagNameMap["select"];
  "ungroup-layers": HTMLElementTagNameMap["button"];
  "wand-contiguous": HTMLElementTagNameMap["input"];
  "wand-tolerance": HTMLElementTagNameMap["input"];

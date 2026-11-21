@@ -21,10 +21,12 @@ import type { AgentConfiguration } from '../../electron/agent-options';
 import type { AgentContextExtras } from '../../shared/editor-services';
 import importedAgentDiagnostics from './agent-diagnostics.ts';
 import importedCardSpatial from '../rendering/spatial-model.ts';
+import i18n from '../localization/ui-i18n.ts';
 export const moduleApi = (() => {
   'use strict';
   const bindings = window as unknown as AgentUIBindings;
   const host = bindings.cardAIHost;
+  const ui = (label: string) => i18n.text(label, i18n.language(document.documentElement.lang));
   const errorText = (error: unknown) =>
     error instanceof Error ? error.message : String(error);
   const labels: Record<string, string> = {
@@ -470,12 +472,11 @@ export const moduleApi = (() => {
       actions.append(edit);
     }
     let content = publicText(m);
+    const continuing = m.role === 'user' &&
+      (m.context?.productionWorkflow?.stage || 0) > 1;
     if (m.questionAnswer)
       content = Object.values(m.questionAnswer.answers).join('；');
-    else if (
-      m.role === 'user' &&
-      (m.context?.productionWorkflow?.stage || 0) > 1
-    )
+    else if (continuing)
       content =
         '继续制作 · 第 ' + m.context?.productionWorkflow?.stage + ' 阶段';
     const metadata = [
@@ -500,6 +501,7 @@ export const moduleApi = (() => {
       article.append(detail);
     }
     const text = node('div', content, 'chat-text');
+    if (!continuing && m.state !== 'failed') text.dataset.uiContent = '';
     article.append(text);
     if (m.state && m.state !== 'complete') {
       article.dataset.state = m.state;
@@ -870,8 +872,11 @@ export const moduleApi = (() => {
     form.setAttribute('role', 'group');
     form.setAttribute('aria-label', '制作问题');
     if (m.questionResult) {
-      for (const q of m.questions || [])
-        form.append(node('p', q.title + '：' + m.questionResult.answers[q.id]));
+      for (const q of m.questions || []) {
+        const answer = node('p', q.title + '：' + m.questionResult.answers[q.id]);
+        answer.dataset.uiContent = '';
+        form.append(answer);
+      }
       form.append(node('small', '已回答 · 后续按最新工程续作'));
       return form;
     }
@@ -882,6 +887,7 @@ export const moduleApi = (() => {
       const field = node('fieldset'),
         legend = node('legend', q.title),
         d = drafts[q.id] || (drafts[q.id] = { option: '', text: '' });
+      legend.dataset.uiContent = '';
       field.append(legend);
       for (const option of q.options || []) {
         const label = node('label', undefined, 'chat-question-option'),
@@ -893,7 +899,9 @@ export const moduleApi = (() => {
         input.onchange = () => {
           d.option = option;
         };
-        label.append(input, node('span', option));
+        const caption = node('span', option);
+        caption.dataset.uiContent = '';
+        label.append(input, caption);
         field.append(label);
       }
       const custom = node('textarea');
@@ -1234,7 +1242,7 @@ export const moduleApi = (() => {
     ['edit', '编辑当前卡片，保留连续人物与现有共享资源。需要调整：'],
   ] as const)
     $('chat-workshop-' + id).onclick = () => {
-      $('chat-input').value = prompt;
+      $('chat-input').value = ui(prompt);
       $('chat-input').focus();
     };
   $('chat-recover').onclick = async () => {
@@ -1250,8 +1258,9 @@ export const moduleApi = (() => {
     }
   };
   $('chat-skill').onclick = () => {
-    $('chat-input').value =
-      '$card-atelier 根据我的要求从零制作一张新的卡片，完成生图、抠图、注册图层、Mask、双语图片字标和动效；关键设计不确定时先问我，回答后继续。\n我的卡片要求：';
+    $('chat-input').value = ui(
+      '$card-atelier 根据我的要求从零制作一张新的卡片，完成生图、抠图、注册图层、Mask、双语图片字标和动效；关键设计不确定时先问我，回答后继续。\n我的卡片要求：',
+    );
     $('chat-input').focus();
   };
   $('chat-send').onclick = () => send();
@@ -1312,11 +1321,12 @@ export const moduleApi = (() => {
   }
   function contextName() {
     const state = bindings.cardEditorHost.state();
-    $('chat-context-name').textContent = $('chat-context').checked
-      ? state.document && state.mode === 'editor'
-        ? state.layer?.name || '未选图层'
-        : '未载入卡片'
-      : '未附图层';
+    const attached = $('chat-context').checked;
+    const editing = state.document && state.mode === 'editor';
+    const name = attached && editing ? state.layer?.name : undefined;
+    const caption = $('chat-context-name');
+    caption.toggleAttribute('data-ui-content', !!name);
+    caption.textContent = name || (attached ? (editing ? '未选图层' : '未载入卡片') : '未附图层');
   }
   function toggle() {
     const s = bindings.atelierAgentDock.state();

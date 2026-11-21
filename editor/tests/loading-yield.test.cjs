@@ -13,9 +13,9 @@ test('a visible browser still paints two frames before continuing',async()=>{
 });
 test('desktop opening completes through every mask yield while the main window has no frames',async()=>{
  const nodes=new Map(),events=[],dataset={appMode:'home'};
- const element=id=>{if(!nodes.has(id))nodes.set(id,{value:'',textContent:'',hidden:false,replaceChildren(){},focus(){},click(){},dataset:{view:'edit'}});return nodes.get(id);};
+ const element=id=>{if(!nodes.has(id))nodes.set(id,{value:'',textContent:'',hidden:false,replaceChildren(){},toggleAttribute(){},focus(){},click(){},dataset:{view:'edit'}});return nodes.get(id);};
  const context={console,setTimeout,clearTimeout,Intl,Promise,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},requestAnimationFrame:()=>1,cancelAnimationFrame(){}};
- context.document={body:{dataset},getElementById:element,querySelector:()=>element('stage'),hidden:false};context.window=context;context.dispatchEvent=()=>{};context.atelier={invoke:async(method,args)=>events.push([method,args.action])};context.CardLoadingYield={paint};
+ context.document={body:{dataset},getElementById:element,querySelector:()=>element('stage'),hidden:false};context.window=context;context.addEventListener=()=>{};context.dispatchEvent=()=>{};context.atelier={invoke:async(method,args)=>events.push([method,args.action])};context.CardLoadingYield={paint};
  context.cardEditorHost={state:()=>({document:null}),flushSession:async()=>events.push(['flush']),opened:()=>events.push(['editor-ready'])};
  vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../dist/renderer/home-screen.js'),'utf8'),context);
  const result=await context.atelierHome.run('霜灯卡牌工坊',async()=>{for(let i=0;i<7;i++){context.atelierHome.progress('恢复 Mask',70+i*3);await context.atelierHome.paint();}events.push(['document-opened']);return true;});

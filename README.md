@@ -12,18 +12,33 @@ Build a card from a single image or assemble separate layers for the character, 
 
 ## Examples
 
+### Angle-responsive foil
+
 <table>
   <tr>
     <td align="center"><img src="docs/media/moonlit-traveler.webp" width="320" alt="Moonlit Traveler tilts as a rainbow reflection and a diagonal highlight move across the card"></td>
-    <td align="center"><img src="docs/media/moonveil-stag.webp" width="320" alt="A silver stag stands in reflective water under a crescent moon, with icy foil across the card"></td>
+    <td align="center"><img src="docs/media/moonveil-stag.webp" width="320" alt="Moonveil Stag tilts as aurora and crystal reflections shift and a white light sweeps across the stag and its reflection"></td>
   </tr>
   <tr>
     <td><strong>Moonlit Traveler</strong><br>Silk-pattern gold foil, rainbow reflection, and glitter move with the tilt. A painted mask protects the traveler's coat color while the white highlight crosses it.<br><a href="editor/examples/production-card/moonlit-traveler/moonlit-traveler.cardworkshop">Open the workshop</a></td>
-    <td><strong>Moonveil Stag</strong><br>A silver rim surrounds a blend of aurora, crystal, and frost foil. The Aurora Reveal action animates the card's entrance, from its first glint to the settled pose.<br><a href="editor/examples/production-card/moonveil-stag/moonveil-stag.cardworkshop">Open the workshop</a></td>
+    <td><strong>Moonveil Stag</strong><br>Aurora, crystal, and frost patterns shift at the same tilt angles as Moonlit Traveler. The diagonal white sweep crosses the antlers, coat, and lake.<br><a href="editor/examples/production-card/moonveil-stag/moonveil-stag.cardworkshop">Open the workshop</a></td>
   </tr>
 </table>
 
-Open a `.cardworkshop` file from the Cardscape home screen to inspect the original layers, masks, and materials.
+### 3D card effects
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/media/skyglass-ray-depth.webp" width="320" alt="Skyglass Ray's fins extend over the card frame as the ray shifts relative to the distant cloud terraces"></td>
+    <td align="center"><img src="docs/media/skyglass-ray-flip.webp" width="320" alt="Skyglass Ray turns through 360 degrees, showing its illuminated rim and gold-engraved reverse"></td>
+  </tr>
+  <tr>
+    <td><strong>Parallax and frame break</strong><br>The ray and cloud terraces sit at different depths. Tilt the card to see the fins cross the rim as the landscape shifts behind them.</td>
+    <td><strong>Animated rim and 360° flip</strong><br>A short flare and a shifting spectrum accent a keyframed turn that reveals the engraved back and returns to the front.</td>
+  </tr>
+</table>
+
+These loops were captured from Cardscape's WebGL player. Open a `.cardworkshop` file from the home screen to inspect its layers, masks, materials, and actions. [Skyglass Ray workshop](editor/examples/production-card/skyglass-ray/skyglass-ray.cardworkshop) · [Artwork notes](editor/examples/production-card/skyglass-ray/generation.md)
 
 ## The workspace
 

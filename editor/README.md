@@ -131,4 +131,4 @@ Run these commands from the `editor` directory.
 
 The Electron main process handles files and worker jobs. The TypeScript renderer owns editing state, the canvas, and the WebGL preview. The Rust worker handles image decoding, mask processing, and geometry. Build output goes to `dist/`. Local projects and exports use `runtime/`. Override the local data directory with `ATELIER_RUNTIME` when testing.
 
-Older projects retain the `card-atelier/*` schema identifiers and `ATELIER_*` environment variable names. [TypeScript architecture](docs/typescript-architecture.md) · [Capability audit](CAPABILITY_AUDIT.md) · [Chinese guide and development history](README.zh-CN.md)
+Older projects retain the `card-atelier/*` schema identifiers and `ATELIER_*` environment variable names. [TypeScript architecture](docs/typescript-architecture.md) · [Capability audit](CAPABILITY_AUDIT.md) · [Chinese guide and development history](README.zh-CN.md) · [Contribution guide](../CONTRIBUTING.md)

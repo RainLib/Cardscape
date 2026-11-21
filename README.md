@@ -8,7 +8,7 @@
 
 Build a card from a single image or assemble separate layers for the character, scenery, frame, and back. Add parallax, break the frame with foreground art, and make foil catch the light as the card tilts. Save the editable project, then export a loop for sharing, a WebGL player for the browser, or a Godot scene for a game.
 
-[Download](https://github.com/RainLib/Cardscape/releases) · [Examples](#examples) · [Quick start](#quick-start) · [Editor guide](editor/README.md) · [Godot SDK](sdk/godot/README.md)
+[Download](https://github.com/RainLib/Cardscape/releases) · [Examples](#examples) · [Quick start](#quick-start) · [Editor guide](editor/README.md) · [Godot SDK](sdk/godot/README.md) · [Contributing](#contributing)
 
 ## Examples
 
@@ -89,3 +89,7 @@ The editor includes the default art assets. Local smart selection and background
 | [`docs/branding/`](docs/branding/)     | Repository artwork and scalable [Cardscape mark](docs/branding/cardscape-mark.svg) |
 
 Cardscape uses Electron, TypeScript, WebGL, and Rust. See the editor architecture and capability notes for development details and validation coverage. [Architecture](editor/docs/typescript-architecture.md) · [Capability audit](editor/CAPABILITY_AUDIT.md)
+
+## Contributing
+
+Report a bug, suggest a feature, or contribute documentation, a sample workshop, or a code change. The contribution guide covers local setup, validation, and how to open a pull request against `main`. [GitHub Issues](https://github.com/RainLib/Cardscape/issues) · [Contribution guide](CONTRIBUTING.md)

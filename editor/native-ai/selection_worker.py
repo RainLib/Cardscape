@@ -2,7 +2,7 @@
 import base64, hashlib, io, json, math, os, sys, time
 from pathlib import Path
 
-ROOT=Path(__file__).resolve().parent
+ROOT=Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parent
 VENDOR=ROOT/'vendor/MobileSAM'
 CHECKPOINT=VENDOR/'weights/mobile_sam.pt'
 predictor=None

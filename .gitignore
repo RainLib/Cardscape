@@ -27,6 +27,7 @@ target/
 /editor/renderer/*.js
 !/editor/renderer/assets/
 /editor/dist/
+/editor/release/
 /editor/type-errors.txt
 *.tsbuildinfo
 

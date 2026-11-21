@@ -1,0 +1,115 @@
+name: Desktop release
+
+on:
+  push:
+    tags:
+      - '**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: ${{ github.event.created && !github.event.deleted }}
+    name: Package ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x64
+            runner: windows-2025
+            platform: win
+            arch: x64
+            extension: exe
+            executable: release/win-unpacked/Cardscape.exe
+          - target: macos-arm64
+            runner: macos-15
+            platform: mac
+            arch: arm64
+            extension: dmg
+            executable: release/mac-arm64/Cardscape.app/Contents/MacOS/Cardscape
+          - target: macos-x64
+            runner: macos-15-intel
+            platform: mac
+            arch: x64
+            extension: dmg
+            executable: release/mac/Cardscape.app/Contents/MacOS/Cardscape
+    defaults:
+      run:
+        working-directory: editor
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: editor/package-lock.json
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup override set stable
+      - run: npm ci
+      - name: Build installer
+        run: npm run package:desktop -- --${{ matrix.platform }} --${{ matrix.arch }}
+      - name: Check the packaged editor
+        run: node scripts/smoke-package.mts "${{ matrix.executable }}" "${{ matrix.arch }}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-${{ matrix.target }}
+          path: editor/release/Cardscape-*-${{ matrix.target }}.${{ matrix.extension }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: installers
+      - name: Publish the tagged release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(installers/Cardscape-*-windows-x64.exe installers/Cardscape-*-macos-arm64.dmg installers/Cardscape-*-macos-x64.dmg)
+          if [[ ${#files[@]} -ne 3 ]]; then
+            echo 'Expected all three desktop installers.' >&2
+            exit 1
+          fi
+
+          if release=$(gh release view --json isDraft,assets -- "$TAG"); then
+            # Retry interrupted uploads and keep completed assets.
+            for file in "${files[@]}"; do
+              state=$(jq -r --arg name "${file##*/}" '.assets[] | select(.name == $name) | if .size == 0 then "empty" else .state end' <<< "$release")
+              case "$state" in
+                uploaded) ;;
+                empty) gh release upload --clobber -- "$TAG" "$file" ;;
+                '') gh release upload -- "$TAG" "$file" ;;
+                *) echo "Unexpected release asset state for ${file##*/}: $state" >&2; exit 1 ;;
+              esac
+            done
+            if [[ $(jq -r '.isDraft' <<< "$release") == true ]]; then
+              gh release edit --verify-tag --draft=false -- "$TAG"
+            fi
+          else
+            gh release create --verify-tag --generate-notes --title "Cardscape $TAG" -- "$TAG" "${files[@]}"
+          fi

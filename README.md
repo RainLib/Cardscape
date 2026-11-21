@@ -8,7 +8,7 @@
 
 Build a card from a single image or assemble separate layers for the character, scenery, frame, and back. Add parallax, break the frame with foreground art, and make foil catch the light as the card tilts. Save the editable project, then export a loop for sharing, a WebGL player for the browser, or a Godot scene for a game.
 
-[Examples](#examples) · [Quick start](#quick-start) · [Editor guide](editor/README.md) · [Godot SDK](sdk/godot/README.md)
+[Download](https://github.com/RainLib/Cardscape/releases) · [Examples](#examples) · [Quick start](#quick-start) · [Editor guide](editor/README.md) · [Godot SDK](sdk/godot/README.md)
 
 ## Examples
 
@@ -57,6 +57,10 @@ Arrange the source artwork and paint masks in the 2D canvas, then check depth an
 - **Shareable cards and game assets.** Record a GIF or MP4 or export PNGs, a portable WebGL player, and a Godot SDK project with its textures, masks, and animation data.
 
 ## Quick start
+
+Download the Windows x64 installer (`.exe`) or the macOS disk image (`.dmg`). Choose `arm64` for Apple Silicon or `x64` for an Intel Mac. Each installer includes Electron and the Rust worker. [GitHub Releases](https://github.com/RainLib/Cardscape/releases)
+
+### Build from source
 
 Install Node.js 22.18 or newer, npm, Make, and a stable Rust toolchain with Rust 2024 edition support.
 

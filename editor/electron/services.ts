@@ -19,7 +19,7 @@ import {createCheckpoints} from './production-checkpoints';
 import {createEditorSession} from './editor-session';
 const {createMaterialMaker}=require('./material-maker-service.cjs');
 const APP_VERSION=require('../../package.json').version;
-const {ROOT}=require('./paths.cjs');
+const {ROOT,nativeAiSource,packagedResources}=require('./paths.cjs');
 const ASSETS = path.join(ROOT,'assets');
 const MAX_DOCUMENT = 64 * 1024 * 1024;
 const OPS = new Set<any>(['ping','feather','texture_variant','resize','mask_stats','mesh','selection','mask_combine','clean_alpha','underpaint','repair_split','alpha','image_channel','refine_selection','adjust_image','wand_selection','title_raster']);
@@ -80,7 +80,8 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
   // CLI children change cwd to their job directory. Resolve the runtime once so
   // contracts and --cd never become relative to that directory a second time.
   runtimeDir=path.resolve(runtimeDir);
-  const worker = new NativeWorker(),selectionWorker=new SelectionWorker(),cutoutWorker=new CutoutWorker(); let projectFile = initialProject;
+  const aiData=packagedResources?path.join(runtimeDir,'native-ai'):nativeAiSource;
+  const worker = new NativeWorker(),selectionWorker=new SelectionWorker(aiData),cutoutWorker=new CutoutWorker(aiData); let projectFile = initialProject;
   const agents=createAgentService({runtimeDir,dialogs}),checkpoints=createCheckpoints({runtimeDir,validate:validateProject,write:atomicWrite});
   const materialMaker=createMaterialMaker({runtimeDir,dialogs,write:atomicWrite,processImage:(op,args)=>worker.call(op,args)});
   const session=createEditorSession({runtimeDir,validate:validateProject,write:atomicWrite});
@@ -142,12 +143,15 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
           if(!file)return {canceled:true};await atomicWrite(file,bytes);return {file};
         }
         case 'cutout-setup': {
-          const quote=s=>"'"+s.replace(/'/g,"'\\''")+"'";
-          const command='cd '+quote(ROOT)+' && npm run cutout:setup';
+          const windows=process.platform==='win32';
+          const quote=(s: string)=>"'"+s.replaceAll("'",windows?"''":"'\\''")+"'";
+          const setup=[process.execPath,path.join(ROOT,'scripts/setup-cutout.cjs'),aiData].map(quote).join(' ');
+          const launch=(windows?"$env:ELECTRON_RUN_AS_NODE='1'; & ":'ELECTRON_RUN_AS_NODE=1 ')+setup;
+          const command=packagedResources?launch:'cd '+quote(ROOT)+' && npm run cutout:setup';
           if(process.platform!=='darwin'||!dialogs?.openSetup)return {command,opened:false};
           const directory=path.join(runtimeDir,'setup');await fs.mkdir(directory,{recursive:true,mode:0o700});
           const file=path.join(directory,'cutout-'+randomUUID()+'.command');
-          await fs.writeFile(file,'#!/bin/zsh\ncd '+quote(ROOT)+' || exit 1\nELECTRON_RUN_AS_NODE=1 '+quote(process.execPath)+' '+quote(path.join(ROOT,'scripts/setup-cutout.cjs'))+'\nresult=$?\nprintf "\\n安装结束（%s）。返回编辑器点击重新检测。\\n" "$result"\nread -r "answer?按回车关闭…"\nexit "$result"\n',{mode:0o700});
+          await fs.writeFile(file,'#!/bin/zsh\n'+launch+'\nresult=$?\nprintf "\\n安装结束（%s）。返回编辑器点击重新检测。\\n" "$result"\nread -r "answer?按回车关闭…"\nexit "$result"\n',{mode:0o700});
           const error=await dialogs.openSetup(file);if(error)throw Error(error);return {command,opened:true};
         }
         case 'new-document': projectFile=null; return {ok:true};

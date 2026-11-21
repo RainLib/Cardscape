@@ -1,0 +1,41 @@
+appId: org.rainlib.cardscape
+productName: Cardscape
+directories:
+  output: release
+# The runtime serves local files and launches bundled Python setup scripts.
+asar: false
+npmRebuild: false
+files:
+  - dist/**/*
+  - assets/**/*
+  - licenses/**/*
+  - skills/card-atelier/**/*
+  - native-ai/*.py
+  - scripts/setup-cutout.cjs
+  - scripts/setup-selection.cjs
+extraResources:
+  - from: ../sdk/godot
+    to: godot-sdk
+    filter:
+      - addons/**/*
+      - demo/**/*
+      - tests/**/*
+      - README.md
+mac:
+  target: dmg
+  artifactName: Cardscape-${version}-macos-${arch}.${ext}
+  icon: assets/icons/card-atelier.icns
+  category: public.app-category.graphics-design
+  identity: "-"
+  hardenedRuntime: false
+  notarize: false
+  extraResources:
+    - from: native/target/release/card-worker
+      to: worker/card-worker
+win:
+  target: nsis
+  artifactName: Cardscape-${version}-windows-${arch}.${ext}
+  icon: assets/icons/card-atelier.ico
+  extraResources:
+    - from: native/target/release/card-worker.exe
+      to: worker/card-worker.exe

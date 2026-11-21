@@ -2,7 +2,7 @@
 import base64, io, json, os, sys, time, importlib.util
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parent
 MODEL_HOME = ROOT / 'models' / 'rembg'
 os.environ['OMP_NUM_THREADS'] = '4'
 MODELS = ('u2netp', 'u2net', 'isnet-general-use')

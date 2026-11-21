@@ -14,14 +14,15 @@ const {createLoadingWindow}=require('./loading-window.cjs');
 protocol.registerSchemesAsPrivileged([{scheme:'atelier',privileges:{standard:true,secure:true,supportFetchAPI:true}}]);
 let win,services,loadingWindow,hasUnsavedChanges=false,discardConfirmed=false;
 const locations=rendererLocations(process.env.ELECTRON_RENDERER_URL);
-const runtimeDir=path.resolve(process.env.ATELIER_RUNTIME||path.join(ROOT,'runtime'));
+app.setName('Cardscape');
+const defaultRuntimeDir=app.isPackaged?app.getPath('userData'):path.join(ROOT,'runtime');
+const runtimeDir=path.resolve(process.env.ATELIER_RUNTIME||defaultRuntimeDir);
 const languageFile=path.join(runtimeDir,'ui-language');
 let language: UiLanguage='en';
 try { language=i18n.language(readFileSync(languageFile,'utf8').trim()); } catch {}
 let languageWrites=Promise.resolve();
 const t=(label: string)=>i18n.text(label,language);
 const appIcon=path.join(ROOT,'assets','icons',process.platform==='win32'?'card-atelier.ico':'card-atelier.png');
-app.setName('Cardscape');
 app.setPath('userData',path.join(runtimeDir,'electron-profile'));
 const ownsInstance=app.requestSingleInstanceLock();
 if(!ownsInstance)app.quit();
@@ -59,7 +60,6 @@ app.whenReady().then(async()=>{
     if(relative==='index.html')return new Response(rendererDocument(await response.text()),{headers:{'Content-Type':'text/html; charset=utf-8'}});
     return response;
   });
-  // Assets live beside source code; the renderer directory contains a prepared copy.
   services=createServices({runtimeDir,initialProject:process.env.ATELIER_INITIAL_PROJECT||null,dialogs:{
     reveal:directory=>shell.openPath(directory),
     openSetup:file=>shell.openPath(file),

@@ -1,5 +1,6 @@
 import type { AgentResults } from './agent-ui';
 import type { CardDocument } from './document';
+import type { NativeResults } from './native-protocol';
 
 export interface FileResult {
   canceled?: boolean;
@@ -49,7 +50,7 @@ export interface EditorResults extends AgentResults {
   'home-bootstrap': {
     desktop: boolean;
     appVersion: string;
-    engine: { version: string };
+    engine: NativeResults['ping'];
     entries: unknown[];
   };
   'smart-info': { available: boolean };

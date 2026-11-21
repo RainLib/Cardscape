@@ -30,6 +30,7 @@ export class NativeWorker {
     if (this.child) return this.child;
     const child = spawn(this.binary, this.args, {
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
     });
     this.child = child;
     const lines = createInterface({ input: child.stdout });

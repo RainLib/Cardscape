@@ -1,86 +1,67 @@
+<p align="center">
+  <img src="docs/branding/cardscape-banner.webp" width="1280" alt="Cardscape. Animated 2.5D cards with depth, motion, and light.">
+</p>
+
 # Cardscape
 
-Cardscape（卡境）是一款面向动态卡牌创作的桌面编辑器，将平面插画、图层、Mask、空间层级和 GPU 动效组合成可编辑的 2.5D 卡牌场景。
+**A desktop editor for turning illustrations into animated 2.5D cards.**
 
-基于 **Electron + TypeScript / WebGL + Rust**，使用 **electron-vite** 统一构建主进程、预加载与渲染进程。当前版本为 **0.19.92**，原项目名称为「卡牌工坊 / Card Atelier」。现有 `.cardproj` 格式、`card-atelier/*` 协议标识和 `ATELIER_*` 环境变量保留兼容。目录职责、类型边界与性能策略见 [TypeScript 架构说明](editor/docs/typescript-architecture.md)。
+Build a card from a single image or assemble separate layers for the character, scenery, frame, and back. Add parallax, break the frame with foreground art, and make foil catch the light as the card tilts. Save the editable project, then export a loop for sharing, a WebGL player for the browser, or a Godot scene for a game.
 
-## 主要能力
+[Examples](#examples) · [Quick start](#quick-start) · [Editor guide](editor/README.md) · [Godot SDK](sdk/godot/README.md)
 
-- 图层编辑、文字与图片导入、自由变换、撤销／重做、工程保存与重开。
-- 选区、Mask 绘制与修整；可选的本地 MobileSAM 智能选区与 U2Net / ISNet 抠图。
-- 2D 合成、3D 卡牌预览、空间层级检查、破框与遮挡、卡背与翻转。
-- 自定义 GLSL、动作与素材 Slot，以及可编辑的卡牌工坊与组件工作流。
-- 外部 AI Agent 聊天、图片生成／编辑任务及候选结果应用。
-- PNG、Mask、工程、动态参数与独立 WebGL 播放器导出。
+## Examples
 
-详细使用说明与历史能力记录见 [编辑器文档](editor/README.md)，当前功能边界见 [能力审计](editor/CAPABILITY_AUDIT.md)。
+<table>
+  <tr>
+    <td align="center"><img src="docs/media/moonlit-traveler.webp" width="320" alt="Moonlit Traveler tilts as a rainbow reflection and a diagonal highlight move across the card"></td>
+    <td align="center"><img src="docs/media/moonveil-stag.webp" width="320" alt="A silver stag stands in reflective water under a crescent moon, with icy foil across the card"></td>
+  </tr>
+  <tr>
+    <td><strong>Moonlit Traveler</strong><br>Silk-pattern gold foil, rainbow reflection, and glitter move with the tilt. A painted mask protects the traveler's coat color while the white highlight crosses it.<br><a href="editor/examples/production-card/moonlit-traveler/moonlit-traveler.cardworkshop">Open the workshop</a></td>
+    <td><strong>Moonveil Stag</strong><br>A silver rim surrounds a blend of aurora, crystal, and frost foil. The Aurora Reveal action animates the card's entrance, from its first glint to the settled pose.<br><a href="editor/examples/production-card/moonveil-stag/moonveil-stag.cardworkshop">Open the workshop</a></td>
+  </tr>
+</table>
 
-## 快速开始
+Open a `.cardworkshop` file from the Cardscape home screen to inspect the original layers, masks, and materials.
 
-需要 Node.js 22.18 或更新版本、npm、支持 Rust 2024 edition 的稳定 Rust 工具链；本地 AI 功能还需要 Python 及相应依赖。
+## The workspace
+
+![The Cardscape editor with the flat Moonlit Traveler artwork on the left, a tilted foil preview in the center, and material controls on the right](docs/media/editor-workspace.webp)
+
+Arrange the source artwork and paint masks in the 2D canvas, then check depth and lighting in the live WebGL preview. The editor guide walks through marking a subject, stacking foil patterns, scrubbing an action, and exporting the finished card. [Editor guide](editor/README.md)
+
+## What you can build
+
+- **Collectible finishes.** Combine holographic textures, metal tones, directional reflections, glitter, and particles. Use a subject mask to keep the base artwork's hues.
+- **Layered cards.** Arrange image and text layers in depth, draw custom frame outlines and windows, and give the card a back. Preview occlusion and the parts that cross the frame.
+- **Animated characters.** Edit bones, meshes, weights, and IK. Use the timeline to keyframe poses and place particles and sound on actions. Reuse frames, materials, and other components across a workshop.
+- **Shareable cards and game assets.** Record a GIF or MP4 or export PNGs, a portable WebGL player, and a Godot SDK project with its textures, masks, and animation data.
+
+## Quick start
+
+Install Node.js 22.18 or newer, npm, Make, and a stable Rust toolchain with Rust 2024 edition support.
 
 ```sh
-git clone git@github.com:RainLib/Cardscape.git
+git clone https://github.com/RainLib/Cardscape.git
 cd Cardscape
 make setup
 make start
 ```
 
-桌面开发与网页预览：
+For desktop development with hot reload, run `make dev`. Run `make web` for the local browser editor at `http://127.0.0.1:8770/index.html`. Use `make web PORT=8771` to change the port.
 
-```sh
-make dev
-# electron-vite 桌面开发：前端自动刷新，主进程变化自动重启
-make web
-# http://127.0.0.1:8770/index.html
-# 网页预览使用其他端口：make web PORT=8771
-```
+The editor includes the default art assets. Local smart selection and background removal are optional and can be installed separately. [Setup and development commands](editor/README.md#development)
 
-macOS 也可以双击 `editor/启动卡牌工坊.command`。启动器名称保留以兼容已有使用方式。Node.js 必须可从终端 PATH 访问。
+## Repository layout
 
-运行所需的样卡素材已保存在 `editor/assets` 和 `editor/renderer/assets`，首次启动无需执行旧的 `prepare:assets`。该旧脚本及历史审计脚本可能依赖本机 `outputs/` 设计源文件，不属于普通安装和测试流程。
+| Path                                   | Purpose                                                                            |
+| -------------------------------------- | ---------------------------------------------------------------------------------- |
+| [`editor/renderer/`](editor/renderer/) | TypeScript editing workspace, WebGL renderer, and browser player                   |
+| [`editor/electron/`](editor/electron/) | Desktop process, file access, and export services                                  |
+| [`editor/native/`](editor/native/)     | Rust worker for image processing, masks, and geometry                              |
+| [`editor/examples/`](editor/examples/) | Editable sample workshops and their source assets                                  |
+| [`sdk/godot/`](sdk/godot/)             | Godot runtime and integration guide                                                |
+| [`docs/branding/`](docs/branding/)     | Repository artwork and scalable [Cardscape mark](docs/branding/cardscape-mark.svg) |
 
-## Makefile 命令
-
-| 命令 | 用途 |
-| --- | --- |
-| `make help` | 查看命令 |
-| `make setup` | 安装依赖并构建前端、Rust worker |
-| `make install` | 按 package-lock 安装 Node 依赖 |
-| `make build` | 构建前端与 release worker |
-| `make start` | 启动桌面端 |
-| `make dev` | Electron + Vite 桌面开发与热更新 |
-| `make web PORT=8770` | 启动本地网页端 |
-| `make check` | TypeScript 类型检查、生产构建与兼容脚本检查 |
-| `make test` | 语法检查、Rust 与 Node 测试 |
-| `make test-node` / `make test-native` | 单独执行测试 |
-| `make icons` | 同步 macOS 应用包图标 |
-| `make selection-setup` | 安装可选的本地智能选区 |
-| `make cutout-setup` | 安装可选的本地抠图 |
-
-模型准备命令需要联网，下载的模型、第三方源码和 Python 环境保存在本机，不提交到仓库。模型加载后的图片处理在本地完成。AI Agent 图片服务需要用户自己的 CLI 登录与模型权限，详见 [Agent 协议](editor/AGENT_PROTOCOL.md)。
-
-## 项目结构
-
-```text
-editor/
-  electron/       主进程、IPC、工程与 Agent 服务
-  renderer/       按功能分组的 TypeScript UI、WebGL 与独立播放器
-  shared/         IPC 与文档类型契约
-  build/          TypeScript 构建与兼容产物生成
-  dist/           构建输出（不提交）
-  native/         Rust 图像与 Mask worker
-  native-ai/      Python 智能选区与抠图 worker
-  assets/         默认素材与应用图标
-  scripts/        构建、初始化及本地验证工具
-  tests/          Node 测试
-Makefile          项目常用命令入口
-```
-
-本机工程、导出、Agent 会话与设置位于 `editor/runtime/`；可通过 `ATELIER_RUNTIME` 指定独立目录。仓库排除运行数据、依赖、模型权重、测试产物与历史设计导出，不包含登录凭据。
-
-## 应用图标与兼容性
-
-当前沿用已确认的 Ca 图标，桌面 Dock、窗口、macOS 开发应用包及网页 favicon 共用同一套素材。`npm start` 和 macOS 启动器会自动同步应用包图标；更新后保存工程并退出重开即可。图标文件见 [图标说明](editor/assets/icons/README.md)。
-
-当前为开发运行版本，尚未提供签名安装包。真实绘图板、跨平台原生 UI 与完整 Godot 动态场景的验收范围，请以能力审计文档为准。本仓库为私有项目，第三方依赖与下载模型保留各自许可。
+Cardscape uses Electron, TypeScript, WebGL, and Rust. See the editor architecture and capability notes for development details and validation coverage. [Architecture](editor/docs/typescript-architecture.md) · [Capability audit](editor/CAPABILITY_AUDIT.md)

@@ -1,4 +1,5 @@
 import importedCardLoadingYield from './loading-yield.ts';
+import type { EditorResults, HomeDemo } from '../../shared/editor-services';
 /* Opening a document is explicit; the home screen only requests small metadata. */
 export const moduleApi=(() => {
 'use strict';
@@ -53,19 +54,44 @@ async function show(){
 $('home-search').oninput=render;
 window.addEventListener('cardscape-language-change',()=>{if(document.body.dataset.appMode==='home')render();});
 $('home-new').onclick=()=>host().command('new');$('home-open').onclick=()=>host().command('open');
-$('home-demo-stormglass').onclick=async()=>{
- if(await run('雷曜誓约',()=>host().openDemo('stormglass-oath'),false)){
-  window.atelierWorkspace.selectAction('stormglass');
-  window.atelierAnimation.seek(0);
-  window.atelierAnimation.play();
+function renderDemos(demos: HomeDemo[]) {
+ const grid = $('home-demo-grid');
+ grid.replaceChildren();
+ for (const demo of demos) {
+  const tile = document.createElement('button');
+  tile.type = 'button';
+  tile.className = 'home-card home-demo';
+  tile.dataset.demoId = demo.id;
+  const image = document.createElement('img');
+  image.src = `assets/demos/${demo.id}.webp`;
+  image.alt = '';
+  image.width = 144;
+  image.height = 256;
+  image.decoding = 'async';
+  const info = document.createElement('span');
+  info.className = 'home-card-info';
+  const name = document.createElement('b');
+  name.textContent = demo.name;
+  const description = document.createElement('span');
+  description.textContent = demo.description;
+  info.append(name, description);
+  tile.append(image, info);
+  tile.onclick = async () => {
+   if (await run(demo.name, () => host().openDemo(demo.id), false)) {
+    window.atelierWorkspace.selectAction(demo.actionId);
+    window.atelierAnimation.seek(0);
+    window.atelierAnimation.play();
+   }
+  };
+  grid.append(tile);
  }
-};
+}
 $('home-refresh').onclick=()=>refresh().then(()=>error('')).catch(e=>error(e.message));
 $('home-resume').onclick=()=>{mode('editor');host().opened(false);};
 $('home-back').onclick=show;
 $('home-project-file').onchange=async()=>{const file=$('home-project-file').files[0];$('home-project-file').value='';if(!file)return;await run(file.name,async()=>{if(file.size>192*1024*1024)throw Error('工程超过 192 MB');const text=await file.text();return host().openFileData(text);});};
 const exposedatelierHome={mode,progress,run,show,refresh,error,paint,
- ready(result){entries=result.entries;$('home-loading-version').textContent='Cardscape '+result.appVersion;progress('准备完成',100);mode('home');render();},
+ ready(result: EditorResults['home-bootstrap']){entries=result.entries;renderDemos(result.demos);$('home-loading-version').textContent='Cardscape '+result.appVersion;progress('准备完成',100);mode('home');render();},
  async openFile(){if(running)return;if(host().state().desktop){running=true;let result;try{result=await host().pickFile();}catch(e){host().say(e.message);error(e.message);}finally{running=false;}if(!result||result.canceled)return;return run(result.name,()=>host().openFileSelection(result.selection));}$('home-project-file').click();}
 };
 window.atelierHome=exposedatelierHome;

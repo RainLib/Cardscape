@@ -43,6 +43,12 @@ export interface HomeResult {
   recovery?: { revision: number; savedRevision: number; view?: unknown };
   recoveryError?: string;
 }
+export interface HomeDemo {
+  id: string;
+  name: string;
+  description: string;
+  actionId: string;
+}
 export interface EditorResults extends AgentResults {
   'editor-session-start': { sessionToken: string };
   'editor-session-save': { stale?: boolean };
@@ -53,6 +59,7 @@ export interface EditorResults extends AgentResults {
     appVersion: string;
     engine: NativeResults['ping'];
     entries: unknown[];
+    demos: HomeDemo[];
   };
   'smart-info': { available: boolean };
   process: ProcessResult;

@@ -1,6 +1,6 @@
 # Stormglass Oath artwork
 
-The knight, observatory and iris frame were created with the built-in ImageGen tool. The workshop embeds the registered artwork and the separately drawn blade, ring, lightning, glitter and reverse. The two included grayscale maps were generated for the registered figure and blade.
+The knight, observatory and iris frame were created with ImageGen. The workshop separates the registered body and grip, the rebuilt blade, and the rear skirt. The blade and grip share the same posed grid and depth map. The skirt uses its own map, with aligned seams and more depth toward the free ends. The scenery, ring, lightning, glitter, and reverse occupy individual layers. [Grip and scenery prompts](../collectible-styles-artwork.md#stormglass-oath)
 
 ## Knight
 

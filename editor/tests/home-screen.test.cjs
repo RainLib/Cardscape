@@ -8,6 +8,60 @@ test('cold start shows only metadata and never loads a template or starts a docu
  try{const home=await service.invoke('home-bootstrap');assert.deepEqual(home.entries,[]);assert.equal(home.desktop,false);for(const key of ['template','document','workshop','sessionToken'])assert.equal(home[key],undefined);await assert.rejects(fs.stat(path.join(dir,'editor-session/current.json')),/ENOENT/);}
  finally{service.close();await fs.rm(dir,{recursive:true,force:true});}
 });
+test('every demo opens with its registered action and authored depth order', async () => {
+ const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'card-home-gallery-'));
+ const service = createServices({ runtimeDir: dir });
+ try {
+  const { demos } = await service.invoke('home-bootstrap');
+  assert.deepEqual(demos.map(demo => demo.id), [
+   'stormglass-oath', 'emberforge-keeper', 'rift-tide', 'moonbell-sprite', 'neon-null', 'worldsplitter',
+  ]);
+  const weaponBreakouts = new Set(['stormglass-oath', 'rift-tide', 'neon-null', 'worldsplitter']);
+  const rearLayers = new Map([['stormglass-oath', 'rear-skirt'], ['worldsplitter', 'rear-cape']]);
+  for (const demo of demos) {
+   const { workshop } = await service.invoke('home-open-demo', { id: demo.id });
+   assert.equal(workshop.activeCardId, demo.id);
+   const document = W.resolve(workshop);
+   const action = document.actions.find(action => action.id === demo.actionId);
+   assert.equal(action?.duration, 4, demo.id);
+   assert.equal(action.loop, true, demo.id);
+   const far = document.layers.find(layer => layer.spatial?.role === 'far');
+   const scenery = document.layers.find(layer => layer.spatial?.role === 'mid');
+   const props = document.layers.find(layer => layer.id === 'near-props');
+   assert.ok(far?.src && scenery?.src && props?.src, demo.id);
+   assert.ok(far.spatial.z < scenery.spatial.z && scenery.spatial.z < props.spatial.z, demo.id);
+   assert.equal(new Set([far.src, scenery.src, props.src]).size, 3, demo.id);
+   const order = document.layers.map(layer => layer.id);
+   const body = document.layers.find(layer => layer.id === 'hero');
+   assert.equal(body.spatial.clip, true, demo.id);
+   if (weaponBreakouts.has(demo.id)) {
+    const blade = document.layers.find(layer => layer.id === 'held-blade');
+    assert.equal(blade.spatial.clip, false, demo.id);
+    assert.ok(order.indexOf(blade.id) < order.indexOf('rim') && order.indexOf('rim') < order.indexOf(body.id), demo.id);
+    const bladeMesh = document.characterRig.meshes.find(mesh => mesh.layerId === blade.id);
+    const bodyMesh = document.characterRig.meshes.find(mesh => mesh.layerId === body.id);
+    assert.deepEqual(bladeMesh.vertices, bodyMesh.vertices, demo.id);
+    assert.deepEqual(bladeMesh.depths, bodyMesh.depths, demo.id);
+    assert.deepEqual(bladeMesh.weights, bodyMesh.weights, demo.id);
+   }
+   const rearId = rearLayers.get(demo.id);
+   if (rearId) {
+    const fabric = document.layers.find(layer => layer.id === rearId);
+    assert.equal(fabric.spatial.clip, true, demo.id);
+    assert.ok(fabric.spatial.z < body.spatial.z && order.indexOf(body.id) < order.indexOf(fabric.id), demo.id);
+   }
+   if (demo.id === 'moonbell-sprite') {
+    assert.ok(order.indexOf('wave') < order.indexOf(body.id));
+    assert.ok(order.indexOf('rear-wave') > order.indexOf(body.id));
+    const rings = document.characterRig.bindings.filter(binding => ['wave', 'rear-wave'].includes(binding.layerId));
+    assert.deepEqual(rings.map(binding => binding.boneId), ['wave', 'wave']);
+   }
+  }
+ } finally {
+  service.close();
+  await fs.rm(dir, { recursive: true, force: true });
+ }
+});
 test('the bundled workshop opens as a fresh copy and saves outside the example folder', async () => {
  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'card-home-demo-'));
  const file = path.resolve(__dirname, '../examples/production-card/stormglass-oath/stormglass-oath.cardworkshop');
@@ -18,7 +72,6 @@ test('the bundled workshop opens as a fresh copy and saves outside the example f
   const first = await service.invoke('home-open-demo', { id: 'stormglass-oath' });
   assert.equal(first.file, null);
   assert.notEqual(first.workshop.id, JSON.parse(source).project.id);
-  assert.equal(W.resolve(first.workshop).actions[0].duration, 4);
   await service.invoke('home-activate', { ticket: first.ticket });
   const original = W.resolve(first.workshop).layers[0].x;
   const edited = W.resolve(first.workshop);

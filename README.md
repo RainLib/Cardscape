@@ -12,11 +12,51 @@ Build a card from a single image or assemble separate layers for the character, 
 
 ## Examples
 
+[Demo animation effects](#demo-animation-effects) · [Additional workshop actions](#additional-workshop-actions)
+
 ### Stormglass Oath
 
 <img src="docs/media/stormglass-oath.webp" width="320" alt="The Stormglass Oath card tilts, with a prismatic blade in front of the gold frame and a violet slash crossing the lower edge">
 
-On the editor home screen, choose **Demo Projects → Stormglass Oath** to open an editable copy and watch the four-second loop. The knight's gauntlet and blade tip sit at different depths. The foil shifts as the card tilts, and a thunder slash fires as the astral dial lights up. [Workshop file](editor/examples/production-card/stormglass-oath/stormglass-oath.cardworkshop) · [Depth maps and recording settings](editor/examples/production-card/stormglass-oath/README.md)
+On the editor home screen, choose **Demo Projects → Stormglass Oath** to watch the four-second loop. The sword arm, wrist, and bent knee sit within the iris frame. The crystal blade crosses the rim, and the trailing skirt moves behind the legs. [Workshop file](editor/examples/production-card/stormglass-oath/stormglass-oath.cardworkshop) · [Layer setup and recording settings](editor/examples/production-card/stormglass-oath/README.md)
+
+### Five more demo styles
+
+Open these original cards from **Demo Projects**. Each one has a four-second action and individually editable scenery, props, and effects. [Authoring notes and depth maps](editor/examples/production-card/collectible-styles.md)
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/media/emberforge-keeper.webp" width="260" alt="A blacksmith's hammer glows in a carved copper and walnut frame"></td>
+    <td align="center"><img src="docs/media/rift-tide.webp" width="260" alt="A comic book heroine holds a trident as turquoise surf breaks the frame"></td>
+    <td align="center"><img src="docs/media/moonbell-sprite.webp" width="260" alt="A mint forest creature holds a glowing bell amid pearlescent leaves"></td>
+  </tr>
+  <tr>
+    <td><strong>Emberforge Keeper</strong><br>Hearthstone-inspired tavern fantasy in carved wood and copper.<br><a href="editor/examples/production-card/emberforge-keeper/emberforge-keeper.cardworkshop">Workshop</a></td>
+    <td><strong>Rift Tide</strong><br>SNAP-inspired full-art comics with inked surf and a two-handed trident.<br><a href="editor/examples/production-card/rift-tide/rift-tide.cardworkshop">Workshop</a></td>
+    <td><strong>Moonbell Sprite</strong><br>Pokémon-inspired creature foil with a seedpod bell and layered woodland flora.<br><a href="editor/examples/production-card/moonbell-sprite/moonbell-sprite.cardworkshop">Workshop</a></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/media/neon-null.webp" width="260" alt="A punk mechanic's black blade lights up lime-green in a magenta alley"></td>
+    <td align="center"><img src="docs/media/worldsplitter.webp" width="260" alt="A broad crystal lance projects in front of the card as a rift opens in layers"></td>
+  </tr>
+  <tr>
+    <td><strong>Neon Null</strong><br>Acid lime and magenta cyberpunk with an engraved circuit blade.<br><a href="editor/examples/production-card/neon-null/neon-null.cardworkshop">Workshop</a></td>
+    <td><strong>Worldsplitter</strong><br>Extreme depth with a foreshortened crystal lance and layered ruins.<br><a href="editor/examples/production-card/worldsplitter/worldsplitter.cardworkshop">Workshop</a></td>
+  </tr>
+</table>
+
+### Demo animation effects
+
+Each loop starts face-on, reaches its first tilt at 1 s, releases its effect near the midpoint, and returns to the starting view after 4 s.
+
+| Demo action | Depth and buildup | Release and follow-through |
+| --- | --- | --- |
+| Stormglass Oath (`stormglass`) | The observatory, cloud ruins, knight, and crystal petals shift at different depths. Foil follows the tilt, and lightning follows the straight crystal blade. | **2.04 s.** The astral dial flashes and a violet slash and expanding ring sweep across the frame. Sparks and petals carry the motion into the return tilt. |
+| Emberforge Keeper (`forge`) | The forge and anvil shift behind the smith. Heat travels up the two-handed hammer, and coals glow near the lower rim. | **2.08 s.** A flash lights the hammer's metal surface, heat rings open around it, and embers drift away. |
+| Rift Tide (`undertow`) | The harbor sits behind an inked wave wall. Cyan light runs up the trident to the three prongs, which can cross the rim while the grip and legs stay in the window. | **2.12 s.** The water arc sweeps around the lower part of the card. Foam and spray pass in front of the rim. |
+| Moonbell Sprite (`moonbell`) | The forest, mushroom perch, and dewed leaves separate with the tilt. Pastel foil catches on the leaves as the bell charges. | **1.92 s.** Dew rings open on either side of the sprite's paws, leaving the bell visible amid bubbles and star glints. |
+| Neon Null (`overclock`) | The alley, guardrail, and floating glass move separately. A lime scan runs from the held blade to its protruding tip. | **1.96 s.** The tip releases magenta and lime scan echoes, followed by pixel sparks. |
+| Worldsplitter (`rift`) | The trailing cape moves behind the arms and legs. The wide crystal head passes in front of the rim as the slim shaft recedes toward the far hand. | **2.08 s.** The lance releases a prismatic rift arc and crystal particles. Foreground shards continue to drift as the card turns back. |
 
 ### Angle-responsive foil
 
@@ -47,6 +87,47 @@ On the editor home screen, choose **Demo Projects → Stormglass Oath** to open 
 Apply **Neris Vale** from **Appearance → Effect Library → Character Effects** to use these effects on your own artwork. Mark the regions for your portrait, choose which layer crosses the wordmark, and tune the sash, hair, cape, and glow independently. The character effects can be combined with foil, frames, and particles. [Preset walkthrough](editor/README.md#apply-the-neris-vale-character-preset)
 
 Both loops were captured from Cardscape's WebGL player. Open the workshop from Home to explore the finished card. [Neris Vale workshop](editor/examples/production-card/neris-vale/neris-vale.cardworkshop) · [Artwork notes](editor/examples/production-card/neris-vale/generation.md)
+
+### Skyglass Ray
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/media/skyglass-ray-depth.webp" width="320" alt="A glass-finned ray projects forward from a card as cloud terraces recede with the tilt"></td>
+    <td align="center"><img src="docs/media/skyglass-ray-flip.webp" width="320" alt="Skyglass Ray turns to reveal its engraved back, holds, and returns to the front"></td>
+  </tr>
+  <tr>
+    <td><strong>Depth inspection</strong><br>The fins and ribbon tail glide in front of the cloud terraces and frame.</td>
+    <td><strong>Show Both Faces</strong><br>The card turns edge-on, pauses on the engraved reverse, and returns to the front.</td>
+  </tr>
+</table>
+
+[Skyglass Ray workshop](editor/examples/production-card/skyglass-ray/skyglass-ray.cardworkshop)
+
+### Additional workshop actions
+
+Open a workshop and select the action on the timeline. Durations refer to the authored actions.
+
+| Workshop | Action | Duration | Effect |
+| --- | --- | --- | --- |
+| [Moonlit Traveler](editor/examples/production-card/moonlit-traveler/moonlit-traveler.cardworkshop) | Idle (`idle`) | 4 s loop | Gold silk foil, rainbow reflections, and fine glitter respond to the viewing angle. |
+| Moonlit Traveler | Inspect (`hover`) | 1.2 s | Adds a subtle card bend and increases highlight and local motion. |
+| Moonlit Traveler | Weapon Resonance (`trigger`) | 1.8 s | Brighter emission and a stronger bend accent the resonance. |
+| Moonlit Traveler | Flip (`flip`) | 1.2 s | Turns the card to reveal its reverse with a slight bend. |
+| [Moonveil Stag](editor/examples/production-card/moonveil-stag/moonveil-stag.cardworkshop) | Idle (`idle`) | 4 s loop | Aurora, crystal, and frost foil shift with the viewing angle. The white sweep crosses the stag and its reflection. |
+| Moonveil Stag | Aurora Reveal (`aurora-reveal`) | 1.2 s | The card fades and rises into view, growing to full size as the foil turns toward the viewer. |
+| Moonveil Stag | Turn Over (`flip`) | 1.2 s | Shows the reverse as the foil card rolls edge-on. |
+| [Neris Vale](editor/examples/production-card/neris-vale/neris-vale.cardworkshop) | Sea Breeze (`idle`) | 3.6 s loop | The sash, hair, and cape flutter from their roots. The compass and illustrated wordmark catch a moving highlight. |
+| Neris Vale | Show Both Faces (`turn`) | 4 s | Turns through 360°, with a hold on the illustrated reverse. |
+| [Skyglass Ray](editor/examples/production-card/skyglass-ray/skyglass-ray.cardworkshop) | Inspect (`idle`) | 4 s loop | The translucent fins and ribbon tail move above the cloud terraces. |
+| Skyglass Ray | Show Both Faces (`turn`) | 4 s | A full turn holds on the engraved reverse before returning to the creature art. |
+| [Arcane Sentinel](editor/examples/production-card/arcane-sentinel/README.md) | Watch (`idle`) | 4 s loop | The sentinel breathes, tilts its helmet, and moves its cape around a fixed shoulder root. |
+| Arcane Sentinel | Sword Sweep (`sweep`) | 2.4 s | The sentinel raises a leg and swings the sword with the grip intact. A continuous blade trail, sparks, and a synchronized sound follow the swing. |
+| Arcane Sentinel | Core Resonance (`cast`) | 2.8 s | Two-bone IK draws the casting hand forward. Energy gathers in the palm and bursts with synchronized sound. |
+| Arcane Sentinel | Awaken (`enter`) | 1.2 s | The card enters with a vertical rise, scale change, fade, and an awakening glow. |
+| Arcane Sentinel | Flip (`flip`) | 1.4 s | The card rotates 180° to reveal the reverse. |
+| Arcane Sentinel | Dormancy (`exit`) | 1.2 s | The card scales and fades out as the last sparks disperse. |
+| Arcane Sentinel | World-space Cast (`world-cast`) | 2.8 s | The card moves, tilts, and scales. Released particles and the sword trail stay at their world positions. |
+| Arcane Sentinel | Falling Sparks (`collision-cast`) | 4 s | Gravity pulls emitted sparks down to bounce off the ground and side planes. |
 
 ## The workspace
 

@@ -365,7 +365,7 @@ export interface EditorElements {
  "history-log": HTMLElementTagNameMap["span"];
  "home-back": HTMLElementTagNameMap["button"];
  "home-count": HTMLElementTagNameMap["span"];
- "home-demo-stormglass": HTMLElementTagNameMap["button"];
+ "home-demo-grid": HTMLElementTagNameMap["div"];
  "home-demos-title": HTMLElementTagNameMap["h2"];
  "home-empty": HTMLElementTagNameMap["p"];
  "home-error": HTMLElementTagNameMap["p"];

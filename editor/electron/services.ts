@@ -2,6 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const {randomUUID} = require('node:crypto');
 import {NativeWorker} from './native-client';
+import type { HomeDemo } from '../shared/editor-services';
 const {createAgentService} = require('./agent-service.cjs');
 const runtimeModel=require('../renderer/runtime-model.js');
 const frameModel=require('../renderer/frame-model.js');
@@ -22,6 +23,14 @@ const APP_VERSION=require('../../package.json').version;
 const {ROOT,nativeAiSource,packagedResources}=require('./paths.cjs');
 const ASSETS = path.join(ROOT,'assets');
 const MAX_DOCUMENT = 64 * 1024 * 1024;
+const demos: HomeDemo[] = [
+  { id: 'stormglass-oath', name: '雷曜誓约', description: '刀锋浮雕、全息箔与雷斩循环', actionId: 'stormglass' },
+  { id: 'emberforge-keeper', name: '余烬铸锤', description: '奇幻皮雕与炉火铸纹', actionId: 'forge' },
+  { id: 'rift-tide', name: '裂潮行者', description: '全幅漫画与破框潮浪', actionId: 'undertow' },
+  { id: 'moonbell-sprite', name: '月露铃兽', description: '幻兽闪卡与月露光环', actionId: 'moonbell' },
+  { id: 'neon-null', name: '零号回路', description: '赛博朋克与沿刃扫描', actionId: 'overclock' },
+  { id: 'worldsplitter', name: '裂界之矛', description: '极限景深、折射与碎晶冲击', actionId: 'rift' },
+];
 const OPS = new Set<any>(['ping','feather','texture_variant','resize','mask_stats','mesh','selection','mask_combine','clean_alpha','underpaint','repair_split','alpha','image_channel','refine_selection','adjust_image','wand_selection','title_raster']);
 import {documentBytes,embeddedScenes,ownDocument,ownDocumentBytes,documentBudget,ownDocumentBudget} from './project-budget';
 function validateProject(doc) {
@@ -96,10 +105,11 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
       switch(method) {
         case 'editor-session-save': {const result=await session.save(args,projectFile);if(!result.stale)await recent.record(args.project,projectFile,result.at,args.revision!==args.savedRevision);return result;}
         case 'home-list': return {entries:await recent.list(initialProject)};
-        case 'home-bootstrap': return {entries:await recent.list(initialProject),engine:await worker.call('ping'),appVersion:APP_VERSION,desktop:!!dialogs};
+        case 'home-bootstrap': return {entries:await recent.list(initialProject),demos,engine:await worker.call('ping'),appVersion:APP_VERSION,desktop:!!dialogs};
         case 'home-open-demo': {
-          if (args?.id !== 'stormglass-oath') throw Error('示例工程不存在');
-          const file = path.join(ROOT, 'examples/production-card/stormglass-oath/stormglass-oath.cardworkshop');
+          const demo = demos.find(({ id }) => id === args?.id);
+          if (!demo) throw Error('示例工程不存在');
+          const file = path.join(ROOT, 'examples', 'production-card', demo.id, `${demo.id}.cardworkshop`);
           const { workshop } = await workshopStorage.read(file, validateProject);
           if (!workshop) throw Error('示例工坊格式无效');
           return stageHome({ workshop: { ...workshop, id: randomUUID() } }, null);

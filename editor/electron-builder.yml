@@ -8,7 +8,7 @@ npmRebuild: false
 files:
   - dist/**/*
   - assets/**/*
-  - examples/production-card/stormglass-oath/stormglass-oath.cardworkshop
+  - "examples/production-card/{stormglass-oath,emberforge-keeper,rift-tide,moonbell-sprite,neon-null,worldsplitter}/*.cardworkshop"
   - licenses/**/*
   - skills/card-atelier/**/*
   - native-ai/*.py

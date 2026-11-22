@@ -16,7 +16,7 @@ npm start
 
 `npm start` builds the Electron app before launching it. The default artwork and icons ship with the source tree. On macOS, `启动卡牌工坊.command` is also available after dependencies are installed.
 
-On the home screen, open **Demo Projects → Stormglass Oath** (示例工程 → 雷曜誓约) to play the four-second action and explore its layers, relief meshes, and effects in an editable copy. [Stormglass Oath workshop and depth maps](examples/production-card/stormglass-oath/README.md)
+On the home screen, open **Demo Projects** (示例工程) to play the four-second actions and explore the original artwork, relief meshes, scenery, and effects in an editable copy. [Animated previews](../README.md#examples) · [Action and effect index](../README.md#demo-animation-effects) · [Workshops and depth maps](examples/production-card/collectible-styles.md)
 
 ## Package and release the desktop app
 

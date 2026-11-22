@@ -22,11 +22,12 @@ On the home screen, open **Demo Projects** (示例工程) to play the four-secon
 
 Run `npm run package:desktop -- --win --x64` on Windows. On macOS, run `npm run package:desktop -- --mac --arm64` on Apple Silicon or use `--x64` on an Intel Mac. Install the dependencies with `npm ci` first. The packages land in `editor/release/`.
 
-For a release, set the version in `editor/package.json` and its lockfile, then tag the commit that should ship. Use the version as the tag name, prefixed with `v`.
+For a release, set the version in `editor/package.json` and its lockfile, then commit the change. Run these commands from the repository root to tag that commit.
 
 ```sh
-git tag v0.19.92
-git push origin v0.19.92
+version=$(node -p "require('./editor/package.json').version")
+git tag -a "v$version" -m "Cardscape v$version"
+git push origin "v$version"
 ```
 
 The **Desktop release** workflow runs when you push a new tag. It verifies all three packaged apps before publishing the Windows x64 `.exe` and both macOS `.dmg` files to that tag's GitHub Release. The macOS builds use ad hoc signatures, and the Windows installer is unsigned. [Desktop release workflow](../.github/workflows/desktop-release.yml)

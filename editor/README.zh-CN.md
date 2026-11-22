@@ -1,6 +1,8 @@
-# Cardscape 编辑器 0.19.92
+# Cardscape 编辑器 0.19.93
 
 编辑器默认使用英文。首页和工作区顶部都可通过 **Interface Language（界面语言）** 切换为简体中文，桌面版也可在 **View → Interface Language（视图 → 界面语言）** 中切换。语言设置会自动保存，卡牌字标仍由预览工具栏的 **卡片显示语言** 控制。[English guide](README.md#interface-language)
+
+0.19.93 在首页「示例工程」提供六张可编辑动效卡。点击任一卡片会打开工坊副本，并自动播放完整的 4 秒循环。[动图与效果清单](../README.md#demo-animation-effects)
 
 2026-11-03：[十六卡绘制预算与呈现反馈](docs/performance-frame-budget.md) 新增静态原画透明范围优化，保持骨骼、网格、粒子与配准；浏览器四种材质及 Godot 九组姿态实际画面一致。十六卡小图完整效果十分钟资源压力、切档及释放检查通过。补充前台 Chromium 反馈记录，十六卡仍未达到稳定 30，Windows 硬件呈现及真机数据待补。桌面验收页面已更新，支持多卡、贴图档位、世界空间／碰撞动作、音效及 JSON 下载。
 

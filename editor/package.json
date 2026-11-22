@@ -1,6 +1,6 @@
 {
   "name": "cardscape",
-  "version": "0.19.92",
+  "version": "0.19.93",
   "private": true,
   "description": "Cardscape: layered 2.5D card editor powered by Electron, WebGL and Rust",
   "main": "dist/electron/main.cjs",

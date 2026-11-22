@@ -169,7 +169,7 @@
   },
   "renderer/rendering/card-capture.ts": {
     "global": "CardCapture",
-    "exports": ["encode", "widths"]
+    "exports": ["encode", "widths", "captureHeight", "frameRates"]
   },
   "renderer/rendering/card-showcase.ts": {
     "global": "CardShowcase",

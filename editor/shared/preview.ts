@@ -29,14 +29,16 @@ export interface ShaderResult {
   stage?: string;
   message?: string;
 }
+export interface PreviewCaptureFrame {
+  yaw: number;
+  pitch: number;
+  x: number;
+  y: number;
+  time: number;
+  action?: { id: string; seconds: number };
+}
 export interface PreviewCapture {
-  frame(pose: {
-    yaw: number;
-    pitch: number;
-    x: number;
-    y: number;
-    time: number;
-  }): void;
+  frame(pose: PreviewCaptureFrame): void;
   dispose(): void;
 }
 export interface PreviewAPI {

@@ -350,6 +350,9 @@ import { createShowcase } from './card-showcase.ts';
         preview: cardPreview,
         canvas: () => document.querySelector('#author-model-canvas'),
         title: () => manifest.name || 'Cardscape',
+        captureAction: () => doc.actions.find((action) =>
+          action.id === $<HTMLSelectElement>('player-action').value,
+        ),
         identity: () => doc.locale,
         initialMode: doc.material?.style === 'laser-foil' ? 'hover' : 'drag',
         locale: doc.locale,

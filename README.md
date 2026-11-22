@@ -12,6 +12,12 @@ Build a card from a single image or assemble separate layers for the character, 
 
 ## Examples
 
+### Stormglass Oath
+
+<img src="docs/media/stormglass-oath.webp" width="320" alt="The Stormglass Oath card tilts, with a prismatic blade in front of the gold frame and a violet slash crossing the lower edge">
+
+On the editor home screen, choose **Demo Projects → Stormglass Oath** to open an editable copy and watch the four-second loop. The knight's gauntlet and blade tip sit at different depths. The foil shifts as the card tilts, and a thunder slash fires as the astral dial lights up. [Workshop file](editor/examples/production-card/stormglass-oath/stormglass-oath.cardworkshop) · [Depth maps and recording settings](editor/examples/production-card/stormglass-oath/README.md)
+
 ### Angle-responsive foil
 
 <table>

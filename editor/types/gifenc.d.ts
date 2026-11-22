@@ -15,7 +15,7 @@ declare module 'gifenc' {
       width: number,
       height: number,
       options: {
-        palette: number[][];
+        palette?: number[][];
         delay: number;
         repeat: number;
       },

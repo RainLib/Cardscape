@@ -574,7 +574,7 @@ const api = (() => {
   }
   function vertex(body = geometryBody, diagnostic = false) {
     return `attribute vec3 p;attribute vec2 uv;attribute vec4 fx;attribute float guard;attribute float join;
-uniform vec2 angle,backgroundExtent,attachmentParams,characterFlutter;uniform vec4 attachmentTransform;uniform vec4 transform,rootTransform,frameMetrics,spatialParams;uniform float aspect,depth,t,moving,fg,bg,bend,windSpeed,layerRotation,rigidSurface;
+uniform vec2 angle,backgroundExtent,attachmentParams,characterFlutter;uniform vec4 attachmentTransform;uniform vec4 transform,rootTransform,frameMetrics,spatialParams;uniform float aspect,depth,t,moving,fg,bg,bend,windSpeed,layerRotation,rigidSurface,skinRelief;
 varying vec2 v;varying vec4 effects;varying vec3 local;${diagnostic ? 'varying float connectionWeight;' : ''}
 vec3 deformCard(vec3 q,vec2 uv,float time,float bend){
 #line 1
@@ -582,7 +582,7 @@ ${body}
 #line 1001
 }
 void main(){vec3 q=p;effects=fx;v=uv;if(bg>.5){q.xy*=backgroundExtent;v=(uv-.5)*backgroundExtent+.5;}if(fg>.5){
- q.z=spatialParams.x>.5?0.:.045+.045*depth;
+ q.z=p.z*skinRelief+(spatialParams.x>.5?0.:.045+.045*depth);
  if(rigidSurface<.5){
   float wave=sin(t*1.3*windSpeed+uv.x*11.+uv.y*8.);
   q.z+=wave*.016*fx.x*moving*depth;q.x+=wave*.005*fx.x*moving*depth;
@@ -593,7 +593,7 @@ void main(){vec3 q=p;effects=fx;v=uv;if(bg>.5){q.xy*=backgroundExtent;v=(uv-.5)*
   }
  }
 }
-float connected=attachmentParams.x,weight=connected>.5?join:1.;${diagnostic ? 'connectionWeight=weight;' : ''}float rotation=mix(attachmentParams.y,layerRotation,weight);float c=cos(rotation),s=sin(rotation);vec4 placement=mix(attachmentTransform,transform,weight);q.xy=mat2(c,s,-s,c)*q.xy*placement.z+placement.xy;q.z+=placement.w;if(spatialParams.x>.5)q.xy*=connected>.5?(spatialParams.w-q.z)/(spatialParams.w-.045):spatialParams.z;if(rigidSurface<.5)q=mix(deformCard(q,uv,t,bend),q,fg>.5?1.-fx.x*(1.-guard):0.);local=q;c=cos(angle.x);s=sin(angle.x);q=vec3(c*q.x+s*q.z,q.y,-s*q.x+c*q.z);c=cos(angle.y);s=sin(angle.y);q=vec3(q.x,c*q.y-s*q.z,s*q.y+c*q.z);q=q*rootTransform.w+rootTransform.xyz;float camera=max(.15,spatialParams.w-q.z);float fit=min(1.0,aspect/.85);gl_Position=vec4(q.x*2.9*fit/aspect,q.y*2.9*fit,-q.z*.3,camera);}`;
+float connected=attachmentParams.x,weight=connected>.5?join:1.;${diagnostic ? 'connectionWeight=weight;' : ''}float rotation=mix(attachmentParams.y,layerRotation,weight);float c=cos(rotation),s=sin(rotation);vec4 placement=mix(attachmentTransform,transform,weight);q.xy=mat2(c,s,-s,c)*q.xy*placement.z+placement.xy;q.z+=placement.w;if(spatialParams.x>.5)q.xy*=(connected>.5||skinRelief>.5)?(spatialParams.w-q.z)/(spatialParams.w-.045):spatialParams.z;if(rigidSurface<.5)q=mix(deformCard(q,uv,t,bend),q,fg>.5?1.-fx.x*(1.-guard):0.);local=q;c=cos(angle.x);s=sin(angle.x);q=vec3(c*q.x+s*q.z,q.y,-s*q.x+c*q.z);c=cos(angle.y);s=sin(angle.y);q=vec3(q.x,c*q.y-s*q.z,s*q.y+c*q.z);q=q*rootTransform.w+rootTransform.xyz;float camera=max(.15,spatialParams.w-q.z);float fit=min(1.0,aspect/.85);gl_Position=vec4(q.x*2.9*fit/aspect,q.y*2.9*fit,-q.z*.3,camera);}`;
   }
   function fragmentSource(
     body = surfaceBody,

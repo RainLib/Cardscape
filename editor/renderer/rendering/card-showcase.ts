@@ -1,5 +1,9 @@
-import { encode, widths } from './card-capture.ts';
-import type { CaptureFormat } from './card-capture';
+import { captureHeight, encode, frameRates, widths } from './card-capture.ts';
+import type {
+  CaptureAction,
+  CaptureAspect,
+  CaptureFormat,
+} from './card-capture';
 import type { PreviewAPI } from '../../shared/preview';
 
 const languages = {
@@ -19,6 +23,12 @@ const languages = {
     '正在准备',
     '已下载',
     '已取消',
+    '录制内容',
+    '所选动作',
+    '画面比例',
+    '帧率',
+    '按格式默认',
+    '请先选择一个动作。',
   ],
   en: [
     'Showcase & capture',
@@ -36,6 +46,12 @@ const languages = {
     'Preparing',
     'Downloaded',
     'Canceled',
+    'Record',
+    'Selected action',
+    'Aspect ratio',
+    'Frame rate',
+    'Default',
+    'Select an action first.',
   ],
   ja: [
     '表示・書き出し',
@@ -53,6 +69,12 @@ const languages = {
     '準備中',
     'ダウンロード完了',
     'キャンセルしました',
+    '録画対象',
+    '選択中のアクション',
+    'アスペクト比',
+    'フレームレート',
+    '既定',
+    'アクションを選択してください。',
   ],
   ko: [
     '보기 및 내보내기',
@@ -70,6 +92,12 @@ const languages = {
     '준비 중',
     '다운로드 완료',
     '취소됨',
+    '녹화 대상',
+    '선택한 동작',
+    '화면 비율',
+    '프레임 속도',
+    '기본값',
+    '동작을 먼저 선택하세요.',
   ],
   pt: [
     'Apresentação e gravação',
@@ -87,6 +115,12 @@ const languages = {
     'Preparando',
     'Baixado',
     'Cancelado',
+    'Gravar',
+    'Ação selecionada',
+    'Proporção',
+    'Taxa de quadros',
+    'Padrão',
+    'Selecione uma ação primeiro.',
   ],
   es: [
     'Presentación y grabación',
@@ -104,6 +138,12 @@ const languages = {
     'Preparando',
     'Descargado',
     'Cancelado',
+    'Grabar',
+    'Acción seleccionada',
+    'Relación de aspecto',
+    'Fotogramas por segundo',
+    'Predeterminada',
+    'Selecciona una acción primero.',
   ],
 } as const;
 type Mode = 'drag' | 'hover' | 'sensor' | 'float';
@@ -115,6 +155,7 @@ interface Options {
   canvas: () => HTMLCanvasElement | null;
   title: () => string;
   identity?: () => string;
+  captureAction?: () => CaptureAction | undefined;
   prepare?: () => void;
   prepareCapture?: () => Promise<unknown>;
   initialMode?: Mode;
@@ -139,7 +180,10 @@ export function createShowcase(root: HTMLElement, options: Options) {
   root.classList.add('card-showcase');
   root.innerHTML = `<details><summary></summary><div class="card-showcase-controls">
     <label><span data-label="1"></span><select data-control="mode"></select></label>
+    <label><span data-label="15"></span><select data-control="source"></select></label>
+    <label><span data-label="17"></span><select data-control="aspect"><option>2:3</option><option>9:16</option></select></label>
     <label><span data-label="8"></span><select data-control="width"></select></label>
+    <label><span data-label="18"></span><select data-control="fps"></select></label>
     <select data-control="language" aria-label="Language"><option value="zh">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="ko">한국어</option><option value="pt">Português</option><option value="es">Español</option></select>
     <button type="button" data-control="clean" data-label="6"></button>
     <button type="button" data-format="gif">GIF</button><button type="button" data-format="mp4">MP4</button>
@@ -149,7 +193,10 @@ export function createShowcase(root: HTMLElement, options: Options) {
   const control = <T extends HTMLElement>(name: string) =>
     root.querySelector<T>(`[data-control="${name}"]`)!;
   const modeField = control<HTMLSelectElement>('mode'),
+    sourceField = control<HTMLSelectElement>('source'),
+    aspectField = control<HTMLSelectElement>('aspect'),
     widthField = control<HTMLSelectElement>('width'),
+    fpsField = control<HTMLSelectElement>('fps'),
     language = control<HTMLSelectElement>('language'),
     clean = control<HTMLButtonElement>('clean'),
     exit = control<HTMLButtonElement>('exit'),
@@ -160,10 +207,24 @@ export function createShowcase(root: HTMLElement, options: Options) {
     ];
   document.body.append(exit);
   language.hidden = options.showLanguagePicker === false;
-  widthField.replaceChildren(
-    ...widths.map((w) => new Option(`${w} × ${w * 1.5}`, String(w))),
-  );
-  widthField.value = '480';
+  const aspect = () => aspectField.value as CaptureAspect;
+  function resolutions(preferred = Number(widthField.value) || 480) {
+    const available: readonly number[] = widths[aspect()];
+    const closest = available.reduce((a, b) =>
+      Math.abs(b - preferred) < Math.abs(a - preferred) ? b : a,
+    );
+    widthField.replaceChildren(
+      ...available.map(
+        (width) =>
+          new Option(
+            `${width} × ${captureHeight(width, aspect())}`,
+            String(width),
+          ),
+      ),
+    );
+    widthField.value = String(closest);
+  }
+  resolutions();
   function labels() {
     root.querySelector('summary')!.textContent = languages[lang][0];
     [...root.querySelectorAll<HTMLElement>('[data-label]'), exit].forEach(
@@ -177,6 +238,23 @@ export function createShowcase(root: HTMLElement, options: Options) {
       ),
     );
     modeField.value = mode;
+    const source = sourceField.value || 'float';
+    sourceField.replaceChildren(new Option(languages[lang][5], 'float'));
+    if (options.captureAction)
+      sourceField.add(new Option(languages[lang][16], 'action'));
+    sourceField.value = source;
+    const fps = fpsField.value;
+    fpsField.replaceChildren(
+      new Option(languages[lang][19], ''),
+      ...frameRates.map(
+        (rate) =>
+          new Option(
+            rate === 60 ? '60 fps (MP4)' : `${rate} fps`,
+            String(rate),
+          ),
+      ),
+    );
+    fpsField.value = fps;
     language.value = lang;
   }
   function ease() {
@@ -302,12 +380,28 @@ export function createShowcase(root: HTMLElement, options: Options) {
     (value ? exit : clean).focus();
   }
   function buttons() {
-    modeField.disabled = widthField.disabled = Boolean(job);
-    for (const btn of exportButtons) btn.disabled = Boolean(job);
+    for (const field of [
+      modeField,
+      sourceField,
+      aspectField,
+      widthField,
+      fpsField,
+    ])
+      field.disabled = Boolean(job);
+    for (const btn of exportButtons)
+      btn.disabled =
+        Boolean(job) ||
+        (btn.dataset.format === 'gif' && fpsField.value === '60');
     cancel.hidden = !job;
   }
   async function download(format: CaptureFormat) {
     if (job) return;
+    const action =
+      sourceField.value === 'action' ? options.captureAction?.() : undefined;
+    if (sourceField.value === 'action' && !action) {
+      status.textContent = languages[lang][20];
+      return;
+    }
     job = new AbortController();
     const signal = job.signal;
     const identity = options.identity?.();
@@ -322,7 +416,12 @@ export function createShowcase(root: HTMLElement, options: Options) {
       const blob = await encode(
         preview,
         format,
-        +widthField.value,
+        {
+          width: Number(widthField.value),
+          aspect: aspect(),
+          fps: frameRates.find((rate) => String(rate) === fpsField.value),
+          action,
+        },
         signal,
         (done, total) => {
           if (options.identity?.() !== identity) job?.abort();
@@ -356,6 +455,8 @@ export function createShowcase(root: HTMLElement, options: Options) {
   exit.onclick = () => cleanView(false);
   cancel.onclick = () => job?.abort();
   modeField.onchange = () => void setMode(modeField.value as Mode);
+  aspectField.onchange = () => resolutions();
+  fpsField.onchange = buttons;
   language.onchange = () => {
     lang = language.value as keyof typeof languages;
     labels();

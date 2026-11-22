@@ -106,7 +106,7 @@ try {
     executablePath: require('electron'),
     args: [
       entry,
-      '--use-angle=swiftshader',
+      `--use-angle=${process.platform === 'darwin' ? 'metal' : 'swiftshader'}`,
       '--enable-unsafe-swiftshader',
       '--disable-gpu-watchdog',
       '--force-device-scale-factor=1',

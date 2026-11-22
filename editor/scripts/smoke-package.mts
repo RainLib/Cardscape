@@ -34,6 +34,7 @@ try {
     access(join(resources, 'godot-sdk', 'addons', 'cardscape', 'cardscape_card.gd')),
     access(join(resources, 'godot-sdk', 'README.md')),
     access(join(appPath, 'assets', 'template.json')),
+    access(join(appPath, 'examples', 'production-card', 'stormglass-oath', 'stormglass-oath.cardworkshop')),
     access(join(appPath, 'skills', 'card-atelier', 'SKILL.md')),
     access(join(appPath, 'native-ai', 'cutout_worker.py')),
   ]);
@@ -51,6 +52,9 @@ try {
   assert.equal(bootstrap.appVersion, version);
   await page.locator('#ui-language').selectOption('zh-CN');
   await page.waitForFunction(() => document.documentElement.lang === 'zh-CN', null, { polling: 100 });
+  assert.equal(await page.locator('#home-demos-title').textContent(), '示例工程');
+  const demo = await page.evaluate(() => window.atelier.invoke('home-open-demo', { id: 'stormglass-oath' }));
+  assert.ok(demo.ticket && demo.workshop, 'The packaged demo should load from its bundled workshop');
   await access(join(runtime, 'ui-language'));
   console.log(`Verified packaged Cardscape ${version} (${process.platform}/${arch})`);
 } finally {

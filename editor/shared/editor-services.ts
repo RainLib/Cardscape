@@ -47,6 +47,7 @@ export interface EditorResults extends AgentResults {
   'editor-session-start': { sessionToken: string };
   'editor-session-save': { stale?: boolean };
   'home-activate': { sessionToken: string };
+  'home-open-demo': HomeResult;
   'home-bootstrap': {
     desktop: boolean;
     appVersion: string;

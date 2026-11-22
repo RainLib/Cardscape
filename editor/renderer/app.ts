@@ -5799,6 +5799,8 @@ export const moduleApi = (() => {
       selection: !!selection,
     }),
     flushSession,
+    openDemo: async (id: string) =>
+      openHomeResult(await bridge.invoke('home-open-demo', { id })),
     openRecent: async (id, cardId) =>
       openHomeResult(await bridge.invoke('home-open', { id, cardId })),
     openFileData: async (text) =>

@@ -1,6 +1,17 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
 const C=require('../dist/renderer/character-animation-model.js'),R=require('../dist/renderer/runtime-model.js'),I=require('../dist/renderer/character-animation-import.js'),{fixture}=require('./fixtures/character-animation.cjs');
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
+test('a registered depth map samples the mesh UVs and ignores transparent neighbors', () => {
+  const mesh = { uv: [0, 0, 0.5, 0, 1, 0, 0.5, 0.5, 1, 1] };
+  const map = { width: 2, height: 2, data: new Uint8ClampedArray([
+    0, 0, 0, 255, 255, 255, 255, 255,
+    255, 255, 255, 0, 255, 255, 255, 0,
+  ]) };
+  const depths = C.advanced.depthsFromMap(mesh, map, 0.2);
+  for (const [i, value] of [0, 0.1, 0.2, 0.1, 0].entries()) close(depths[i], value);
+  assert.throws(() => C.advanced.depthsFromMap(mesh, map, 0.251), /浮雕幅度/);
+  assert.throws(() => C.advanced.depthsFromMap(mesh, { ...map, width: 3 }, 0.2), /深度图/);
+});
 test('rest compensation preserves placed artwork, pivot, source coordinates and independent depth',()=>{
  const doc=fixture();doc.characterRig.bones[0].rotation=25;doc.characterRig.bones[0].scale=1.2;doc.layers[0].pivot={u:.3,v:.4};doc.layers[0].rotation=12;doc.layers[0].scale=.8;C.validate(doc);const before=structuredClone(doc),pose=C.sample(doc,null,0);
  for(const l of doc.layers){const base=R.placement(doc,l),posed=R.placement(doc,l,pose);for(const k of ['x','y','scale','rotation'])close(posed[k],base[k]);}assert.deepEqual(doc,before);

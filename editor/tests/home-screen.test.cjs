@@ -8,6 +8,32 @@ test('cold start shows only metadata and never loads a template or starts a docu
  try{const home=await service.invoke('home-bootstrap');assert.deepEqual(home.entries,[]);assert.equal(home.desktop,false);for(const key of ['template','document','workshop','sessionToken'])assert.equal(home[key],undefined);await assert.rejects(fs.stat(path.join(dir,'editor-session/current.json')),/ENOENT/);}
  finally{service.close();await fs.rm(dir,{recursive:true,force:true});}
 });
+test('the bundled workshop opens as a fresh copy and saves outside the example folder', async () => {
+ const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'card-home-demo-'));
+ const file = path.resolve(__dirname, '../examples/production-card/stormglass-oath/stormglass-oath.cardworkshop');
+ const source = await fs.readFile(file);
+ const service = createServices({ runtimeDir: dir });
+ try {
+  await assert.rejects(service.invoke('home-open-demo', { id: '../template.json' }), /示例工程不存在/);
+  const first = await service.invoke('home-open-demo', { id: 'stormglass-oath' });
+  assert.equal(first.file, null);
+  assert.notEqual(first.workshop.id, JSON.parse(source).project.id);
+  assert.equal(W.resolve(first.workshop).actions[0].duration, 4);
+  await service.invoke('home-activate', { ticket: first.ticket });
+  const original = W.resolve(first.workshop).layers[0].x;
+  const edited = W.resolve(first.workshop);
+  edited.layers[0].x = original + 27;
+  const saved = await service.invoke('save-workshop', { workshop: await W.encode(W.commit(first.workshop, edited)) });
+  assert.ok(saved.file.startsWith(dir + path.sep));
+  assert.deepEqual(await fs.readFile(file), source);
+  const next = await service.invoke('home-open-demo', { id: 'stormglass-oath' });
+  assert.notEqual(next.workshop.id, first.workshop.id);
+  assert.equal(W.resolve(next.workshop).layers[0].x, original);
+ } finally {
+  service.close();
+  await fs.rm(dir, { recursive: true, force: true });
+ }
+});
 test('recent card selection restores unsaved layers; startup and staging preserve formal file and session binding',async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'card-home-'));let service=createServices({runtimeDir:dir});
  try{

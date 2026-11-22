@@ -97,6 +97,13 @@ function createServices({runtimeDir = path.join(ROOT,'runtime'), dialogs = null,
         case 'editor-session-save': {const result=await session.save(args,projectFile);if(!result.stale)await recent.record(args.project,projectFile,result.at,args.revision!==args.savedRevision);return result;}
         case 'home-list': return {entries:await recent.list(initialProject)};
         case 'home-bootstrap': return {entries:await recent.list(initialProject),engine:await worker.call('ping'),appVersion:APP_VERSION,desktop:!!dialogs};
+        case 'home-open-demo': {
+          if (args?.id !== 'stormglass-oath') throw Error('示例工程不存在');
+          const file = path.join(ROOT, 'examples/production-card/stormglass-oath/stormglass-oath.cardworkshop');
+          const { workshop } = await workshopStorage.read(file, validateProject);
+          if (!workshop) throw Error('示例工坊格式无效');
+          return stageHome({ workshop: { ...workshop, id: randomUUID() } }, null);
+        }
         case 'home-open': {
           const entry=(await recent.list(initialProject)).find(e=>e.id===args.id);if(!entry||!entry.available)throw Error('工程不可用，请通过“打开工程”选择文件');
           const recovered=await session.recoverRecent(entry.projectId,entry.file),value=recovered?.workshop||recovered?.document,originalActive=value?.activeCardId;

@@ -29,6 +29,7 @@ export const moduleApi = (() => {
         preview,
         canvas: () => panel.querySelector('#author-model-canvas'),
         title: () => host.state().document?.name || 'Cardscape',
+        captureAction: () => bindings.atelierAnimation.context().action || undefined,
         identity: () => {
           const state = host.state();
           return state.documentToken + '/' + state.revision;

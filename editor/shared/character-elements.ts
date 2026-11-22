@@ -122,6 +122,10 @@ export interface CharacterPanelElements {
   'skin-copy-weights': HTMLButtonElement;
   'skin-create': HTMLButtonElement;
   'skin-delete-points': HTMLButtonElement;
+  'skin-depth-amplitude': HTMLInputElement;
+  'skin-depth-clear': HTMLButtonElement;
+  'skin-depth-file': HTMLInputElement;
+  'skin-depth-import': HTMLButtonElement;
   'skin-detail-radius': HTMLInputElement;
   'skin-detail-spacing': HTMLInputElement;
   'skin-display': HTMLSelectElement;

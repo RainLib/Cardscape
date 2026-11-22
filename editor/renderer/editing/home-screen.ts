@@ -53,6 +53,13 @@ async function show(){
 $('home-search').oninput=render;
 window.addEventListener('cardscape-language-change',()=>{if(document.body.dataset.appMode==='home')render();});
 $('home-new').onclick=()=>host().command('new');$('home-open').onclick=()=>host().command('open');
+$('home-demo-stormglass').onclick=async()=>{
+ if(await run('雷曜誓约',()=>host().openDemo('stormglass-oath'),false)){
+  window.atelierWorkspace.selectAction('stormglass');
+  window.atelierAnimation.seek(0);
+  window.atelierAnimation.play();
+ }
+};
 $('home-refresh').onclick=()=>refresh().then(()=>error('')).catch(e=>error(e.message));
 $('home-resume').onclick=()=>{mode('editor');host().opened(false);};
 $('home-back').onclick=show;

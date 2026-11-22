@@ -16,6 +16,8 @@ npm start
 
 `npm start` builds the Electron app before launching it. The default artwork and icons ship with the source tree. On macOS, `启动卡牌工坊.command` is also available after dependencies are installed.
 
+On the home screen, open **Demo Projects → Stormglass Oath** (示例工程 → 雷曜誓约) to play the four-second action and explore its layers, relief meshes, and effects in an editable copy. [Stormglass Oath workshop and depth maps](examples/production-card/stormglass-oath/README.md)
+
 ## Package and release the desktop app
 
 Run `npm run package:desktop -- --win --x64` on Windows. On macOS, run `npm run package:desktop -- --mac --arm64` on Apple Silicon or use `--x64` on an Intel Mac. Install the dependencies with `npm ci` first. The packages land in `editor/release/`.
@@ -64,7 +66,7 @@ For example, ask for a moonlit sea cartographer with a fluttering silk sash, a b
 2. Open **Appearance → Effect Library → Holographic Foil** (效果组件库 → 镭射). Click a recipe to preview it, then apply it to the card. In the material inspector, **Match Artwork** (自动匹配原图) analyzes the artwork and selects a pattern, metal tone, and highlight position.
 3. Choose **Mark Subject** (标注主体). Paint white where the color should be protected and black where the material should show through, or write a selection to the mask. The white sweep can still light the marked subject.
 4. Under **Layer Patterns** (叠加纹样), pick a base material and add up to three patterns with independent strengths. Adjust the rainbow, foil, glare, and glitter controls while dragging the live preview. The card face can also be cropped and mounted in five layouts.
-5. Open **Showcase & Capture** (展示与录制) in the 3D preview. Choose a viewing mode or record a 48-frame GIF loop or a 60 fps MP4. MP4 recording uses the host browser's H.264 encoder.
+5. Open **Showcase & Capture** (展示与录制) in the 3D preview. Record the automatic float or the selected timeline action as a GIF or MP4. Set the aspect ratio and frame rate before exporting. MP4 recording uses the host browser's H.264 encoder.
 
 [Foil materials and subject masks](docs/laser-foil.md)
 

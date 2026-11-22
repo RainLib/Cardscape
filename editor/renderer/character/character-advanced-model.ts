@@ -11,6 +11,7 @@ import type {
   TrackSpec,
   CharacterPlacement,
 } from '../../shared/character';
+import type { PixelImage } from '../../shared/surface-preview';
 /* Self-owned 2D skinning, ordered multi-link IK and additive facial morphs.
  * Rest vertices and morph deltas are source pixels; IK targets are registered
  * card pixels. Rendering adapters keep the source UVs and painter order. */
@@ -409,6 +410,38 @@ const api = (() => {
       }
     return { layerId, vertices, uv, triangles, weights, morphs: [] };
   }
+  function depthsFromMap(
+    mesh: Pick<SkinMesh, 'uv'>,
+    { width, height, data }: PixelImage,
+    amplitude: number,
+  ) {
+    if (
+      !Number.isInteger(width) || width < 1 ||
+      !Number.isInteger(height) || height < 1 ||
+      data.length !== width * height * 4 ||
+      !finite(amplitude, 0, 0.25)
+    ) throw Error('深度图或浮雕幅度无效');
+
+    return Array.from({ length: mesh.uv.length / 2 }, (_, vertex) => {
+      const x = clamp(mesh.uv[vertex * 2] * width - 0.5, 0, width - 1);
+      const y = clamp(mesh.uv[vertex * 2 + 1] * height - 0.5, 0, height - 1);
+      const left = Math.floor(x), top = Math.floor(y);
+      const right = Math.min(left + 1, width - 1), bottom = Math.min(top + 1, height - 1);
+      const dx = x - left, dy = y - top;
+      let total = 0, alpha = 0;
+      function sample(px: number, py: number, bilinear: number) {
+        const i = (py * width + px) * 4;
+        const weight = data[i + 3]! * bilinear;
+        total += (0.2126 * data[i]! + 0.7152 * data[i + 1]! + 0.0722 * data[i + 2]!) * weight;
+        alpha += weight;
+      }
+      sample(left, top, (1 - dx) * (1 - dy));
+      sample(right, top, dx * (1 - dy));
+      sample(left, bottom, (1 - dx) * dy);
+      sample(right, bottom, dx * dy);
+      return alpha ? amplitude * clamp(total / (255 * alpha), 0, 1) : 0;
+    });
+  }
   function weights(
     mesh: SkinMesh,
     index: number,
@@ -469,6 +502,7 @@ const api = (() => {
     expressions,
     geometry,
     grid,
+    depthsFromMap,
     weights,
     morph,
     checksum,

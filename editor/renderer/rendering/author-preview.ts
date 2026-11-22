@@ -395,6 +395,7 @@ export const moduleApi = (() => {
           'frameFinish',
           'frameAnimation',
           'rigidSurface',
+          'skinRelief',
           'cardEye',
           'foregroundPass',
           'popOutSides',
@@ -1261,6 +1262,7 @@ export const moduleApi = (() => {
       );
       gl.uniform1f(u.opacity, (layer?.opacity ?? 1) * (pl.opacity ?? 1));
       gl.uniform1f(u.fg, characterLayer(layer) ? 1 : 0);
+      gl.uniform1f(u.skinRelief, skin?.skinSource?.depths ? 1 : 0);
       gl.uniform1f(u.foregroundPass, foregroundPass);
       const flutter = layer && foregroundPass
         ? viewDocument.characterEffects?.[characterEffects.motionType(layer, viewDocument.characterEffects)]
@@ -2109,20 +2111,7 @@ export const moduleApi = (() => {
         targetSample.progress,
       );
       particleBirthAction = targetAction;
-      if (
-        !capturing &&
-        targetAction?.particleEvents?.some((e) => e.simulationSpace === 'world')
-      ) {
-        const source = JSON.stringify([
-          viewDocument.id,
-          targetAction.id,
-          targetAction.duration,
-          targetAction.tracks,
-        ]);
-        if (source !== particleWorldSource) {
-          particleWorldSource = source;
-          particleWorldHistory.clear();
-        }
+      if (targetAction?.particleEvents?.some((e) => e.simulationSpace === 'world')) {
         const r = external?.root || [0, 0, 0, 1, 1];
         const base: ParticleWorldPose = {
           angle: [facing - act.rotation, tilt - act.pitch],
@@ -2130,15 +2119,26 @@ export const moduleApi = (() => {
             ? [act.x / 1024, -act.y / 1024, act.z, act.scale, act.opacity]
             : [r[0], r[1], r[2], r[3], r[4] ?? 1],
         };
-        particleWorldHistory.record(elapsed + particleWorldTimeOffset, base);
+        if (!capturing) {
+          const source = JSON.stringify([
+            viewDocument.id,
+            targetAction.id,
+            targetAction.duration,
+            targetAction.tracks,
+          ]);
+          if (source !== particleWorldSource) {
+            particleWorldSource = source;
+            particleWorldHistory.clear();
+          }
+          particleWorldHistory.record(elapsed + particleWorldTimeOffset, base);
+        }
+        const offset = capturing ? 0 : particleWorldTimeOffset;
         const cycle =
-          elapsed +
-          particleWorldTimeOffset -
-          targetSample.progress * targetAction.duration;
-        const sampler = external?.sampleParticleWorld || particleWorldSampler;
+          elapsed + offset - targetSample.progress * targetAction.duration;
+        const sampler = capturing ? null : external?.sampleParticleWorld || particleWorldSampler;
         sampleParticleWorld = (seconds) => {
           const at = cycle + seconds;
-          const placement = particleWorldHistory.sample(at) || base;
+          const placement = capturing ? base : particleWorldHistory.sample(at) || base;
           const sample = scan
             ? { x: 0, y: 0, z: 0, scale: 1, opacity: 1, rotation: 0, pitch: 0 }
             : runtime.action(
@@ -3626,6 +3626,8 @@ export const moduleApi = (() => {
               updateDepth
             )
               throw Error('3D 预览已退出或正在更新');
+            if (pose.action && !doc.actions.some((action) => action.id === pose.action?.id))
+              throw Error('录制动作已变化');
             const previous = {
               time,
               playing,
@@ -3638,11 +3640,27 @@ export const moduleApi = (() => {
               active,
               wire,
               region,
+              poseTween,
+              renderedAction,
+              characterPose,
+              sampleParticleWorld,
+              particleRevealStart,
             };
             const currentFramebuffer = gl.getParameter(gl.FRAMEBUFFER_BINDING);
             capturing = true;
             time = pose.time;
-            playing = inspection = actionTransition = null;
+            playing = pose.action
+              ? {
+                  id: pose.action.id,
+                  start: pose.time - pose.action.seconds,
+                  yaw: 0,
+                  pitch: 0,
+                  paused: true,
+                  draft: null,
+                }
+              : null;
+            inspection = actionTransition = poseTween = null;
+            particleRevealStart = 0;
             effectsEnabled = active = true;
             wire = false;
             region = { mode: 'none' };
@@ -3651,7 +3669,9 @@ export const moduleApi = (() => {
               root: [pose.x / 1024, -pose.y / 1024, 0, 1, 1],
               width,
               height,
-              viewportZoom: 0.86,
+              // The projection fits narrow viewports by width. Compensate for
+              // the extra vertical space so both capture ratios use it.
+              viewportZoom: 0.86 * Math.max(1, (2 * height) / (3 * width)),
               detail: {
                 level: 'large',
                 materials: true,
@@ -3685,6 +3705,11 @@ export const moduleApi = (() => {
                 active,
                 wire,
                 region,
+                poseTween,
+                renderedAction,
+                characterPose,
+                sampleParticleWorld,
+                particleRevealStart,
               } = previous);
               capturing = false;
             }

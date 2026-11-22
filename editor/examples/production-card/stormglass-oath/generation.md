@@ -1,0 +1,21 @@
+# Stormglass Oath artwork
+
+The knight, observatory and iris frame were created with the built-in ImageGen tool. The workshop embeds the registered artwork and the separately drawn blade, ring, lightning, glitter and reverse. The two included grayscale maps were generated for the registered figure and blade.
+
+## Knight
+
+```text
+Use case: illustration-story. Original character artwork for a premium collectible card, isolated on true transparent alpha, portrait aspect ratio 2:3. A single adult female storm-glass knight in a dynamic nearly full-body three-quarter lunge, beautiful clear serious face in the upper-right third, ash-white hair with short layered bangs and a silver windswept half-ponytail flying toward upper left, small angular gold ear jewelry. Ink-blue high-neck military bodice, asymmetrical lavender-white enamel armor plates with narrow champagne-gold edging, layered blue-black and lilac storm-silk long-coat tails, ivory shoulder, royal purple sash, long fitted dark trousers and armored boots with ankles visible. Original Art Nouveau fantasy design. Her leading gauntlet reaches forward on the viewer's left and grips a short decorative black-and-champagne metal sword hilt with a narrow crossguard. The BLADeless socket on that hilt points diagonally down to the lower left, around 40 degrees below horizontal; a large independently composited blade will be attached at the socket. The other hand farther back and one bent knee make a readable silhouette. Place her face approximately x=0.62, y=0.2, leading gauntlet approximately x=0.36, y=0.46. Preserve uncluttered space from hilt toward bottom left and clear alpha margin around all hair, feet and tails. High-end anime collectible illustration, clean crisp linework, nuanced cel shading, cool purple edge light and a soft neutral key that makes the face stand out on a deep violet backdrop. Draw the figure and hilt only. No sword blade, floor, glow, sigils, card border, text, logos, watermark or background of any kind.
+```
+
+## Storm observatory
+
+```text
+Use case: illustration-story. Portrait 2:3 original environment plate for the back layer of a high-end fantasy holofoil collectible card. A violet midnight sea of billowing clouds opens over far craggy mountain spires and a ruined astronomical observatory of royal-blue slate, viewed from high up. Layered violet-blue depth haze, a few fine cyan reflections in distant cloud edges, lilac storm light and a dim silver crescent glimpsed high in the left. Upper middle background and right behind the character remain dark, subtle and low-contrast. Lower third has swirling blue ink, cobalt, ultramarine and a hint of emerald in the clouds as dark fields for the separately added chromatic foil. Anime concept background, intricate painterly details, high contrast at the outer edges with spare clear center, clean silhouettes, luxurious cool-purple aesthetic. Fill the entire rectangular canvas edge to edge. No people, weapons, words, geometric rings, borders, logos or watermark.
+```
+
+## Iris frame
+
+```text
+Use case: stylized-concept. Original transparent PNG foreground border overlay for a premium fantasy TCG card, portrait 2:3. Flat straight-on orthographic illustration of a tall narrow delicate violet-and-white-gold Art Nouveau card frame. The frame is one continuous rounded-rectangle outline, centered, with just a 2 percent transparent margin outside it and a completely open, fully transparent center covering at least 85 percent of the picture. The ornament follows only the perimeter. Intricate champagne-gold openwork filigree with violet enamel, sculpted lilac iris blossoms and small lavender crystal cabochons in the corners, delicate interconnected vines, a small central faceted amethyst at the top in a geometric sunburst setting, a matching tiny bottom diamond, and dainty side knots. Fine clear crisp lines, sharp pale metallic highlights, realistic dimensional metal engraving, jewel clarity. No character, backdrop, card surface, shadow beyond the frame, fabric, text, lettering, logo or watermark. Preserve real alpha inside every openwork hole as well as in the large open center and outside the frame.
+```

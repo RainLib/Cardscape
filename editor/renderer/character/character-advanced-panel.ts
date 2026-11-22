@@ -59,6 +59,7 @@ export const moduleApi = (() => {
     return meshById(doc, layer().id);
   }
   let reductionRun: { worker: Worker; token: string } | null = null;
+  let loadingDepth = false;
   let constraintId = '',
     expressionId = '',
     documentId: string | undefined = '',
@@ -72,6 +73,11 @@ export const moduleApi = (() => {
 <label><input id="skin-outline" type="checkbox" checked>图片轮廓高亮 · 跟随形变</label><label class="field">影响骨骼 <select id="skin-bone" aria-label="蒙皮骨骼"></select></label><details class="fold" id="skin-topology-panel"><summary>网格结构与轮廓</summary>
 <label class="field">建网方式 <select id="skin-topology" aria-label="蒙皮建网方式"><option value="contour">透明轮廓与关节布点</option><option value="grid">规则网格 · 快速起步</option></select></label><div class="button-row"><label>内部间距 <input id="skin-spacing" type="number" min="16" max="160" value="56" aria-label="轮廓网格内部间距"></label><label>轮廓采样 <input id="skin-cell" type="number" min="2" max="32" value="8" step="1" aria-label="轮廓采样尺寸"></label></div><label><input id="skin-shared" type="checkbox" checked>同步同拓扑蒙皮 · 保持拆层接缝</label><label><input id="skin-shared-morphs" type="checkbox" checked>拆层共用表情形变 · 保持连接</label><div class="button-row" id="skin-grid-settings"><label>列 <input id="skin-columns" type="number" min="1" max="63" value="12" aria-label="网格列数"></label><label>行 <input id="skin-rows" type="number" min="1" max="63" value="18" aria-label="网格行数"></label></div>
 <div class="button-row"><button id="skin-create">建立当前图片网格</button><button id="skin-remove">移除当前网格</button></div>
+<details class="fold"><summary>深度图浮雕</summary>
+<p class="panel-note">先建立网格，再导入与图片对齐的灰度图。白色靠近观察者，黑色留在图层的原平面。</p>
+<label class="field">浮雕幅度（卡宽） <input id="skin-depth-amplitude" type="number" min="0.005" max="0.25" step="0.001" value="0.08"></label>
+<div class="button-row"><button id="skin-depth-import">导入深度图</button><button id="skin-depth-clear">清除顶点深度</button></div>
+<input id="skin-depth-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></details>
 <div class="button-row"><button id="skin-outline-new">手工描边新轮廓</button><button id="skin-outline-close">闭合并自动填充</button><button id="skin-outline-cancel">取消描边 / 连边</button></div>
 <label><input id="skin-motion-quality" type="checkbox" checked>保护现有动作 · 检查误差与翻面</label><button id="skin-fill">自动补网 · 保留已有顶点</button>
 <div class="button-row"><label>加密间距 px <input id="skin-detail-spacing" type="number" min="8" max="160" value="24" aria-label="局部加密间距"></label><label>加密半径 px <input id="skin-detail-radius" type="number" min="8" max="512" value="96" aria-label="局部加密半径"></label></div>
@@ -619,6 +625,10 @@ export const moduleApi = (() => {
       !!s.layer?.locked ||
       !['foreground', 'image'].includes(s.layer?.kind || '') ||
       !!m;
+    $('skin-depth-import').disabled =
+      !!s.busy || loadingDepth || !m || !!s.layer?.locked;
+    $('skin-depth-clear').disabled =
+      $('skin-depth-import').disabled || !m?.depths;
     $('skin-joint-rings').disabled =
       !!s.busy ||
       !m ||
@@ -769,6 +779,50 @@ export const moduleApi = (() => {
         ]);
       d.characterRig.meshes.push(m);
     });
+  $('skin-depth-import').onclick = () => $('skin-depth-file').click();
+  $('skin-depth-file').onchange = async () => {
+    const field = $('skin-depth-file');
+    const file = field.files?.[0];
+    field.value = '';
+    const captured = host.state();
+    if (!file || loadingDepth || captured.busy || !captured.layer || captured.layer.locked) return;
+    loadingDepth = true;
+    refresh();
+    try {
+      const amplitude = number('skin-depth-amplitude');
+      if (file.size > 32 * 1024 * 1024) throw Error('深度图不能超过 32 MB');
+      const bitmap = await createImageBitmap(file);
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.min(bitmap.width, 1024);
+        canvas.height = Math.min(bitmap.height, 1536);
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) throw Error('无法创建网格绘图上下文');
+        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const current = host.state();
+        if (
+          current.busy ||
+          current.documentToken !== captured.documentToken ||
+          current.revision !== captured.revision ||
+          current.layer?.id !== captured.layer.id
+        ) throw Error('读取期间图层或工程已变化，请重新导入深度图');
+        mutate('从深度图生成网格浮雕', (d) => {
+          const mesh = requiredMesh(d);
+          mesh.depths = A.depthsFromMap(mesh, pixels, amplitude);
+        });
+      } finally {
+        bitmap.close();
+      }
+    } catch (error) {
+      $('character-advanced-status').textContent = message(error);
+    } finally {
+      loadingDepth = false;
+      refresh();
+    }
+  };
+  $('skin-depth-clear').onclick = () =>
+    mutate('清除顶点深度', (d) => { delete requiredMesh(d).depths; });
   $('skin-rebuild').onclick = () => {
     bindings.atelierAnimation.pauseContext();
     mutate('按轮廓与关节重建蒙皮拓扑', (d) => {
